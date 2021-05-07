@@ -2,6 +2,7 @@ package graphql
 
 import (
 	"errors"
+	"strings"
 )
 
 var (
@@ -17,15 +18,25 @@ type Operator struct {
 type SelectionSet []Selection
 
 type Selection struct {
-	selectionType string // "Field" || "FragmentSpread" || "InlineFragment"
-	field         *Field
+	selectionType  string          // "Field" || "FragmentSpread" || "InlineFragment"
+	field          *Field          // Optional
+	fragmentSpread *FragmentSpread // Optional
+	inlineFragment *InlineFragment // Optional
 }
 
 type Field struct {
-	name string
-
+	name      string
 	alias     string       // Optional
 	selection SelectionSet // Optional
+}
+
+type FragmentSpread struct {
+	name string
+}
+
+type InlineFragment struct {
+	onTypeConditionName string // Optional
+	selection           SelectionSet
 }
 
 func ParseQuery(input string) (*Operator, error) {
@@ -100,9 +111,9 @@ func (i *Iter) parseOperator() (*Operator, error) {
 				if len(newOperationType) > 0 {
 					res.operationType = newOperationType
 					stage = "name"
-				} else {
-					return nil, errors.New("unknown operation type")
+					continue
 				}
+				return nil, errors.New("unknown operation type")
 			}
 		case "name":
 			switch c {
@@ -192,11 +203,31 @@ func (i *Iter) parseSelection() (Selection, error) {
 	res := Selection{}
 
 	if len(i.matches("...")) > 0 {
-		i.charNr += 3
-		// TODO data is:
-		// - FragmentSpread > https://spec.graphql.org/June2018/#FragmentSpread
-		// - InlineFragment > https://spec.graphql.org/June2018/#InlineFragment
-		return res, errors.New("https://spec.graphql.org/June2018/#Selection")
+		err := i.mightIgnoreNextTokens()
+		if err != nil {
+			return res, err
+		}
+
+		name, err := i.parseName()
+		if err != nil {
+			return res, err
+		}
+
+		if name == "on" || name == "" {
+			inlineFragment, err := i.parseInlineFragment(name == "on")
+			if err != nil {
+				return res, err
+			}
+			res.selectionType = "InlineFragment"
+			res.inlineFragment = inlineFragment
+		} else {
+			fragmentSpread, err := i.parseFragmentSpread(name)
+			if err != nil {
+				return res, err
+			}
+			res.selectionType = "FragmentSpread"
+			res.fragmentSpread = fragmentSpread
+		}
 	} else {
 		field, err := i.parseField()
 		if err != nil {
@@ -207,6 +238,49 @@ func (i *Iter) parseSelection() (Selection, error) {
 	}
 
 	return res, nil
+}
+
+// https://spec.graphql.org/June2018/#InlineFragment
+func (i *Iter) parseInlineFragment(hasTypeCondition bool) (*InlineFragment, error) {
+	res := InlineFragment{}
+	if hasTypeCondition {
+		err := i.mightIgnoreNextTokens()
+		if err != nil {
+			return nil, err
+		}
+
+		res.onTypeConditionName, err = i.parseName()
+		if err != nil {
+			return nil, err
+		}
+
+		if res.onTypeConditionName == "" {
+			return nil, errors.New("cannot have type condition without name")
+		}
+	}
+
+	// TODO parse optional directives
+
+	// Parse SelectionSet
+	err := i.mightIgnoreNextTokens()
+	if err != nil {
+		return nil, err
+	}
+	if i.currentC() != '{' {
+		return nil, errors.New("expected \"{\"")
+	}
+	i.charNr++
+	res.selection, err = i.parseSelectionSets()
+	return &res, err
+}
+
+// https://spec.graphql.org/June2018/#FragmentSpread
+func (i *Iter) parseFragmentSpread(name string) (*FragmentSpread, error) {
+	res := FragmentSpread{name}
+
+	// TODO parse optional Directives
+
+	return &res, nil
 }
 
 // https://spec.graphql.org/June2018/#Field
@@ -271,10 +345,15 @@ func (i *Iter) parseField() (*Field, error) {
 // https://spec.graphql.org/June2018/#Name
 func (i *Iter) parseName() (string, error) {
 	allowedChars := map[rune]bool{}
-	for _, allowedChar := range []byte("abcdefghijklmnopqrstuvwxyz_") {
+
+	letters := "abcdefghijklmnopqrstuvwxyz"
+	numbers := "0123456789"
+	special := "_"
+	for _, allowedChar := range []byte(letters + strings.ToUpper(letters) + special) {
+		allowedChars[rune(allowedChar)] = true
 		allowedChars[rune(allowedChar)] = true
 	}
-	for _, notFirstAllowedChar := range []byte("0123456789") {
+	for _, notFirstAllowedChar := range []byte(numbers) {
 		allowedChars[rune(notFirstAllowedChar)] = false
 	}
 
@@ -322,27 +401,27 @@ func (i *Iter) mightIgnoreNextTokens() error {
 	}
 }
 
-func (i *Iter) mustIgnoreNextTokens() error {
-	ignoredSome := false
+// func (i *Iter) mustIgnoreNextTokens() error {
+// 	ignoredSome := false
 
-	for {
-		eof := i.eof(i.charNr)
-		if eof {
-			return ErrorUnexpectedEOF
-		}
+// 	for {
+// 		eof := i.eof(i.charNr)
+// 		if eof {
+// 			return ErrorUnexpectedEOF
+// 		}
 
-		isIgnoredChar := i.isIgnoredToken()
-		if !isIgnoredChar {
-			if !ignoredSome {
-				return errors.New("expected some kind of empty space")
-			}
-			return nil
-		}
-		ignoredSome = true
+// 		isIgnoredChar := i.isIgnoredToken()
+// 		if !isIgnoredChar {
+// 			if !ignoredSome {
+// 				return errors.New("expected some kind of empty space")
+// 			}
+// 			return nil
+// 		}
+// 		ignoredSome = true
 
-		i.charNr++
-	}
-}
+// 		i.charNr++
+// 	}
+// }
 
 // https://spec.graphql.org/June2018/#UnicodeBOM
 func isUnicodeBom(input rune) bool {
@@ -415,6 +494,7 @@ func (i *Iter) matches(oneOf ...string) string {
 				delete(oneOfMap, key)
 			}
 			if keyLen == offset+1 {
+				i.charNr++
 				return key
 			}
 		}

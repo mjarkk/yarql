@@ -157,3 +157,71 @@ func TestQueryParserSelectionInSelection(t *testing.T) {
 	selection = field.selection[1]
 	Equal(t, "bar", selection.field.name)
 }
+
+func TestQueryParserFragmentSpread(t *testing.T) {
+	res, err := ParseQuery(`{
+		baz {
+			foo
+			...fooBar
+			... barFoo
+			bar
+		}
+	}`)
+	Nil(t, err)
+	NotNil(t, res)
+
+	items := res.selection[0].field.selection
+	Equal(t, 4, len(items))
+
+	Equal(t, "FragmentSpread", items[1].selectionType)
+	Equal(t, "FragmentSpread", items[2].selectionType)
+
+	spread1 := items[1].fragmentSpread
+	spread2 := items[2].fragmentSpread
+
+	NotNil(t, spread1)
+	NotNil(t, spread2)
+
+	Equal(t, "fooBar", spread1.name)
+	Equal(t, "barFoo", spread2.name)
+}
+
+func TestQueryParserInlineFragment(t *testing.T) {
+	res, err := ParseQuery(`{
+		baz {
+			foo
+
+			...{
+
+			}
+			
+			... on User {
+				friends {
+					count
+				}
+			}
+
+			bar
+		}
+	}`)
+	Nil(t, err)
+	NotNil(t, res)
+
+	items := res.selection[0].field.selection
+	Equal(t, 4, len(items))
+
+	Equal(t, "InlineFragment", items[1].selectionType)
+	Equal(t, "InlineFragment", items[2].selectionType)
+
+	frag1 := items[1].inlineFragment
+	frag2 := items[2].inlineFragment
+
+	NotNil(t, frag1)
+	NotNil(t, frag2)
+
+	Equal(t, "", frag1.onTypeConditionName)
+	Equal(t, "User", frag2.onTypeConditionName)
+
+	NotNil(t, frag2.selection)
+	NotEmpty(t, frag2.selection)
+}
