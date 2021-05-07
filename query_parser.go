@@ -11,11 +11,21 @@ var (
 type Operator struct {
 	operationType string // "query" || "mutation" || "subscription"
 	name          string // "" = no name given
+	selection     SelectionSet
+}
+
+type SelectionSet []Selection
+
+type Selection struct {
+	selectionType string // "Field" || "FragmentSpread" || "InlineFragment"
+	field         *Field
 }
 
 type Field struct {
-	alias string
-	name  string
+	name string
+
+	alias     string       // Optional
+	selection SelectionSet // Optional
 }
 
 func ParseQuery(input string) (*Operator, error) {
@@ -60,6 +70,7 @@ func (i *Iter) parseOperator() (*Operator, error) {
 	res := Operator{
 		operationType: "query",
 		name:          "",
+		selection:     SelectionSet{},
 	}
 
 	stage := "operationType"
@@ -102,7 +113,11 @@ func (i *Iter) parseOperator() (*Operator, error) {
 			case '{':
 				stage = "selectionSets"
 			default:
-				res.name = i.parseName()
+				name, err := i.parseName()
+				if err != nil {
+					return nil, err
+				}
+				res.name = name
 				stage = "variableDefinitions"
 			}
 		case "variableDefinitions":
@@ -124,10 +139,11 @@ func (i *Iter) parseOperator() (*Operator, error) {
 				return nil, errors.New("https://spec.graphql.org/June2018/#sec-Language.Directives")
 			}
 		case "selectionSets":
-			err := i.parseSelectionSets()
+			selection, err := i.parseSelectionSets()
 			if err != nil {
 				return nil, err
 			}
+			res.selection = selection
 			return &res, nil
 		}
 
@@ -136,91 +152,124 @@ func (i *Iter) parseOperator() (*Operator, error) {
 }
 
 // https://spec.graphql.org/June2018/#sec-Selection-Sets
-func (i *Iter) parseSelectionSets() error {
+func (i *Iter) parseSelectionSets() (SelectionSet, error) {
+	res := SelectionSet{}
+
 	for {
-		c, eof := i.checkC(i.charNr)
-		if eof {
-			return ErrorUnexpectedEOF
-		}
-
-		if i.isIgnoredToken() {
-			i.charNr++
-			continue
-		}
-
-		if c == '}' {
-			return nil
-		}
-
-		err := i.parseSelection()
+		err := i.mightIgnoreNextTokens()
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		if c == '}' {
-			return nil
+		if i.currentC() == '}' {
+			i.charNr++
+			return res, nil
 		}
 
-		i.charNr++
+		selection, err := i.parseSelection()
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, selection)
+
+		err = i.mightIgnoreNextTokens()
+		if err != nil {
+			return nil, err
+		}
+
+		switch i.currentC() {
+		case ',':
+			i.charNr++
+		case '}':
+			i.charNr++
+			return res, nil
+		}
 	}
 }
 
 // https://spec.graphql.org/June2018/#Selection
-func (i *Iter) parseSelection() error {
+func (i *Iter) parseSelection() (Selection, error) {
+	res := Selection{}
 
 	if len(i.matches("...")) > 0 {
-		i.charNr++
+		i.charNr += 3
 		// TODO data is:
-		// - FragmentSpread
-		// - InlineFragment
-		return errors.New("https://spec.graphql.org/June2018/#Selection")
+		// - FragmentSpread > https://spec.graphql.org/June2018/#FragmentSpread
+		// - InlineFragment > https://spec.graphql.org/June2018/#InlineFragment
+		return res, errors.New("https://spec.graphql.org/June2018/#Selection")
 	} else {
-		i.parseField()
+		field, err := i.parseField()
+		if err != nil {
+			return res, err
+		}
+		res.selectionType = "Field"
+		res.field = field
 	}
 
-	return nil
+	return res, nil
 }
 
 // https://spec.graphql.org/June2018/#Field
 func (i *Iter) parseField() (*Field, error) {
 	res := Field{}
-	nameOrAlias := i.parseName()
-	if nameOrAlias == "" {
-		return nil, errors.New("field should have a name")
+
+	// Parse name (and alias if pressent)
+	nameOrAlias, err := i.parseName()
+	if err != nil {
+		return nil, err
+	}
+	err = i.mightIgnoreNextTokens()
+	if err != nil {
+		return nil, err
 	}
 
-	for {
-		c, eof := i.checkC(i.charNr)
-		if eof {
-			return nil, ErrorUnexpectedEOF
+	if i.currentC() == ':' {
+		if nameOrAlias == "" {
+			return nil, errors.New("field alias should have a name")
 		}
-
-		if i.isIgnoredToken() {
-			i.charNr++
-			continue
+		res.alias = nameOrAlias
+		i.charNr++
+		err := i.mightIgnoreNextTokens()
+		if err != nil {
+			return nil, err
 		}
-
-		if c == ':' {
-			res.alias = nameOrAlias
-
-		} else {
-
+		res.name, err = i.parseName()
+		if err != nil {
+			return nil, err
 		}
-		break
+		if res.name == "" {
+			return nil, errors.New("field should have a name")
+		}
+	} else {
+		if nameOrAlias == "" {
+			return nil, errors.New("field should have a name")
+		}
+		res.name = nameOrAlias
 	}
 
-	// TODO Order:
-	// Alias (opt)
-	// Name
+	// TODO Next:
 	// Arguments (opt)
 	// Directives (opt)
-	// SelectionSet (opt)
+
+	// Parse SelectionSet if pressent
+	err = i.mightIgnoreNextTokens()
+	if err != nil {
+		return nil, err
+	}
+	if i.currentC() == '{' {
+		i.charNr++
+		selection, err := i.parseSelectionSets()
+		if err != nil {
+			return nil, err
+		}
+		res.selection = selection
+	}
 
 	return &res, nil
 }
 
 // https://spec.graphql.org/June2018/#Name
-func (i *Iter) parseName() string {
+func (i *Iter) parseName() (string, error) {
 	allowedChars := map[rune]bool{}
 	for _, allowedChar := range []byte("abcdefghijklmnopqrstuvwxyz_") {
 		allowedChars[rune(allowedChar)] = true
@@ -233,16 +282,16 @@ func (i *Iter) parseName() string {
 	for {
 		c, eof := i.checkC(i.charNr)
 		if eof {
-			return name
+			return name, ErrorUnexpectedEOF
 		}
 
 		allowedAsFirstChar, ok := allowedChars[c]
 		if !ok {
-			return name
+			return name, nil
 		}
 
 		if name == "" && !allowedAsFirstChar {
-			return name
+			return name, nil
 		}
 
 		name += string(c)
@@ -257,12 +306,41 @@ func (i *Iter) isIgnoredToken() bool {
 	return isUnicodeBom(c) || isWhiteSpace(c) || i.isLineTerminator() || i.isComment(true)
 }
 
-func (i *Iter) MustIgnoreNextTokens() error {
+func (i *Iter) mightIgnoreNextTokens() error {
 	for {
-		c, eof := i.checkC(i.charNr)
+		eof := i.eof(i.charNr)
 		if eof {
-			return c.isIgnoredToken()
+			return ErrorUnexpectedEOF
 		}
+
+		isIgnoredChar := i.isIgnoredToken()
+		if !isIgnoredChar {
+			return nil
+		}
+
+		i.charNr++
+	}
+}
+
+func (i *Iter) mustIgnoreNextTokens() error {
+	ignoredSome := false
+
+	for {
+		eof := i.eof(i.charNr)
+		if eof {
+			return ErrorUnexpectedEOF
+		}
+
+		isIgnoredChar := i.isIgnoredToken()
+		if !isIgnoredChar {
+			if !ignoredSome {
+				return errors.New("expected some kind of empty space")
+			}
+			return nil
+		}
+		ignoredSome = true
+
+		i.charNr++
 	}
 }
 

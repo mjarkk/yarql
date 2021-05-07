@@ -16,6 +16,7 @@ func TestQueryParserEmptyBracesQuery(t *testing.T) {
 	options := []struct {
 		query                 string
 		expectedOperationType string
+		shouldFail            bool
 	}{
 		{query: "{}", expectedOperationType: "query"},
 		{query: "query {}", expectedOperationType: "query"},
@@ -26,14 +27,25 @@ func TestQueryParserEmptyBracesQuery(t *testing.T) {
 		{query: "query\r\n{}", expectedOperationType: "query"},
 		{query: "query\t{}", expectedOperationType: "query"},
 		{query: "query\t \n\r\n{}", expectedOperationType: "query"},
+		{query: "     {}    ", expectedOperationType: "query"},
+		{query: "}", shouldFail: true},
+		{query: "{", shouldFail: true},
+		{query: "invalidValue {}", shouldFail: true},
+		{query: "invalidValue{}", shouldFail: true},
+		{query: "i{}", shouldFail: true},
 	}
 
 	for _, option := range options {
 		res, err := ParseQuery(option.query)
-		NotNil(t, res, option.query)
-		Nil(t, err, option.query)
-		Equal(t, option.expectedOperationType, res.operationType, option.query)
-		Equal(t, "", res.name, option.query)
+		if option.shouldFail {
+			Nil(t, res, option.query)
+			NotNil(t, err, option.query)
+		} else {
+			NotNil(t, res, option.query)
+			Nil(t, err, option.query)
+			Equal(t, option.expectedOperationType, res.operationType, option.query)
+			Equal(t, "", res.name, option.query)
+		}
 	}
 }
 
@@ -67,20 +79,81 @@ func TestQueryParserSimpleQuery(t *testing.T) {
 		`{
 			a
 			b
-			c
+			c: d
+			# This is a comment that should not be parsed nor cause an error
 		}`,
 		`{
 			a,
 			b,
-			c,
+			c : d,
 		}`,
-		`{a b c}`,
-		`{a,b,c}`,
+		`{a b c:d}`,
+		`{a,b,c:d}`,
 	}
 
 	for _, option := range options {
 		res, err := ParseQuery(option)
 		NotNil(t, res, option)
 		Nil(t, err, option)
+
+		Equal(t, 3, len(res.selection), "Should have 3 properties")
+
+		selectionMap := map[string]Field{}
+		for _, item := range res.selection {
+			Equal(t, "Field", item.selectionType)
+			NotNil(t, item.field)
+			selectionMap[item.field.name] = *item.field
+		}
+
+		Contains(t, selectionMap, "a")
+		Contains(t, selectionMap, "b")
+		Contains(t, selectionMap, "d")
 	}
+}
+
+func TestQueryParserInvalidQuery(t *testing.T) {
+	options := []string{
+		`{
+			a
+			\ b
+			c
+		}`,
+		`{a b`,
+		`{a-b-c}`,
+	}
+
+	for _, option := range options {
+		res, err := ParseQuery(option)
+		Nil(t, res, option)
+		NotNil(t, err, option)
+	}
+}
+
+func TestQueryParserSelectionInSelection(t *testing.T) {
+	res, err := ParseQuery(`{
+		baz {
+			foo
+			bar
+		}
+	}`)
+	Nil(t, err)
+	NotNil(t, res)
+
+	NotEmpty(t, res.selection)
+	selection := res.selection[0]
+	field := selection.field
+
+	Equal(t, "Field", selection.selectionType)
+
+	NotNil(t, field)
+	Equal(t, "baz", field.name)
+	NotNil(t, field.selection)
+	Equal(t, 2, len(field.selection))
+
+	selection = field.selection[0]
+	NotNil(t, selection.field)
+	Equal(t, "foo", selection.field.name)
+
+	selection = field.selection[1]
+	Equal(t, "bar", selection.field.name)
 }
