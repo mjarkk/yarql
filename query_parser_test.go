@@ -76,6 +76,20 @@ func TestQueryParsingQueryDirectives(t *testing.T) {
 	res, err := ParseQuery(`query foo @bar {}`)
 	NotNil(t, res)
 	Nil(t, err)
+
+	res, err = ParseQuery(`query @bar {}`)
+	NotNil(t, res)
+	Nil(t, err)
+}
+
+func TestQueryParsingQuery(t *testing.T) {
+	res, err := ParseQuery(`query ($a: String) {}`)
+	NotNil(t, res)
+	Nil(t, err)
+
+	res, err = ParseQuery(`query ( $a : String $b:Boolean) {}`)
+	NotNil(t, res)
+	Nil(t, err)
 }
 
 func TestQueryParserSimpleInvalid(t *testing.T) {

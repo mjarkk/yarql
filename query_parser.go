@@ -10,10 +10,11 @@ var (
 )
 
 type Operator struct {
-	operationType string // "query" || "mutation" || "subscription"
-	name          string // "" = no name given
-	selection     SelectionSet
-	directives    Directives // Optional
+	operationType       string // "query" || "mutation" || "subscription"
+	name                string // "" = no name given
+	selection           SelectionSet
+	directives          Directives
+	variableDefinitions []VariableDefinition
 }
 
 type SelectionSet []Selection
@@ -47,6 +48,22 @@ type Directives map[string]Directive
 
 type Directive struct {
 	name string
+}
+
+type TypeReference struct {
+	list    bool
+	nonNull bool
+
+	// list == false
+	name string
+
+	// == true
+	listType *TypeReference
+}
+
+type VariableDefinition struct {
+	name    string
+	varType TypeReference
 }
 
 func ParseQuery(input string) (*Operator, error) {
@@ -89,14 +106,18 @@ func (i *Iter) currentC() rune {
 // https://spec.graphql.org/June2018/#sec-Language.Operations
 func (i *Iter) parseOperator() (*Operator, error) {
 	res := Operator{
-		operationType: "query",
-		name:          "",
-		selection:     SelectionSet{},
+		operationType:       "query",
+		name:                "",
+		selection:           SelectionSet{},
+		directives:          Directives{},
+		variableDefinitions: []VariableDefinition{},
 	}
 
 	stage := ""
 
-	i.mightIgnoreNextTokens()
+	// This can only return EOF errors atm and as we handle those differently here we can ignore the error
+	_ = i.mightIgnoreNextTokens()
+
 	if i.eof(i.charNr) {
 		return nil, nil
 	}
@@ -148,9 +169,20 @@ func (i *Iter) parseOperator() (*Operator, error) {
 			stage = "directives"
 		case '{':
 			stage = "selectionSets"
+		case '(':
+			i.charNr++
+			variableDefinitions, err := i.parseVariableDefinitions()
+			if err != nil {
+				return nil, err
+			}
+			res.variableDefinitions = variableDefinitions
+			stage = "directives"
+			err = i.mightIgnoreNextTokens()
+			if err != nil {
+				return nil, err
+			}
 		default:
-			// TODO: https://spec.graphql.org/June2018/#VariableDefinitions
-			return nil, errors.New("https://spec.graphql.org/June2018/#VariableDefinitions")
+			return nil, errors.New("unexpected character")
 		}
 	}
 
@@ -176,6 +208,161 @@ func (i *Iter) parseOperator() (*Operator, error) {
 	}
 	res.selection = selection
 	return &res, nil
+}
+
+// https://spec.graphql.org/June2018/#VariableDefinitions
+func (i *Iter) parseVariableDefinitions() ([]VariableDefinition, error) {
+	res := []VariableDefinition{}
+	for {
+		err := i.mightIgnoreNextTokens()
+		if err != nil {
+			return nil, err
+		}
+
+		if i.currentC() == ')' {
+			i.charNr++
+			return res, nil
+		}
+
+		variable, err := i.parseVariableDefinition()
+		if err != nil {
+			return res, err
+		}
+		res = append(res, variable)
+	}
+}
+
+// https://spec.graphql.org/June2018/#VariableDefinition
+func (i *Iter) parseVariableDefinition() (VariableDefinition, error) {
+	res := VariableDefinition{}
+
+	// Parse var name
+	varName, err := i.parseVariable(false)
+	if err != nil {
+		return res, err
+	}
+	res.name = varName
+
+	// Parse identifier for switching from var name to var type
+	err = i.mightIgnoreNextTokens()
+	if err != nil {
+		return res, err
+	}
+	if i.currentC() != ':' {
+		return res, errors.New("expected \":\" but got \"" + string(i.currentC()) + "\"")
+	}
+	i.charNr++
+
+	// Parse variable type
+	err = i.mightIgnoreNextTokens()
+	if err != nil {
+		return res, err
+	}
+	varType, err := i.parseType()
+	if err != nil {
+		return res, err
+	}
+	res.varType = *varType
+
+	// Parse optional default value
+	err = i.mightIgnoreNextTokens()
+	if err != nil {
+		return res, err
+	}
+	if i.currentC() == '=' {
+		i.charNr++
+		err = i.mightIgnoreNextTokens()
+		if err != nil {
+			return res, err
+		}
+
+		err = i.parseValue()
+		if err != nil {
+			return res, err
+		}
+	}
+
+	return res, nil
+}
+
+// https://spec.graphql.org/June2018/#Value
+func (i *Iter) parseValue() error {
+	// TODO:
+	panic("TODO: https://spec.graphql.org/June2018/#Value")
+
+	return nil
+}
+
+// https://spec.graphql.org/June2018/#Type
+func (i *Iter) parseType() (*TypeReference, error) {
+	res := TypeReference{}
+
+	if i.currentC() == '[' {
+		res.list = true
+		i.charNr++
+		err := i.mightIgnoreNextTokens()
+		if err != nil {
+			return nil, err
+		}
+
+		res.listType, err = i.parseType()
+		if err != nil {
+			return nil, err
+		}
+
+		err = i.mightIgnoreNextTokens()
+		if err != nil {
+			return nil, err
+		}
+		if i.currentC() != ']' {
+			return nil, errors.New("expected list closure (\"]\") but got \"" + string(i.currentC()) + "\"")
+		}
+		i.charNr++
+	} else {
+		name, err := i.parseName()
+		if err != nil {
+			return nil, err
+		}
+		if name == "" {
+			return nil, errors.New("type name missing or invalid type name")
+		}
+		res.name = name
+	}
+
+	err := i.mightIgnoreNextTokens()
+	if err != nil {
+		return nil, err
+	}
+	if i.currentC() == '!' {
+		res.nonNull = true
+		i.charNr++
+	}
+
+	return &res, nil
+}
+
+// https://spec.graphql.org/June2018/#Variable
+func (i *Iter) parseVariable(alreadyParsedIdentifier bool) (string, error) {
+	if !alreadyParsedIdentifier {
+		i.mightIgnoreNextTokens()
+		if i.currentC() != '$' {
+			return "", errors.New("variable must start with \"$\"")
+		}
+		i.charNr++
+	}
+
+	name, err := i.parseName()
+	if err != nil {
+		return "", err
+	}
+	if name == "" {
+		return "", errors.New("cannot have empty variable name")
+	}
+	if name == "null" {
+		return "", errors.New("null is a illegal variable name")
+	}
+
+	return name, nil
 }
 
 // https://spec.graphql.org/June2018/#sec-Selection-Sets
