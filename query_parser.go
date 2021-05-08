@@ -340,8 +340,12 @@ func (i *Iter) parseValue() (*Value, error) {
 		res.valType = "ListValue"
 		res.listValue = list
 	case '{':
-		// TODO
-		// Object > https://spec.graphql.org/June2018/#ObjectValue
+		i.charNr++
+		values, err := i.parseArgumentsOrObjectValues('}')
+		if err != nil {
+			return nil, err
+		}
+		res.objectValue = values
 	default:
 		name, err := i.parseName()
 		if err != nil {
@@ -835,7 +839,7 @@ func (i *Iter) parseField() (*Field, error) {
 	}
 	if i.currentC() == '(' {
 		i.charNr++
-		args, err := i.parseArguments()
+		args, err := i.parseArgumentsOrObjectValues(')')
 		if err != nil {
 			return nil, err
 		}
@@ -872,7 +876,10 @@ func (i *Iter) parseField() (*Field, error) {
 	return &res, nil
 }
 
-func (i *Iter) parseArguments() (map[string]Value, error) {
+// Parses object values and arguments as the only diffrents seems to be the wrappers around it
+// ObjectValues > https://spec.graphql.org/June2018/#ObjectValue
+// Arguments > https://spec.graphql.org/June2018/#Arguments
+func (i *Iter) parseArgumentsOrObjectValues(closure rune) (map[string]Value, error) {
 	res := map[string]Value{}
 
 	err := i.mightIgnoreNextTokens()
@@ -880,7 +887,7 @@ func (i *Iter) parseArguments() (map[string]Value, error) {
 		return nil, err
 	}
 
-	if i.currentC() == ')' {
+	if i.currentC() == closure {
 		return res, nil
 	}
 
@@ -928,7 +935,7 @@ func (i *Iter) parseArguments() (map[string]Value, error) {
 			}
 		}
 
-		if i.currentC() == ')' {
+		if i.currentC() == closure {
 			i.charNr++
 			return res, nil
 		}
@@ -975,7 +982,7 @@ func (i *Iter) parseDirective() (*Directive, error) {
 	}
 	if i.currentC() == '(' {
 		i.charNr++
-		args, err := i.parseArguments()
+		args, err := i.parseArgumentsOrObjectValues(')')
 		if err != nil {
 			return nil, err
 		}
