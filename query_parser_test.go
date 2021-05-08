@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"strconv"
 	"testing"
 
 	. "github.com/stretchr/testify/assert"
@@ -87,9 +88,70 @@ func TestQueryParsingQuery(t *testing.T) {
 	NotNil(t, res)
 	Nil(t, err)
 
-	res, err = ParseQuery(`query ( $a : String $b:Boolean) {}`)
+	res, err = ParseQuery(`query ($a: [String]) {}`)
 	NotNil(t, res)
 	Nil(t, err)
+
+	res, err = ParseQuery(`query query_name( $a : String $b:Boolean) {}`)
+	NotNil(t, res)
+	Nil(t, err)
+	Equal(t, 2, len(res.variableDefinitions))
+	item1 := res.variableDefinitions[0]
+	item2 := res.variableDefinitions[1]
+	Equal(t, "String", item1.varType.name)
+	Equal(t, "Boolean", item2.varType.name)
+	Nil(t, item1.defaultValue)
+	Nil(t, item2.defaultValue)
+
+	res, err = ParseQuery(`query ($a: Boolean = true) {}`)
+	NotNil(t, res)
+	Nil(t, err)
+}
+
+func TestQueryParserNumbers(t *testing.T) {
+	options := []struct {
+		isInt bool
+		input string
+	}{
+		{isInt: true, input: "0"},
+		{isInt: true, input: "1"},
+		{isInt: true, input: "10"},
+		{isInt: true, input: "-10"},
+		{input: "1.2"},
+		{input: "11.22"},
+		{input: "-1.2"},
+		{input: "1e3"},
+		{input: "11e33"},
+		{input: "1E3"},
+		{input: "-1e3"},
+		{input: "11.2e3"},
+		{input: "11.2E3"},
+		{input: "-11.2e3"},
+		{input: "-11.22e+33"},
+	}
+
+	for _, option := range options {
+		name := "Float"
+		if option.isInt {
+			name = "Int"
+		}
+
+		res, err := ParseQuery(`query ($b: ` + name + ` = ` + option.input + `) {}`)
+		NotNil(t, res, option.input)
+		Nil(t, err, option.input)
+
+		item := res.variableDefinitions[0]
+
+		if option.isInt {
+			Equal(t, "IntValue", item.defaultValue.valType, option.input)
+			n, _ := strconv.Atoi(option.input)
+			Equal(t, n, item.defaultValue.intValue, option.input)
+		} else {
+			Equal(t, "FloatValue", item.defaultValue.valType, option.input)
+			f, _ := strconv.ParseFloat(option.input, 64)
+			Equal(t, f, item.defaultValue.floatValue, option.input)
+		}
+	}
 }
 
 func TestQueryParserSimpleInvalid(t *testing.T) {
