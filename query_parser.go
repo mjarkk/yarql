@@ -313,15 +313,15 @@ func (i *Iter) parseValue() (*Value, error) {
 
 	switch i.currentC() {
 	case '$':
-		res.valType = "Variable"
 		i.charNr++
 		varName, err := i.parseVariable(true)
 		if err != nil {
 			return nil, err
 		}
+		res.valType = "Variable"
 		res.variable = varName
 	case '-', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0':
-		val, err := i.parseNumber()
+		val, err := i.parseNumberValue()
 		if err != nil {
 			return nil, err
 		}
@@ -330,8 +330,12 @@ func (i *Iter) parseValue() (*Value, error) {
 		// TODO
 		// String > https://spec.graphql.org/June2018/#StringValue
 	case '[':
-		// TODO
-		// list > https://spec.graphql.org/June2018/#ListValue
+		list, err := i.parseListValue()
+		if err != nil {
+			return nil, err
+		}
+		res.valType = "ListValue"
+		res.listValue = list
 	case '{':
 		// TODO
 		// Object > https://spec.graphql.org/June2018/#ObjectValue
@@ -357,10 +361,48 @@ func (i *Iter) parseValue() (*Value, error) {
 	return &res, nil
 }
 
+// https://spec.graphql.org/June2018/#ListValue
+func (i *Iter) parseListValue() ([]Value, error) {
+	res := []Value{}
+
+	firstLoop := true
+	for {
+		err := i.mightIgnoreNextTokens()
+		if err != nil {
+			return nil, err
+		}
+		c := i.currentC()
+		if c == ']' {
+			i.charNr++
+			return res, nil
+		}
+
+		if !firstLoop && c == ',' {
+			err := i.mightIgnoreNextTokens()
+			if err != nil {
+				return nil, err
+			}
+
+			c := i.currentC()
+			if c == ']' {
+				i.charNr++
+				return res, nil
+			}
+		}
+
+		val, err := i.parseValue()
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, *val)
+		firstLoop = false
+	}
+}
+
 // Returns FloatValue or IntValue
 // https://spec.graphql.org/June2018/#FloatValue
 // https://spec.graphql.org/June2018/#IntValue
-func (i *Iter) parseNumber() (*Value, error) {
+func (i *Iter) parseNumberValue() (*Value, error) {
 	toMap := func(list string) map[rune]bool {
 		res := map[rune]bool{}
 		for _, char := range list {
