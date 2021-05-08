@@ -502,6 +502,9 @@ func TestQueryParserCodeInjection(t *testing.T) {
 	// - parser doesn't panic on wired inputs
 	// - parser doesn't hang on certain inputs
 
+	// This function takes quite long
+	// possible speed increase could be had by replaceing all /(\s|\t|\n){2,}+/g with " "
+
 	baseQuery := `query client($foo_bar: [Int!]! = 3) @directive_name(a: {a: 1, b: true}) {
 		foo
 		bar @a @b@c(a: 1,b:true d: [1,2 3 , 4, -11.22e+33], e: $foo_bar, f: null, g: SomeEnumValue, h: {a: 1, b: true}) {
