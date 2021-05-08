@@ -13,6 +13,7 @@ type Operator struct {
 	operationType string // "query" || "mutation" || "subscription"
 	name          string // "" = no name given
 	selection     SelectionSet
+	directives    Directives // Optional
 }
 
 type SelectionSet []Selection
@@ -25,18 +26,27 @@ type Selection struct {
 }
 
 type Field struct {
-	name      string
-	alias     string       // Optional
-	selection SelectionSet // Optional
+	name       string
+	alias      string       // Optional
+	selection  SelectionSet // Optional
+	directives Directives   // Optional
 }
 
 type FragmentSpread struct {
-	name string
+	name       string
+	directives Directives // Optional
 }
 
 type InlineFragment struct {
-	onTypeConditionName string // Optional
 	selection           SelectionSet
+	onTypeConditionName string     // Optional
+	directives          Directives // Optional
+}
+
+type Directives map[string]Directive
+
+type Directive struct {
+	name string
 }
 
 func ParseQuery(input string) (*Operator, error) {
@@ -84,82 +94,88 @@ func (i *Iter) parseOperator() (*Operator, error) {
 		selection:     SelectionSet{},
 	}
 
-	stage := "operationType"
+	stage := ""
 
-	for {
-		if i.eof(i.charNr) {
-			if stage != "operationType" {
-				return nil, ErrorUnexpectedEOF
-			}
-			return &res, nil
+	i.mightIgnoreNextTokens()
+	if i.eof(i.charNr) {
+		return nil, nil
+	}
+
+	switch i.currentC() {
+	case '{':
+		// For making a query you don't have to define a stage
+		// Just continue here
+	default:
+		newOperationType := i.matches("query", "mutation", "subscription")
+		if len(newOperationType) == 0 {
+			return nil, errors.New("unknown operation type")
 		}
+		res.operationType = newOperationType
+		stage = "name"
 
-		if i.isIgnoredToken() {
-			i.charNr++
-			continue
+		err := i.mightIgnoreNextTokens()
+		if err != nil {
+			return nil, err
 		}
+	}
 
-		c := i.currentC()
-		switch stage {
-		case "operationType":
-			switch c {
-			// For making a query you don't have to define a stage
-			case '{':
-				stage = "selectionSets"
-			default:
-				newOperationType := i.matches("query", "mutation", "subscription")
-				if len(newOperationType) > 0 {
-					res.operationType = newOperationType
-					stage = "name"
-					continue
-				}
-				return nil, errors.New("unknown operation type")
-			}
-		case "name":
-			switch c {
-			case '(':
-				stage = "variableDefinitions"
-			case '@':
-				stage = "directives"
-			case '{':
-				stage = "selectionSets"
-			default:
-				name, err := i.parseName()
-				if err != nil {
-					return nil, err
-				}
-				res.name = name
-				stage = "variableDefinitions"
-			}
-		case "variableDefinitions":
-			switch c {
-			case '@':
-				stage = "directives"
-			case '{':
-				stage = "selectionSets"
-			default:
-				// TODO: https://spec.graphql.org/June2018/#VariableDefinitions
-				return nil, errors.New("https://spec.graphql.org/June2018/#VariableDefinitions")
-			}
-		case "directives":
-			switch c {
-			case '{':
-				stage = "selectionSets"
-			default:
-				// TODO: https://spec.graphql.org/June2018/#sec-Language.Directives
-				return nil, errors.New("https://spec.graphql.org/June2018/#sec-Language.Directives")
-			}
-		case "selectionSets":
-			selection, err := i.parseSelectionSets()
+	if stage == "name" {
+		switch i.currentC() {
+		case '(':
+			stage = "variableDefinitions"
+		case '@':
+			stage = "directives"
+		case '{':
+			stage = "selectionSets"
+		default:
+			name, err := i.parseName()
 			if err != nil {
 				return nil, err
 			}
-			res.selection = selection
-			return &res, nil
-		}
+			res.name = name
+			stage = "variableDefinitions"
 
-		i.charNr++
+			err = i.mightIgnoreNextTokens()
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
+
+	if stage == "variableDefinitions" {
+		switch i.currentC() {
+		case '@':
+			stage = "directives"
+		case '{':
+			stage = "selectionSets"
+		default:
+			// TODO: https://spec.graphql.org/June2018/#VariableDefinitions
+			return nil, errors.New("https://spec.graphql.org/June2018/#VariableDefinitions")
+		}
+	}
+
+	if stage == "directives" {
+		switch i.currentC() {
+		case '@':
+			directives, err := i.parseDirectives()
+			if err != nil {
+				return nil, err
+			}
+			res.directives = directives
+		case '{':
+			stage = "selectionSets"
+		default:
+			return nil, errors.New("unexpected character")
+		}
+	}
+
+	i.charNr++
+	selection, err := i.parseSelectionSets()
+	if err != nil {
+		return nil, err
+	}
+	res.selection = selection
+	return &res, nil
 }
 
 // https://spec.graphql.org/June2018/#sec-Selection-Sets
@@ -259,15 +275,25 @@ func (i *Iter) parseInlineFragment(hasTypeCondition bool) (*InlineFragment, erro
 		}
 	}
 
-	// TODO parse optional directives
-
-	// Parse SelectionSet
+	// parse optional directives
 	err := i.mightIgnoreNextTokens()
 	if err != nil {
 		return nil, err
 	}
+	if i.currentC() == '@' {
+		res.directives, err = i.parseDirectives()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Parse SelectionSet
+	err = i.mightIgnoreNextTokens()
+	if err != nil {
+		return nil, err
+	}
 	if i.currentC() != '{' {
-		return nil, errors.New("expected \"{\"")
+		return nil, errors.New("expected \"{\", not: \"" + string(i.currentC()) + "\"")
 	}
 	i.charNr++
 	res.selection, err = i.parseSelectionSets()
@@ -276,9 +302,19 @@ func (i *Iter) parseInlineFragment(hasTypeCondition bool) (*InlineFragment, erro
 
 // https://spec.graphql.org/June2018/#FragmentSpread
 func (i *Iter) parseFragmentSpread(name string) (*FragmentSpread, error) {
-	res := FragmentSpread{name}
+	res := FragmentSpread{name: name}
 
-	// TODO parse optional Directives
+	// parse optional directives
+	err := i.mightIgnoreNextTokens()
+	if err != nil {
+		return nil, err
+	}
+	if i.currentC() == '@' {
+		res.directives, err = i.parseDirectives()
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	return &res, nil
 }
@@ -323,7 +359,19 @@ func (i *Iter) parseField() (*Field, error) {
 
 	// TODO Next:
 	// Arguments (opt)
-	// Directives (opt)
+
+	// Parse directives if present
+	err = i.mightIgnoreNextTokens()
+	if err != nil {
+		return nil, err
+	}
+	if i.currentC() == '@' {
+		directives, err := i.parseDirectives()
+		if err != nil {
+			return nil, err
+		}
+		res.directives = directives
+	}
 
 	// Parse SelectionSet if pressent
 	err = i.mightIgnoreNextTokens()
@@ -338,6 +386,46 @@ func (i *Iter) parseField() (*Field, error) {
 		}
 		res.selection = selection
 	}
+
+	return &res, nil
+}
+
+// https://spec.graphql.org/June2018/#Directives
+func (i *Iter) parseDirectives() (Directives, error) {
+	res := Directives{}
+	for {
+		err := i.mightIgnoreNextTokens()
+		if err != nil {
+			return nil, err
+		}
+
+		if i.currentC() != '@' {
+			return res, nil
+		}
+
+		i.charNr++
+		directive, err := i.parseDirective()
+		if err != nil {
+			return nil, err
+		}
+		res[directive.name] = *directive
+	}
+}
+
+// https://spec.graphql.org/June2018/#Directive
+func (i *Iter) parseDirective() (*Directive, error) {
+	name, err := i.parseName()
+	if err != nil {
+		return nil, err
+	}
+	if name == "" {
+		return nil, errors.New("directive must have a name")
+	}
+	res := Directive{
+		name,
+	}
+
+	// TODO: parse optional arguments
 
 	return &res, nil
 }

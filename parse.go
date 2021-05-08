@@ -51,7 +51,10 @@ func ParseSchema(query map[string]interface{}, methods ...map[string]interface{}
 		}
 	}
 
-	res := Schema{}
+	res := Schema{
+		methods: map[string]*Obj{},
+		query:   map[string]*Obj{},
+	}
 
 	for key, value := range query {
 		item, err := check(reflect.TypeOf(value))
@@ -84,10 +87,10 @@ func check(t reflect.Type) (*Obj, error) {
 				}
 
 				obj, err := check(field.Type)
-				obj.structFieldName = field.Name
 				if err != nil {
 					return err
 				}
+				obj.structFieldName = field.Name
 
 				name := formatGoNameToQL(field.Name)
 				newName, ok := field.Tag.Lookup("gqName")

@@ -61,6 +61,12 @@ func TestCheckStructSimple(t *testing.T) {
 	}
 }
 
+func TestParseSchema(t *testing.T) {
+	ParseSchema(map[string]interface{}{
+		"a": TestCheckStructSimpleDemo{},
+	})
+}
+
 type TestCheckStructWArrayData struct {
 	Foo []string
 }
@@ -118,4 +124,23 @@ func TestCheckStructTags(t *testing.T) {
 
 	_, ok = obj.objContents["hiddenField"]
 	False(t, ok, "hiddenField should be ignored")
+}
+
+func TestCheckInvalidStruct(t *testing.T) {
+	_, err := check(reflect.TypeOf(struct {
+		Foo interface{}
+	}{}))
+	Error(t, err)
+
+	_, err = check(reflect.TypeOf(struct {
+		Foo complex64
+	}{}))
+	Error(t, err)
+
+	_, err = check(reflect.TypeOf(struct {
+		Foo struct {
+			Bar complex64
+		}
+	}{}))
+	Error(t, err)
 }
