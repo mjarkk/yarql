@@ -29,9 +29,10 @@ type Selection struct {
 
 type Field struct {
 	name       string
-	alias      string       // Optional
-	selection  SelectionSet // Optional
-	directives Directives   // Optional
+	alias      string           // Optional
+	selection  SelectionSet     // Optional
+	directives Directives       // Optional
+	arguments  map[string]Value // Optional
 }
 
 type FragmentSpread struct {
@@ -48,7 +49,8 @@ type InlineFragment struct {
 type Directives map[string]Directive
 
 type Directive struct {
-	name string
+	name      string
+	arguments map[string]Value
 }
 
 type TypeReference struct {
@@ -330,6 +332,7 @@ func (i *Iter) parseValue() (*Value, error) {
 		// TODO
 		// String > https://spec.graphql.org/June2018/#StringValue
 	case '[':
+		i.charNr++
 		list, err := i.parseListValue()
 		if err != nil {
 			return nil, err
@@ -378,6 +381,7 @@ func (i *Iter) parseListValue() ([]Value, error) {
 		}
 
 		if !firstLoop && c == ',' {
+			i.charNr++
 			err := i.mightIgnoreNextTokens()
 			if err != nil {
 				return nil, err
@@ -824,8 +828,19 @@ func (i *Iter) parseField() (*Field, error) {
 		res.name = nameOrAlias
 	}
 
-	// TODO Next:
-	// Arguments (opt)
+	// Parse Arguments if present
+	err = i.mightIgnoreNextTokens()
+	if err != nil {
+		return nil, err
+	}
+	if i.currentC() == '(' {
+		i.charNr++
+		args, err := i.parseArguments()
+		if err != nil {
+			return nil, err
+		}
+		res.arguments = args
+	}
 
 	// Parse directives if present
 	err = i.mightIgnoreNextTokens()
@@ -855,6 +870,69 @@ func (i *Iter) parseField() (*Field, error) {
 	}
 
 	return &res, nil
+}
+
+func (i *Iter) parseArguments() (map[string]Value, error) {
+	res := map[string]Value{}
+
+	err := i.mightIgnoreNextTokens()
+	if err != nil {
+		return nil, err
+	}
+
+	if i.currentC() == ')' {
+		return res, nil
+	}
+
+	for {
+		name, err := i.parseName()
+		if err != nil {
+			return nil, err
+		}
+		if name == "" {
+			return nil, errors.New("argument name must be defined")
+		}
+
+		err = i.mightIgnoreNextTokens()
+		if err != nil {
+			return nil, err
+		}
+
+		if i.currentC() != ':' {
+			return nil, errors.New("expected \":\"")
+		}
+		i.charNr++
+
+		err = i.mightIgnoreNextTokens()
+		if err != nil {
+			return nil, err
+		}
+
+		value, err := i.parseValue()
+		if err != nil {
+			return nil, err
+		}
+		res[name] = *value
+
+		err = i.mightIgnoreNextTokens()
+		if err != nil {
+			return nil, err
+		}
+
+		if i.currentC() == ',' {
+			i.charNr++
+
+			err := i.mightIgnoreNextTokens()
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if i.currentC() == ')' {
+			i.charNr++
+			return res, nil
+		}
+	}
 }
 
 // https://spec.graphql.org/June2018/#Directives
@@ -888,11 +966,21 @@ func (i *Iter) parseDirective() (*Directive, error) {
 	if name == "" {
 		return nil, errors.New("directive must have a name")
 	}
-	res := Directive{
-		name,
-	}
+	res := Directive{name: name}
 
-	// TODO: parse optional arguments
+	// Parse optional Arguments
+	err = i.mightIgnoreNextTokens()
+	if err != nil {
+		return nil, err
+	}
+	if i.currentC() == '(' {
+		i.charNr++
+		args, err := i.parseArguments()
+		if err != nil {
+			return nil, err
+		}
+		res.arguments = args
+	}
 
 	return &res, nil
 }
@@ -955,28 +1043,6 @@ func (i *Iter) mightIgnoreNextTokens() error {
 		i.charNr++
 	}
 }
-
-// func (i *Iter) mustIgnoreNextTokens() error {
-// 	ignoredSome := false
-
-// 	for {
-// 		eof := i.eof(i.charNr)
-// 		if eof {
-// 			return ErrorUnexpectedEOF
-// 		}
-
-// 		isIgnoredChar := i.isIgnoredToken()
-// 		if !isIgnoredChar {
-// 			if !ignoredSome {
-// 				return errors.New("expected some kind of empty space")
-// 			}
-// 			return nil
-// 		}
-// 		ignoredSome = true
-
-// 		i.charNr++
-// 	}
-// }
 
 // https://spec.graphql.org/June2018/#UnicodeBOM
 func isUnicodeBom(input rune) bool {
@@ -1061,5 +1127,4 @@ func (i *Iter) matches(oneOf ...string) string {
 
 		i.charNr++
 	}
-
 }

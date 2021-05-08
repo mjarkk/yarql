@@ -414,3 +414,85 @@ func TestQueryParserFieldMultipleDirective(t *testing.T) {
 		True(t, ok, "Missing directive: "+item)
 	}
 }
+
+func TestQueryParserFieldWithArguments(t *testing.T) {
+	res, err := ParseQuery(`{
+		client {
+			foo
+			bar(a: 1,b:true c : false , d: [1,2 3 , 4,])
+			baz
+		}
+	}`)
+	Nil(t, err)
+	NotNil(t, res)
+
+	arguments := res.selection[0].field.selection[1].field.arguments
+	NotNil(t, arguments, "arguments should be defined")
+
+	a, ok := arguments["a"]
+	True(t, ok)
+	Equal(t, "IntValue", a.valType)
+	Equal(t, 1, a.intValue)
+
+	b, ok := arguments["b"]
+	True(t, ok)
+	Equal(t, "BooleanValue", b.valType)
+	True(t, b.booleanValue)
+
+	c, ok := arguments["c"]
+	True(t, ok)
+	Equal(t, "BooleanValue", c.valType)
+	False(t, c.booleanValue)
+
+	d, ok := arguments["d"]
+	True(t, ok)
+	Equal(t, "ListValue", d.valType)
+	list := d.listValue
+	Equal(t, 4, len(list))
+
+	for i, item := range list {
+		Equal(t, "IntValue", item.valType)
+		Equal(t, i+1, item.intValue)
+	}
+}
+
+func TestQueryParserFieldDirectiveWithArguments(t *testing.T) {
+	res, err := ParseQuery(`{
+		client {
+			foo
+			bar @a(a: 1,b:true c : false) @b(a: 1,b:true c : false)@c(a: 1,b:true c : false)
+			bas
+			baz
+		}
+	}`)
+	Nil(t, err)
+	NotNil(t, res)
+
+	directives := res.selection[0].field.selection[1].field.directives
+	NotNil(t, directives)
+	Equal(t, 3, len(directives), "Not all directives")
+
+	expect := []string{"a", "b", "c"}
+	for _, item := range expect {
+		directive, ok := directives[item]
+		True(t, ok, "directive: "+item)
+		arguments := directive.arguments
+
+		NotNil(t, arguments, "arguments should be defined")
+
+		a, ok := arguments["a"]
+		True(t, ok, "directive: "+item)
+		Equal(t, "IntValue", a.valType, "directive: "+item)
+		Equal(t, 1, a.intValue, "directive: "+item)
+
+		b, ok := arguments["b"]
+		True(t, ok, "directive: "+item)
+		Equal(t, "BooleanValue", b.valType, "directive: "+item)
+		True(t, b.booleanValue, "directive: "+item)
+
+		c, ok := arguments["c"]
+		True(t, ok, "directive: "+item)
+		Equal(t, "BooleanValue", c.valType, "directive: "+item)
+		False(t, c.booleanValue, "directive: "+item)
+	}
+}
