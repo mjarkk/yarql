@@ -496,3 +496,44 @@ func TestQueryParserFieldDirectiveWithArguments(t *testing.T) {
 		False(t, c.booleanValue, "directive: "+item)
 	}
 }
+
+func TestQueryParserCodeInjection(t *testing.T) {
+	// test if:
+	// - parser doesn't panic on wired inputs
+	// - parser doesn't hang on certain inputs
+
+	baseQuery := `query client($foo_bar: [Int!]! = 3) @directive_name(a: {a: 1, b: true}) {
+		foo
+		bar @a @b@c(a: 1,b:true d: [1,2 3 , 4, -11.22e+33], e: $foo_bar, f: null, g: SomeEnumValue, h: {a: 1, b: true}) {
+			bar_foo
+		}
+		...f @a@b
+		... on User {
+			friends {
+				count
+			}
+		}
+		bas
+	}`
+
+	for i := range baseQuery {
+		charsToInject := []string{"", "_", "-", "0", ";", " ", "#", " - ", "[", "]", "{", "}", "(", ")", ".", "e"}
+
+		tilIndex := baseQuery[:i]
+		formIndex := baseQuery[i:]
+
+		ParseQuery(formIndex)
+
+		for _, toInject := range charsToInject {
+			// Inject extra text
+			ParseQuery(tilIndex + toInject + formIndex)
+
+			// Replace char
+			ParseQuery(tilIndex + toInject + baseQuery[i+1:])
+		}
+
+		for _, toInject := range charsToInject {
+			ParseQuery(tilIndex + toInject)
+		}
+	}
+}
