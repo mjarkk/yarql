@@ -2,6 +2,7 @@ package graphql
 
 import (
 	"strconv"
+	"sync"
 	"testing"
 
 	. "github.com/stretchr/testify/assert"
@@ -83,16 +84,22 @@ func TestQueryParsingQueryDirectives(t *testing.T) {
 	Nil(t, err)
 }
 
-func TestQueryParsingQuery(t *testing.T) {
-	res, err := ParseQuery(`query ($a: String) {}`)
-	NotNil(t, res)
-	Nil(t, err)
+func TestQueryParsingTypes(t *testing.T) {
+	toTest := []string{
+		`query ($a: String) {}`,
+		`query ($a: [String]) {}`,
+		`query ($a: [String!]) {}`,
+		`query ($a: Boolean = true) {}`,
+		`query ($a: Null = null) {}`,
+	}
 
-	res, err = ParseQuery(`query ($a: [String]) {}`)
-	NotNil(t, res)
-	Nil(t, err)
+	for _, item := range toTest {
+		res, err := ParseQuery(item)
+		NotNil(t, res, item)
+		Nil(t, err, item)
+	}
 
-	res, err = ParseQuery(`query query_name( $a : String $b:Boolean) {}`)
+	res, err := ParseQuery(`query query_name( $a : String $b:Boolean) {}`)
 	NotNil(t, res)
 	Nil(t, err)
 	Equal(t, 2, len(res.variableDefinitions))
@@ -102,10 +109,6 @@ func TestQueryParsingQuery(t *testing.T) {
 	Equal(t, "Boolean", item2.varType.name)
 	Nil(t, item1.defaultValue)
 	Nil(t, item2.defaultValue)
-
-	res, err = ParseQuery(`query ($a: Boolean = true) {}`)
-	NotNil(t, res)
-	Nil(t, err)
 }
 
 func TestQueryParserNumbers(t *testing.T) {
@@ -151,6 +154,41 @@ func TestQueryParserNumbers(t *testing.T) {
 			f, _ := strconv.ParseFloat(option.input, 64)
 			Equal(t, f, item.defaultValue.floatValue, option.input)
 		}
+	}
+}
+
+func TestQueryParserStrings(t *testing.T) {
+	options := []struct {
+		input  string
+		output string
+	}{
+		{input: `""`, output: ""},
+		{input: `"abc"`, output: "abc"},
+		{input: `"a\nb"`, output: "a\nb"},
+		{input: `"a\rb"`, output: "a\rb"},
+		{input: `"a\ta"`, output: "a\ta"},
+		{input: `"a\bb"`, output: "a\bb"},
+		{input: `"a\fa"`, output: "a\fa"},
+		{input: `"a \u0021 b"`, output: "a ! b"},
+		{input: `"a \u03A3 b"`, output: "a Σ b"},
+		{input: `"a \u123 b"`, output: "a u123 b"},
+		{input: `"a \u0000 b"`, output: "a  b"},
+		{input: `"\""`, output: "\""},
+		{input: `""""""`, output: ""},
+		{input: `"""abc"""`, output: "abc"},
+		{input: `"""a` + "\n" + `b"""`, output: "a\nb"},
+		{input: `"""a \""" b"""`, output: "a \"\"\" b"},
+	}
+
+	for _, option := range options {
+		res, err := ParseQuery(`query ($b: String = ` + option.input + `) {}`)
+		NotNil(t, res, option.input)
+		Nil(t, err, option.input)
+
+		item := res.variableDefinitions[0]
+
+		Equal(t, "StringValue", item.defaultValue.valType, option.input)
+		Equal(t, option.output, item.defaultValue.stringValue)
 	}
 }
 
@@ -507,7 +545,7 @@ func TestQueryParserCodeInjection(t *testing.T) {
 
 	baseQuery := `query client($foo_bar: [Int!]! = 3) @directive_name(a: {a: 1, b: true}) {
 		foo
-		bar @a @b@c(a: 1,b:true d: [1,2 3 , 4, -11.22e+33], e: $foo_bar, f: null, g: SomeEnumValue, h: {a: 1, b: true}) {
+		bar @a @b@c(a: 1,b:true d: [1,2 3 , 4, -11.22e+33], e: $foo_bar, f: null, g: SomeEnumValue, h: {a: 1, b: true c: "", d: """"""}) {
 			bar_foo
 		}
 		...f @a@b
@@ -519,24 +557,55 @@ func TestQueryParserCodeInjection(t *testing.T) {
 		bas
 	}`
 
-	for i := range baseQuery {
-		charsToInject := []string{"", "_", "-", "0", ";", " ", "#", " - ", "[", "]", "{", "}", "(", ")", ".", "e"}
-
-		tilIndex := baseQuery[:i]
-		formIndex := baseQuery[i:]
-
-		ParseQuery(formIndex)
-
-		for _, toInject := range charsToInject {
-			// Inject extra text
-			ParseQuery(tilIndex + toInject + formIndex)
-
-			// Replace char
-			ParseQuery(tilIndex + toInject + baseQuery[i+1:])
-		}
-
-		for _, toInject := range charsToInject {
-			ParseQuery(tilIndex + toInject)
-		}
+	toTest := [][]string{
+		{"", "_", "-", "0"},
+		{";", " ", "#", " - "},
+		{"[", "]", "{", "}"},
+		{"(", ")", ".", "e"},
 	}
+
+	var wg sync.WaitGroup
+	wg.Add(len(toTest))
+
+	for _, list := range toTest {
+		go func(baseQuery string, charsToInject []string) {
+			for i := range baseQuery {
+				tilIndex := baseQuery[:i]
+				formIndex := baseQuery[i:]
+
+				ParseQuery(formIndex)
+
+				for _, toInject := range charsToInject {
+					// Inject extra text
+					ParseQuery(tilIndex + toInject + formIndex)
+
+					// Replace char
+					ParseQuery(tilIndex + toInject + baseQuery[i+1:])
+				}
+
+				for _, toInject := range charsToInject {
+					ParseQuery(tilIndex + toInject)
+				}
+			}
+			wg.Done()
+		}(baseQuery, list)
+	}
+
+	wg.Wait()
+}
+
+func TestQueryParserFragment(t *testing.T) {
+	out, err := ParseQuery(`fragment a on User {}`)
+	Nil(t, err)
+	NotNil(t, out)
+	NotNil(t, out.fragment)
+	Equal(t, "a", out.name)
+	Equal(t, "User", out.fragment.onTypeConditionName)
+
+	out, err = ParseQuery(`fragment a on User {
+		a
+		b
+	}`)
+	Nil(t, err)
+	NotNil(t, out)
 }

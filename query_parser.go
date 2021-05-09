@@ -1,21 +1,28 @@
 package graphql
 
 import (
+	"bytes"
+	"encoding/hex"
 	"errors"
 	"strconv"
 	"strings"
+	"unicode"
 )
+
+// TODO:
+// - Multiple Operations in one query
 
 var (
 	ErrorUnexpectedEOF = errors.New("unexpected EOF")
 )
 
 type Operator struct {
-	operationType       string // "query" || "mutation" || "subscription"
+	operationType       string // "query" || "mutation" || "subscription" || "fragment"
 	name                string // "" = no name given
 	selection           SelectionSet
 	directives          Directives
 	variableDefinitions []VariableDefinition
+	fragment            *InlineFragment // defined if: operationType == "fragment"
 }
 
 type SelectionSet []Selection
@@ -131,90 +138,77 @@ func (i *Iter) parseOperator() (*Operator, error) {
 		variableDefinitions: []VariableDefinition{},
 	}
 
-	stage := ""
-
 	// This can only return EOF errors atm and as we handle those differently here we can ignore the error
-	_ = i.mightIgnoreNextTokens()
-
+	c, _ := i.mightIgnoreNextTokens()
 	if i.eof(i.charNr) {
 		return nil, nil
 	}
 
-	switch i.currentC() {
-	case '{':
-		// For making a query you don't have to define a stage
-		// Just continue here
-	default:
-		newOperationType := i.matches("query", "mutation", "subscription")
+	var err error
+
+	// For making a simple query you don't have to define a operation type
+	// Note that a simple query as descried above disables the name, variable definitions and directives
+	if c != '{' {
+		newOperationType := i.matches("query", "mutation", "subscription", "fragment")
 		if len(newOperationType) == 0 {
 			return nil, errors.New("unknown operation type")
 		}
 		res.operationType = newOperationType
-		stage = "name"
 
-		err := i.mightIgnoreNextTokens()
+		c, err = i.mightIgnoreNextTokens()
 		if err != nil {
 			return nil, err
 		}
-	}
 
-	if stage == "name" {
-		switch i.currentC() {
-		case '(':
-			stage = "variableDefinitions"
-		case '@':
-			stage = "directives"
-		case '{':
-			stage = "selectionSets"
-		default:
+		if c != '(' && c != '@' && c != '{' || res.operationType == "fragment" {
 			name, err := i.parseName()
 			if err != nil {
 				return nil, err
 			}
+			if name == "" {
+				return nil, errors.New("expected name but got \"" + string(i.currentC()) + "\"")
+			}
 			res.name = name
-			stage = "variableDefinitions"
 
-			err = i.mightIgnoreNextTokens()
+			c, err = i.mightIgnoreNextTokens()
 			if err != nil {
 				return nil, err
 			}
 		}
-	}
 
-	if stage == "variableDefinitions" {
-		switch i.currentC() {
-		case '@':
-			stage = "directives"
-		case '{':
-			stage = "selectionSets"
-		case '(':
+		if res.operationType == "fragment" {
+			if i.matches("on") == "" {
+				return nil, errors.New("expected type condition (\"on some_name\")")
+			}
+			res.fragment, err = i.parseInlineFragment(true)
+			if err != nil {
+				return nil, err
+			}
+			return &res, nil
+		}
+
+		if c == '(' {
 			i.charNr++
 			variableDefinitions, err := i.parseVariableDefinitions()
 			if err != nil {
 				return nil, err
 			}
 			res.variableDefinitions = variableDefinitions
-			stage = "directives"
-			err = i.mightIgnoreNextTokens()
+			c, err = i.mightIgnoreNextTokens()
 			if err != nil {
 				return nil, err
 			}
-		default:
+		} else if c != '@' && c != '{' {
 			return nil, errors.New("unexpected character")
 		}
-	}
 
-	if stage == "directives" {
-		switch i.currentC() {
-		case '@':
+		if c == '@' {
 			directives, err := i.parseDirectives()
 			if err != nil {
 				return nil, err
 			}
 			res.directives = directives
-		case '{':
-			stage = "selectionSets"
-		default:
+		} else if c != '{' {
 			return nil, errors.New("unexpected character")
 		}
 	}
@@ -232,12 +226,12 @@ func (i *Iter) parseOperator() (*Operator, error) {
 func (i *Iter) parseVariableDefinitions() ([]VariableDefinition, error) {
 	res := []VariableDefinition{}
 	for {
-		err := i.mightIgnoreNextTokens()
+		c, err := i.mightIgnoreNextTokens()
 		if err != nil {
 			return nil, err
 		}
 
-		if i.currentC() == ')' {
+		if c == ')' {
 			i.charNr++
 			return res, nil
 		}
@@ -262,17 +256,17 @@ func (i *Iter) parseVariableDefinition() (VariableDefinition, error) {
 	res.name = varName
 
 	// Parse identifier for switching from var name to var type
-	err = i.mightIgnoreNextTokens()
+	c, err := i.mightIgnoreNextTokens()
 	if err != nil {
 		return res, err
 	}
-	if i.currentC() != ':' {
+	if c != ':' {
 		return res, errors.New("expected \":\" but got \"" + string(i.currentC()) + "\"")
 	}
 	i.charNr++
 
 	// Parse variable type
-	err = i.mightIgnoreNextTokens()
+	_, err = i.mightIgnoreNextTokens()
 	if err != nil {
 		return res, err
 	}
@@ -283,13 +277,13 @@ func (i *Iter) parseVariableDefinition() (VariableDefinition, error) {
 	res.varType = *varType
 
 	// Parse optional default value
-	err = i.mightIgnoreNextTokens()
+	c, err = i.mightIgnoreNextTokens()
 	if err != nil {
 		return res, err
 	}
-	if i.currentC() == '=' {
+	if c == '=' {
 		i.charNr++
-		err = i.mightIgnoreNextTokens()
+		_, err = i.mightIgnoreNextTokens()
 		if err != nil {
 			return res, err
 		}
@@ -300,7 +294,7 @@ func (i *Iter) parseVariableDefinition() (VariableDefinition, error) {
 		}
 		res.defaultValue = value
 
-		err = i.mightIgnoreNextTokens()
+		_, err = i.mightIgnoreNextTokens()
 		if err != nil {
 			return res, err
 		}
@@ -329,8 +323,12 @@ func (i *Iter) parseValue() (*Value, error) {
 		}
 		res = *val
 	case '"':
-		// TODO
-		// String > https://spec.graphql.org/June2018/#StringValue
+		val, err := i.parseString()
+		if err != nil {
+			return nil, err
+		}
+		res.valType = "StringValue"
+		res.stringValue = val
 	case '[':
 		i.charNr++
 		list, err := i.parseListValue()
@@ -368,17 +366,138 @@ func (i *Iter) parseValue() (*Value, error) {
 	return &res, nil
 }
 
+func (i *Iter) parseString() (string, error) {
+	res := []byte{}
+	isBlock := false
+	if i.matches(`"""`) == `"""` {
+		isBlock = true
+	} else {
+		// is normal string
+		i.charNr++
+	}
+
+	for {
+		c, eof := i.checkC(i.charNr)
+		if eof {
+			return "", ErrorUnexpectedEOF
+		}
+		i.charNr++
+		switch c {
+		case '"':
+			if !isBlock {
+				return string(res), nil
+			}
+
+			c2, eof := i.checkC(i.charNr)
+			if eof {
+				return "", ErrorUnexpectedEOF
+			}
+
+			if c2 == '"' {
+				i.charNr++
+				c3, eof := i.checkC(i.charNr)
+				if eof {
+					return "", ErrorUnexpectedEOF
+				}
+
+				if c3 == '"' {
+					i.charNr++
+					// TODO: this is trim space is wrong, only the leading and trailing empty lines should be removed not all the space chars before the first char
+					return string(bytes.TrimSpace(res)), nil
+				}
+				res = append(res, '"')
+			}
+			res = append(res, '"')
+		case '\r', '\n':
+			if !isBlock {
+				return "", errors.New("carriage return and new lines not allowed in a string, to use these characters use a block string")
+			}
+			res = append(res, byte(c))
+		case '\\':
+			// next char is escaped
+			// Note: in a blockstring this char probably wrong diffrent
+
+			c, eof = i.checkC(i.charNr)
+			if eof {
+				return "", ErrorUnexpectedEOF
+			}
+			i.charNr++
+			switch c {
+			case 'u':
+				unicodeChars := []byte{}
+
+				// https://spec.graphql.org/June2018/#EscapedUnicode
+				for {
+					c, eof = i.checkC(i.charNr)
+					if eof {
+						return "", ErrorUnexpectedEOF
+					}
+
+					if !unicode.Is(unicode.Hex_Digit, c) {
+						res = append(res, 'u')
+						res = append(res, unicodeChars...)
+						break
+					}
+
+					i.charNr++
+					unicodeChars = append(unicodeChars, byte(c))
+					if len(unicodeChars) == 4 {
+						from := 0
+						if unicodeChars[0] == '0' && unicodeChars[1] == '0' {
+							from = 2
+							if unicodeChars[2] == '0' && unicodeChars[3] == '0' {
+								from = 4
+							}
+						}
+
+						if from == 4 {
+							break
+						}
+
+						dst := make([]byte, hex.DecodedLen(len(unicodeChars[from:])))
+						n, err := hex.Decode(dst, unicodeChars[from:])
+						if err != nil {
+							res = append(res, 'u')
+							res = append(res, unicodeChars...)
+						} else if n == 1 {
+							res = append(res, dst[0])
+						} else {
+							char := rune(dst[0])<<8 | rune(dst[1])
+							res = append(res, []byte(string(char))...)
+						}
+						break
+					}
+				}
+
+			case 'b':
+				res = append(res, byte('\b'))
+			case 'f':
+				res = append(res, byte('\f'))
+			case 'n':
+				res = append(res, byte('\n'))
+			case 'r':
+				res = append(res, byte('\r'))
+			case 't':
+				res = append(res, byte('\t'))
+			default:
+				res = append(res, byte(c))
+			}
+		default:
+			res = append(res, byte(c))
+		}
+	}
+}
+
 // https://spec.graphql.org/June2018/#ListValue
 func (i *Iter) parseListValue() ([]Value, error) {
 	res := []Value{}
 
 	firstLoop := true
 	for {
-		err := i.mightIgnoreNextTokens()
+		c, err := i.mightIgnoreNextTokens()
 		if err != nil {
 			return nil, err
 		}
-		c := i.currentC()
 		if c == ']' {
 			i.charNr++
 			return res, nil
@@ -386,12 +505,11 @@ func (i *Iter) parseListValue() ([]Value, error) {
 
 		if !firstLoop && c == ',' {
 			i.charNr++
-			err := i.mightIgnoreNextTokens()
+			c, err := i.mightIgnoreNextTokens()
 			if err != nil {
 				return nil, err
 			}
 
-			c := i.currentC()
 			if c == ']' {
 				i.charNr++
 				return res, nil
@@ -588,7 +706,7 @@ func (i *Iter) parseType() (*TypeReference, error) {
 	if i.currentC() == '[' {
 		res.list = true
 		i.charNr++
-		err := i.mightIgnoreNextTokens()
+		_, err := i.mightIgnoreNextTokens()
 		if err != nil {
 			return nil, err
 		}
@@ -598,12 +716,12 @@ func (i *Iter) parseType() (*TypeReference, error) {
 			return nil, err
 		}
 
-		err = i.mightIgnoreNextTokens()
+		c, err := i.mightIgnoreNextTokens()
 		if err != nil {
 			return nil, err
 		}
-		if i.currentC() != ']' {
-			return nil, errors.New("expected list closure (\"]\") but got \"" + string(i.currentC()) + "\"")
+		if c != ']' {
+			return nil, errors.New("expected list closure (\"]\") but got \"" + string(c) + "\"")
 		}
 		i.charNr++
 	} else {
@@ -617,11 +735,11 @@ func (i *Iter) parseType() (*TypeReference, error) {
 		res.name = name
 	}
 
-	err := i.mightIgnoreNextTokens()
+	c, err := i.mightIgnoreNextTokens()
 	if err != nil {
 		return nil, err
 	}
-	if i.currentC() == '!' {
+	if c == '!' {
 		res.nonNull = true
 		i.charNr++
 	}
@@ -658,12 +776,12 @@ func (i *Iter) parseSelectionSets() (SelectionSet, error) {
 	res := SelectionSet{}
 
 	for {
-		err := i.mightIgnoreNextTokens()
+		c, err := i.mightIgnoreNextTokens()
 		if err != nil {
 			return nil, err
 		}
 
-		if i.currentC() == '}' {
+		if c == '}' {
 			i.charNr++
 			return res, nil
 		}
@@ -674,12 +792,12 @@ func (i *Iter) parseSelectionSets() (SelectionSet, error) {
 		}
 		res = append(res, selection)
 
-		err = i.mightIgnoreNextTokens()
+		c, err = i.mightIgnoreNextTokens()
 		if err != nil {
 			return nil, err
 		}
 
-		switch i.currentC() {
+		switch c {
 		case ',':
 			i.charNr++
 		case '}':
@@ -694,7 +812,7 @@ func (i *Iter) parseSelection() (Selection, error) {
 	res := Selection{}
 
 	if len(i.matches("...")) > 0 {
-		err := i.mightIgnoreNextTokens()
+		_, err := i.mightIgnoreNextTokens()
 		if err != nil {
 			return res, err
 		}
@@ -735,7 +853,7 @@ func (i *Iter) parseSelection() (Selection, error) {
 func (i *Iter) parseInlineFragment(hasTypeCondition bool) (*InlineFragment, error) {
 	res := InlineFragment{}
 	if hasTypeCondition {
-		err := i.mightIgnoreNextTokens()
+		_, err := i.mightIgnoreNextTokens()
 		if err != nil {
 			return nil, err
 		}
@@ -751,11 +869,11 @@ func (i *Iter) parseInlineFragment(hasTypeCondition bool) (*InlineFragment, erro
 	}
 
 	// parse optional directives
-	err := i.mightIgnoreNextTokens()
+	c, err := i.mightIgnoreNextTokens()
 	if err != nil {
 		return nil, err
 	}
-	if i.currentC() == '@' {
+	if c == '@' {
 		res.directives, err = i.parseDirectives()
 		if err != nil {
 			return nil, err
@@ -763,11 +881,11 @@ func (i *Iter) parseInlineFragment(hasTypeCondition bool) (*InlineFragment, erro
 	}
 
 	// Parse SelectionSet
-	err = i.mightIgnoreNextTokens()
+	c, err = i.mightIgnoreNextTokens()
 	if err != nil {
 		return nil, err
 	}
-	if i.currentC() != '{' {
+	if c != '{' {
 		return nil, errors.New("expected \"{\", not: \"" + string(i.currentC()) + "\"")
 	}
 	i.charNr++
@@ -780,11 +898,11 @@ func (i *Iter) parseFragmentSpread(name string) (*FragmentSpread, error) {
 	res := FragmentSpread{name: name}
 
 	// parse optional directives
-	err := i.mightIgnoreNextTokens()
+	c, err := i.mightIgnoreNextTokens()
 	if err != nil {
 		return nil, err
 	}
-	if i.currentC() == '@' {
+	if c == '@' {
 		res.directives, err = i.parseDirectives()
 		if err != nil {
 			return nil, err
@@ -803,18 +921,18 @@ func (i *Iter) parseField() (*Field, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = i.mightIgnoreNextTokens()
+	c, err := i.mightIgnoreNextTokens()
 	if err != nil {
 		return nil, err
 	}
 
-	if i.currentC() == ':' {
+	if c == ':' {
 		if nameOrAlias == "" {
 			return nil, errors.New("field alias should have a name")
 		}
 		res.alias = nameOrAlias
 		i.charNr++
-		err := i.mightIgnoreNextTokens()
+		_, err := i.mightIgnoreNextTokens()
 		if err != nil {
 			return nil, err
 		}
@@ -833,11 +951,11 @@ func (i *Iter) parseField() (*Field, error) {
 	}
 
 	// Parse Arguments if present
-	err = i.mightIgnoreNextTokens()
+	c, err = i.mightIgnoreNextTokens()
 	if err != nil {
 		return nil, err
 	}
-	if i.currentC() == '(' {
+	if c == '(' {
 		i.charNr++
 		args, err := i.parseArgumentsOrObjectValues(')')
 		if err != nil {
@@ -847,11 +965,11 @@ func (i *Iter) parseField() (*Field, error) {
 	}
 
 	// Parse directives if present
-	err = i.mightIgnoreNextTokens()
+	c, err = i.mightIgnoreNextTokens()
 	if err != nil {
 		return nil, err
 	}
-	if i.currentC() == '@' {
+	if c == '@' {
 		directives, err := i.parseDirectives()
 		if err != nil {
 			return nil, err
@@ -860,11 +978,11 @@ func (i *Iter) parseField() (*Field, error) {
 	}
 
 	// Parse SelectionSet if pressent
-	err = i.mightIgnoreNextTokens()
+	c, err = i.mightIgnoreNextTokens()
 	if err != nil {
 		return nil, err
 	}
-	if i.currentC() == '{' {
+	if c == '{' {
 		i.charNr++
 		selection, err := i.parseSelectionSets()
 		if err != nil {
@@ -882,12 +1000,12 @@ func (i *Iter) parseField() (*Field, error) {
 func (i *Iter) parseArgumentsOrObjectValues(closure rune) (map[string]Value, error) {
 	res := map[string]Value{}
 
-	err := i.mightIgnoreNextTokens()
+	c, err := i.mightIgnoreNextTokens()
 	if err != nil {
 		return nil, err
 	}
 
-	if i.currentC() == closure {
+	if c == closure {
 		return res, nil
 	}
 
@@ -900,17 +1018,17 @@ func (i *Iter) parseArgumentsOrObjectValues(closure rune) (map[string]Value, err
 			return nil, errors.New("argument name must be defined")
 		}
 
-		err = i.mightIgnoreNextTokens()
+		c, err = i.mightIgnoreNextTokens()
 		if err != nil {
 			return nil, err
 		}
 
-		if i.currentC() != ':' {
+		if c != ':' {
 			return nil, errors.New("expected \":\"")
 		}
 		i.charNr++
 
-		err = i.mightIgnoreNextTokens()
+		_, err = i.mightIgnoreNextTokens()
 		if err != nil {
 			return nil, err
 		}
@@ -921,21 +1039,21 @@ func (i *Iter) parseArgumentsOrObjectValues(closure rune) (map[string]Value, err
 		}
 		res[name] = *value
 
-		err = i.mightIgnoreNextTokens()
+		c, err = i.mightIgnoreNextTokens()
 		if err != nil {
 			return nil, err
 		}
 
-		if i.currentC() == ',' {
+		if c == ',' {
 			i.charNr++
 
-			err := i.mightIgnoreNextTokens()
+			c, err = i.mightIgnoreNextTokens()
 			if err != nil {
 				return nil, err
 			}
 		}
 
-		if i.currentC() == closure {
+		if c == closure {
 			i.charNr++
 			return res, nil
 		}
@@ -946,12 +1064,12 @@ func (i *Iter) parseArgumentsOrObjectValues(closure rune) (map[string]Value, err
 func (i *Iter) parseDirectives() (Directives, error) {
 	res := Directives{}
 	for {
-		err := i.mightIgnoreNextTokens()
+		c, err := i.mightIgnoreNextTokens()
 		if err != nil {
 			return nil, err
 		}
 
-		if i.currentC() != '@' {
+		if c != '@' {
 			return res, nil
 		}
 
@@ -976,11 +1094,11 @@ func (i *Iter) parseDirective() (*Directive, error) {
 	res := Directive{name: name}
 
 	// Parse optional Arguments
-	err = i.mightIgnoreNextTokens()
+	c, err := i.mightIgnoreNextTokens()
 	if err != nil {
 		return nil, err
 	}
-	if i.currentC() == '(' {
+	if c == '(' {
 		i.charNr++
 		args, err := i.parseArgumentsOrObjectValues(')')
 		if err != nil {
@@ -1030,21 +1148,20 @@ func (i *Iter) parseName() (string, error) {
 }
 
 // https://spec.graphql.org/June2018/#sec-Source-Text.Ignored-Tokens
-func (i *Iter) isIgnoredToken() bool {
-	c := i.currentC()
+func (i *Iter) isIgnoredToken(c rune) bool {
 	return isUnicodeBom(c) || isWhiteSpace(c) || i.isLineTerminator() || i.isComment(true)
 }
 
-func (i *Iter) mightIgnoreNextTokens() error {
+func (i *Iter) mightIgnoreNextTokens() (rune, error) {
 	for {
-		eof := i.eof(i.charNr)
+		c, eof := i.checkC(i.charNr)
 		if eof {
-			return ErrorUnexpectedEOF
+			return 0, ErrorUnexpectedEOF
 		}
 
-		isIgnoredChar := i.isIgnoredToken()
+		isIgnoredChar := i.isIgnoredToken(c)
 		if !isIgnoredChar {
-			return nil
+			return c, nil
 		}
 
 		i.charNr++
@@ -1120,8 +1237,7 @@ func (i *Iter) matches(oneOf ...string) string {
 			keyLen := uint64(len(key))
 			if offset >= keyLen || rune(key[offset]) != c {
 				delete(oneOfMap, key)
-			}
-			if keyLen == offset+1 {
+			} else if keyLen == offset+1 {
 				i.charNr++
 				return key
 			}
