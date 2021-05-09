@@ -9,9 +9,6 @@ import (
 	"unicode"
 )
 
-// TODO:
-// - Multiple Operations in one query
-
 var (
 	ErrorUnexpectedEOF = errors.New("unexpected EOF")
 )
@@ -91,17 +88,22 @@ type Value struct {
 	objectValue  map[string]Value
 }
 
-func ParseQuery(input string) (*Operator, error) {
+func ParseQuery(input string) ([]*Operator, error) {
+	res := []*Operator{}
 	iter := &Iter{
 		data: input,
 	}
 
-	res, err := iter.parseOperator()
-	if err != nil {
-		return nil, err
+	for {
+		operator, err := iter.parseOperatorOrFragment()
+		if err != nil {
+			return nil, err
+		}
+		if operator == nil {
+			return res, err
+		}
+		res = append(res, operator)
 	}
-
-	return res, nil
 }
 
 type Iter struct {
@@ -128,8 +130,10 @@ func (i *Iter) currentC() rune {
 	return i.c(i.charNr)
 }
 
-// https://spec.graphql.org/June2018/#sec-Language.Operations
-func (i *Iter) parseOperator() (*Operator, error) {
+// Parses one of the following:
+// - https://spec.graphql.org/June2018/#sec-Language.Operations
+// - https://spec.graphql.org/June2018/#FragmentDefinition
+func (i *Iter) parseOperatorOrFragment() (*Operator, error) {
 	res := Operator{
 		operationType:       "query",
 		name:                "",
