@@ -145,3 +145,27 @@ func TestCheckInvalidStruct(t *testing.T) {
 	}{}))
 	Error(t, err)
 }
+
+type TestCheckMethodsData struct{}
+
+func (TestCheckMethodsData) ResolveName(in int) string {
+	return ""
+}
+func (TestCheckMethodsData) ResolveBanana(in int) string {
+	return ""
+}
+func (TestCheckMethodsData) ResolvePeer(in int) string {
+	return ""
+}
+
+func TestCheckMethods(t *testing.T) {
+	obj, err := check(reflect.TypeOf(TestCheckMethodsData{}))
+	Nil(t, err)
+
+	_, ok := obj.methods["name"]
+	True(t, ok)
+	_, ok = obj.methods["banana"]
+	True(t, ok)
+	_, ok = obj.methods["peer"]
+	True(t, ok)
+}

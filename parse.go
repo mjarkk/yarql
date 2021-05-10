@@ -30,6 +30,7 @@ type Obj struct {
 
 	// Value type == valueTypeObj
 	objContents map[string]*Obj
+	methods     map[string]ObjMethod
 
 	// Value is inside struct
 	structFieldName string
@@ -41,6 +42,11 @@ type Obj struct {
 	dataValueType reflect.Kind
 
 	m sync.Mutex
+}
+
+type ObjMethod struct {
+	methodName string
+	ref        reflect.Method
 }
 
 func ParseSchema(query map[string]interface{}, methods ...map[string]interface{}) (*Schema, error) {
@@ -75,6 +81,7 @@ func check(t reflect.Type) (*Obj, error) {
 	case reflect.Struct:
 		res.valueType = valueTypeObj
 		res.objContents = map[string]*Obj{}
+		res.methods = map[string]ObjMethod{}
 
 		for i := 0; i < t.NumField(); i++ {
 			err := func(field reflect.StructField) error {
@@ -118,13 +125,35 @@ func check(t reflect.Type) (*Obj, error) {
 			return nil, err
 		}
 		res.innerContent = obj
-	case reflect.Func:
-		// TODO
-	case reflect.Map, reflect.Chan, reflect.Invalid, reflect.Uintptr, reflect.Complex64, reflect.Complex128, reflect.Interface, reflect.UnsafePointer:
+	case reflect.Func, reflect.Map, reflect.Chan, reflect.Invalid, reflect.Uintptr, reflect.Complex64, reflect.Complex128, reflect.Interface, reflect.UnsafePointer:
 		return nil, errors.New("unsupported value type")
 	default:
 		res.valueType = valueTypeData
 		res.dataValueType = t.Kind()
+	}
+
+	if res.valueType == valueTypeObj {
+		for i := 0; i < t.NumMethod(); i++ {
+			method := t.Method(i)
+			name := method.Name
+			if !strings.HasPrefix(name, "Resolve") {
+				continue
+			}
+
+			trimmedName := strings.TrimPrefix(name, "Resolve")
+			if len(name) == 0 {
+				continue
+			}
+			if strings.ToUpper(string(trimmedName[0]))[0] != trimmedName[0] {
+				// Resolve name must start with a uppercase letter
+				continue
+			}
+
+			res.methods[formatGoNameToQL(trimmedName)] = ObjMethod{
+				methodName: name,
+				ref:        method,
+			}
+		}
 	}
 
 	return &res, nil
