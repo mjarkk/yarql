@@ -117,12 +117,13 @@ func TestQueryParsingTypes(t *testing.T) {
 	Equal(t, 1, len(res))
 	Nil(t, err)
 	Equal(t, 2, len(res[0].variableDefinitions))
-	item1 := res[0].variableDefinitions[0]
-	item2 := res[0].variableDefinitions[1]
+	item1 := res[0].variableDefinitions["a"]
+	item2 := res[0].variableDefinitions["b"]
 	Equal(t, "String", item1.varType.name)
 	Equal(t, "Boolean", item2.varType.name)
 	Nil(t, item1.defaultValue)
 	Nil(t, item2.defaultValue)
+
 }
 
 func TestQueryParserNumbers(t *testing.T) {
@@ -153,11 +154,12 @@ func TestQueryParserNumbers(t *testing.T) {
 			name = "Int"
 		}
 
-		res, err := ParseQuery(`query ($b: ` + name + ` = ` + option.input + `) {}`)
+		query := `query ($b: ` + name + ` = ` + option.input + `) {}`
+		res, err := ParseQuery(query)
 		Equal(t, 1, len(res), option.input)
 		Nil(t, err, option.input)
 
-		item := res[0].variableDefinitions[0]
+		item := res[0].variableDefinitions["b"]
 
 		if option.isInt {
 			Equal(t, "IntValue", item.defaultValue.valType, option.input)
@@ -168,6 +170,8 @@ func TestQueryParserNumbers(t *testing.T) {
 			f, _ := strconv.ParseFloat(option.input, 64)
 			Equal(t, f, item.defaultValue.floatValue, option.input)
 		}
+
+		injectCodeSurviveTest(query, `+`, `.`, `e`)
 	}
 }
 
@@ -195,14 +199,17 @@ func TestQueryParserStrings(t *testing.T) {
 	}
 
 	for _, option := range options {
-		res, err := ParseQuery(`query ($b: String = ` + option.input + `) {}`)
+		query := `query ($b: String = ` + option.input + `) {}`
+		res, err := ParseQuery(query)
 		Equal(t, 1, len(res), option.input)
 		Nil(t, err, option.input)
 
-		item := res[0].variableDefinitions[0]
+		item := res[0].variableDefinitions["b"]
 
 		Equal(t, "StringValue", item.defaultValue.valType, option.input)
 		Equal(t, option.output, item.defaultValue.stringValue)
+
+		injectCodeSurviveTest(query, `\u`, `"`, `\`, "\n")
 	}
 }
 
@@ -245,6 +252,8 @@ func TestQueryParserSimpleQuery(t *testing.T) {
 		Contains(t, selectionMap, "a")
 		Contains(t, selectionMap, "b")
 		Contains(t, selectionMap, "d")
+
+		injectCodeSurviveTest(option)
 	}
 }
 
@@ -546,39 +555,21 @@ func TestQueryParserFieldDirectiveWithArguments(t *testing.T) {
 	}
 }
 
-func TestQueryParserCodeInjection(t *testing.T) {
-	// test if:
-	// - parser doesn't panic on wired inputs
-	// - parser doesn't hang on certain inputs
-
-	// This function takes quite long
-	// possible speed increase could be had by replaceing all /(\s|\t|\n){2,}+/g with " "
-
-	baseQuery := `query client($foo_bar: [Int!]! = 3) @directive_name(a: {a: 1, b: true}) {
-		foo
-		bar @a @b@c(a: 1,b:true d: [1,2 3 , 4, -11.22e+33], e: $foo_bar, f: null, g: SomeEnumValue, h: {a: 1, b: true c: "", d: """"""}) {
-			bar_foo
-		}
-		...f @a@b
-		... on User {
-			friends {
-				count
-			}
-		}
-		bas
-	}`
-
+// test if:
+// - parser doesn't panic on wired inputs
+// - parser doesn't hang on certain inputs
+func injectCodeSurviveTest(baseQuery string, extraChars ...string) {
 	toTest := [][]string{
 		{"", "_", "-", "0"},
 		{";", " ", "#", " - "},
 		{"[", "]", "{", "}"},
-		{"(", ")", ".", "e"},
+		append([]string{"(", ")"}, extraChars...),
 	}
 
 	var wg sync.WaitGroup
 	wg.Add(len(toTest))
 
-	for _, list := range toTest {
+	for _, charsToInject := range toTest {
 		go func(baseQuery string, charsToInject []string) {
 			for i := range baseQuery {
 				tilIndex := baseQuery[:i]
@@ -599,10 +590,32 @@ func TestQueryParserCodeInjection(t *testing.T) {
 				}
 			}
 			wg.Done()
-		}(baseQuery, list)
+		}(baseQuery, charsToInject)
 	}
 
 	wg.Wait()
+}
+
+func TestQueryParserCodeInjection(t *testing.T) {
+
+	// This function takes quite long
+	// possible speed increase could be had by replaceing all /(\s|\t|\n){2,}+/g with " "
+
+	baseQuery := `query client($foo_bar: [Int!]! = 3) @directive_name(a: {a: 1, b: true}) {
+		foo
+		bar @a @b@c(a: 1,b:true d: [1,2 3 , 4, -11.22e+33], e: $foo_bar, f: null, g: SomeEnumValue, h: {a: 1, b: true c: "", d: """"""}) {
+			bar_foo
+		}
+		...f @a@b
+		... on User {
+			friends {
+				count
+			}
+		}
+		bas
+	}`
+
+	injectCodeSurviveTest(baseQuery)
 }
 
 func TestQueryParserFragment(t *testing.T) {

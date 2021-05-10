@@ -25,6 +25,7 @@ func TestFormatGoNameToQL(t *testing.T) {
 	Equal(t, "input", formatGoNameToQL("input"))
 	Equal(t, "input", formatGoNameToQL("Input"))
 	Equal(t, "INPUT", formatGoNameToQL("INPUT"))
+	Equal(t, "", formatGoNameToQL(""))
 }
 
 func TestCheckString(t *testing.T) {

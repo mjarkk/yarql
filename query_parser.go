@@ -15,10 +15,10 @@ var (
 
 type Operator struct {
 	operationType       string // "query" || "mutation" || "subscription" || "fragment"
-	name                string // "" = no name given
+	name                string // "" = no name given, note: fragments always have a name
 	selection           SelectionSet
 	directives          Directives
-	variableDefinitions []VariableDefinition
+	variableDefinitions VariableDefinitions
 	fragment            *InlineFragment // defined if: operationType == "fragment"
 }
 
@@ -33,10 +33,10 @@ type Selection struct {
 
 type Field struct {
 	name       string
-	alias      string           // Optional
-	selection  SelectionSet     // Optional
-	directives Directives       // Optional
-	arguments  map[string]Value // Optional
+	alias      string       // Optional
+	selection  SelectionSet // Optional
+	directives Directives   // Optional
+	arguments  Arguments    // Optional
 }
 
 type FragmentSpread struct {
@@ -54,7 +54,7 @@ type Directives map[string]Directive
 
 type Directive struct {
 	name      string
-	arguments map[string]Value
+	arguments Arguments
 }
 
 type TypeReference struct {
@@ -68,11 +68,15 @@ type TypeReference struct {
 	listType *TypeReference
 }
 
+type VariableDefinitions map[string]VariableDefinition
+
 type VariableDefinition struct {
 	name         string
 	varType      TypeReference
 	defaultValue *Value
 }
+
+type Arguments map[string]Value
 
 type Value struct {
 	// "Variable" || "IntValue" || "FloatValue" || "StringValue" || "BooleanValue" || "NullValue" || "EnumValue" || "ListValue" || "ObjectValue"
@@ -85,7 +89,7 @@ type Value struct {
 	booleanValue bool
 	enumValue    string
 	listValue    []Value
-	objectValue  map[string]Value
+	objectValue  Arguments
 }
 
 func ParseQuery(input string) ([]*Operator, error) {
@@ -139,7 +143,7 @@ func (i *Iter) parseOperatorOrFragment() (*Operator, error) {
 		name:                "",
 		selection:           SelectionSet{},
 		directives:          Directives{},
-		variableDefinitions: []VariableDefinition{},
+		variableDefinitions: VariableDefinitions{},
 	}
 
 	// This can only return EOF errors atm and as we handle those differently here we can ignore the error
@@ -227,8 +231,8 @@ func (i *Iter) parseOperatorOrFragment() (*Operator, error) {
 }
 
 // https://spec.graphql.org/June2018/#VariableDefinitions
-func (i *Iter) parseVariableDefinitions() ([]VariableDefinition, error) {
-	res := []VariableDefinition{}
+func (i *Iter) parseVariableDefinitions() (VariableDefinitions, error) {
+	res := VariableDefinitions{}
 	for {
 		c, err := i.mightIgnoreNextTokens()
 		if err != nil {
@@ -242,9 +246,10 @@ func (i *Iter) parseVariableDefinitions() ([]VariableDefinition, error) {
 
 		variable, err := i.parseVariableDefinition()
 		if err != nil {
-			return res, err
+			return nil, err
 		}
-		res = append(res, variable)
+
+		res[variable.name] = variable
 	}
 }
 
@@ -1001,8 +1006,8 @@ func (i *Iter) parseField() (*Field, error) {
 // Parses object values and arguments as the only diffrents seems to be the wrappers around it
 // ObjectValues > https://spec.graphql.org/June2018/#ObjectValue
 // Arguments > https://spec.graphql.org/June2018/#Arguments
-func (i *Iter) parseArgumentsOrObjectValues(closure rune) (map[string]Value, error) {
-	res := map[string]Value{}
+func (i *Iter) parseArgumentsOrObjectValues(closure rune) (Arguments, error) {
+	res := Arguments{}
 
 	c, err := i.mightIgnoreNextTokens()
 	if err != nil {

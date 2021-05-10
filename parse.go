@@ -47,6 +47,7 @@ func ParseSchema(query map[string]interface{}, methods ...map[string]interface{}
 	combinedMethods := map[string]interface{}{}
 	for _, methodsObj := range methods {
 		for k, v := range methodsObj {
+			// TODO
 			combinedMethods[k] = v
 		}
 	}
