@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+// TODO check for query dept
+
 func (s *Schema) Exec(query string, operatorTarget string) (string, []error) {
 	s.m.Lock()
 	defer s.m.Unlock()
