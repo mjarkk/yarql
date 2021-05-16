@@ -3,23 +3,47 @@ package graphql
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"sync"
 )
 
+type Types map[string]*Obj
+
+func (t *Types) Add(obj Obj) Obj {
+	if obj.valueType != valueTypeObj {
+		panic("Can only add struct types to list")
+	}
+
+	val := *t
+	val[obj.typeName] = &obj
+	*t = val
+
+	return obj.getRef()
+}
+
+func (t *Types) Get(key string) (*Obj, bool) {
+	val, ok := (*t)[key]
+	return val, ok
+}
+
 // Schema defines the graphql schema
 type Schema struct {
-	methods map[string]*Obj
-	query   map[string]*Obj
-	m       sync.Mutex
+	types           Types
+	rootQuery       *Obj
+	rootQueryValue  reflect.Value
+	rootMethod      *Obj
+	rootMethodValue reflect.Value
+	m               sync.Mutex
+	MaxDepth        uint8 // Default 255
 }
 
 type valueType int
 
 const (
-	valueTypeFunction valueType = iota
-	valueTypeArray
+	valueTypeArray valueType = iota
+	valueTypeObjRef
 	valueTypeObj
 	valueTypeData
 	valueTypePtr
@@ -27,6 +51,10 @@ const (
 
 type Obj struct {
 	valueType valueType
+
+	// value type == valueTypeObjRef || type == valueTypeObj
+	typeName string
+	pkgPath  string
 
 	// Value type == valueTypeObj
 	objContents map[string]*Obj
@@ -40,48 +68,104 @@ type Obj struct {
 
 	// Value type == valueTypeData
 	dataValueType reflect.Kind
+}
 
-	m sync.Mutex
+func (o *Obj) getRef() Obj {
+	if o.valueType != valueTypeObj {
+		panic("getRef can only be used on objects")
+	}
+
+	return Obj{
+		valueType: valueTypeObjRef,
+		typeName:  o.typeName,
+	}
 }
 
 type ObjMethod struct {
-	methodName string
-	ref        reflect.Method
+	isTypeMethod bool
+	methodName   string // > ResolveBananaAndPeer
+	gqMethodName string // > bananaAndPeer
+
+	isSpread bool
+	ins      []Input
+
+	outNr      int
+	outType    Obj
+	errorOutNr *int
 }
 
-func ParseSchema(query map[string]interface{}, methods ...map[string]interface{}) (*Schema, error) {
-	combinedMethods := map[string]interface{}{}
-	for _, methodsObj := range methods {
-		for k, v := range methodsObj {
-			// TODO
-			combinedMethods[k] = v
-		}
-	}
+type Input struct {
+	isCtx bool // TODO add suport for this
 
+	// Input type if isCtx is false
+	type_ *reflect.Type
+}
+
+type SchemaOptions struct {
+	noMethodEqualToQueryChecks bool // internal for testing
+}
+
+func ParseSchema(queries interface{}, methods interface{}, options SchemaOptions) (*Schema, error) {
 	res := Schema{
-		methods: map[string]*Obj{},
-		query:   map[string]*Obj{},
+		types:           Types{},
+		rootQueryValue:  reflect.ValueOf(queries),
+		rootMethodValue: reflect.ValueOf(methods),
+		MaxDepth:        255,
 	}
 
-	for key, value := range query {
-		item, err := check(reflect.TypeOf(value))
-		if err != nil {
-			return nil, err
+	obj, err := check(&res.types, reflect.TypeOf(queries))
+	if err != nil {
+		return nil, err
+	}
+	if obj.valueType != valueTypeObjRef {
+		return nil, errors.New("Input queries must be a struct")
+	}
+	res.rootQuery = res.types[obj.typeName]
+
+	obj, err = check(&res.types, reflect.TypeOf(methods))
+	if err != nil {
+		return nil, err
+	}
+	if obj.valueType != valueTypeObjRef {
+		return nil, errors.New("Input methods must be a struct")
+	}
+	res.rootMethod = res.types[obj.typeName]
+
+	if !options.noMethodEqualToQueryChecks {
+		queryPkg := res.rootQuery.pkgPath + res.rootQuery.typeName
+		methodPkg := res.rootMethod.pkgPath + res.rootMethod.typeName
+		if queryPkg == methodPkg {
+			return nil, errors.New("method and query cannot be the same struct")
 		}
-		res.query[key] = item
 	}
 
 	return &res, nil
 }
 
-func check(t reflect.Type) (*Obj, error) {
-	res := Obj{}
+func check(types *Types, t reflect.Type) (*Obj, error) {
+	res := Obj{
+		methods:  map[string]ObjMethod{},
+		typeName: t.Name(),
+		pkgPath:  t.PkgPath(),
+	}
 
 	switch t.Kind() {
 	case reflect.Struct:
 		res.valueType = valueTypeObj
+
+		if res.typeName != "" {
+			v, ok := types.Get(res.typeName)
+			if ok {
+				if v.pkgPath != res.pkgPath {
+					return nil, fmt.Errorf("cannot have 2 structs with same type in structure: %s(%s) != %s(%s)", v.pkgPath, res.typeName, res.pkgPath, res.typeName)
+				}
+
+				res = v.getRef()
+				return &res, nil
+			}
+		}
+
 		res.objContents = map[string]*Obj{}
-		res.methods = map[string]ObjMethod{}
 
 		for i := 0; i < t.NumField(); i++ {
 			err := func(field reflect.StructField) error {
@@ -94,19 +178,35 @@ func check(t reflect.Type) (*Obj, error) {
 					return nil
 				}
 
-				obj, err := check(field.Type)
-				if err != nil {
-					return err
-				}
-				obj.structFieldName = field.Name
+				newName, hasNameRewrite := field.Tag.Lookup("gqName")
 
-				name := formatGoNameToQL(field.Name)
-				newName, ok := field.Tag.Lookup("gqName")
-				if ok {
-					name = newName
-				}
+				if field.Type.Kind() == reflect.Func {
+					name := field.Name
+					if hasNameRewrite {
+						name = newName
+					}
 
-				res.objContents[name] = obj
+					obj, err := checkFunction(types, name, field.Type, false)
+					if err != nil {
+						return err
+					} else if obj == nil {
+						return nil
+					}
+					res.methods[obj.gqMethodName] = *obj
+				} else {
+					obj, err := check(types, field.Type)
+					if err != nil {
+						return err
+					}
+					obj.structFieldName = field.Name
+
+					name := formatGoNameToQL(field.Name)
+					if hasNameRewrite {
+						name = newName
+					}
+
+					res.objContents[name] = obj
+				}
 				return nil
 			}(t.Field(i))
 			if err != nil {
@@ -120,13 +220,13 @@ func check(t reflect.Type) (*Obj, error) {
 			res.valueType = valueTypeArray
 		}
 
-		obj, err := check(t.Elem())
+		obj, err := check(types, t.Elem())
 		if err != nil {
 			return nil, err
 		}
 		res.innerContent = obj
 	case reflect.Func, reflect.Map, reflect.Chan, reflect.Invalid, reflect.Uintptr, reflect.Complex64, reflect.Complex128, reflect.Interface, reflect.UnsafePointer:
-		return nil, errors.New("unsupported value type")
+		return nil, fmt.Errorf("unsupported value type %s", t.Kind().String())
 	default:
 		res.valueType = valueTypeData
 		res.dataValueType = t.Kind()
@@ -135,28 +235,103 @@ func check(t reflect.Type) (*Obj, error) {
 	if res.valueType == valueTypeObj {
 		for i := 0; i < t.NumMethod(); i++ {
 			method := t.Method(i)
-			name := method.Name
-			if !strings.HasPrefix(name, "Resolve") {
+			obj, err := checkFunction(types, method.Name, method.Type, true)
+			if err != nil {
+				return nil, err
+			} else if obj == nil {
 				continue
 			}
 
-			trimmedName := strings.TrimPrefix(name, "Resolve")
-			if len(name) == 0 {
-				continue
-			}
-			if strings.ToUpper(string(trimmedName[0]))[0] != trimmedName[0] {
-				// Resolve name must start with a uppercase letter
-				continue
-			}
-
-			res.methods[formatGoNameToQL(trimmedName)] = ObjMethod{
-				methodName: name,
-				ref:        method,
-			}
+			res.methods[obj.gqMethodName] = *obj
 		}
 	}
 
+	if res.typeName != "" && res.valueType == valueTypeObj {
+		res = types.Add(res)
+	}
+
 	return &res, nil
+}
+
+func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool) (*ObjMethod, error) {
+	trimmedName := name
+
+	if strings.HasPrefix(name, "Resolve") {
+		if len(name) > 0 {
+			trimmedName = strings.TrimPrefix(name, "Resolve")
+			if isTypeMethod && strings.ToUpper(string(trimmedName[0]))[0] != trimmedName[0] {
+				// Resolve name must start with a uppercase letter
+				return nil, nil
+			}
+		} else if isTypeMethod {
+			return nil, nil
+		}
+	} else if isTypeMethod {
+		return nil, nil
+	}
+
+	isVariadic := t.IsVariadic()
+
+	ins := []Input{}
+	for i := 0; i < t.NumIn(); i++ {
+		type_ := t.In(i)
+		ins = append(ins, Input{type_: &type_})
+	}
+
+	numOuts := t.NumOut()
+	if numOuts == 0 {
+		return nil, fmt.Errorf("%s no value returned", name)
+	} else if numOuts > 2 {
+		return nil, fmt.Errorf("%s cannot return more than 2 response values", name)
+	}
+
+	var outNr *int
+	var outTypeObj *Obj
+	var hasErrorOut *int
+
+	errInterface := reflect.TypeOf((*error)(nil)).Elem()
+	for i := 0; i < numOuts; i++ {
+		outType := t.Out(i)
+
+		outKind := outType.Kind()
+		if outKind == reflect.Interface {
+			if outType.Implements(errInterface) {
+				if hasErrorOut != nil {
+					return nil, fmt.Errorf("%s cannot return multiple error types", name)
+				} else {
+					hasErrorOut = &i
+				}
+			} else {
+				return nil, fmt.Errorf("%s cannot return interface type", name)
+			}
+		} else {
+			if outNr != nil {
+				return nil, fmt.Errorf("%s cannot return multiple types of data", name)
+			}
+
+			outObj, err := check(types, outType)
+			if err != nil {
+				return nil, err
+			}
+			outNr = &i
+			outTypeObj = outObj
+		}
+	}
+
+	if outTypeObj == nil {
+		return nil, fmt.Errorf("%s does not return usable data", name)
+	}
+
+	return &ObjMethod{
+		isTypeMethod: isTypeMethod,
+		methodName:   name,
+		gqMethodName: formatGoNameToQL(trimmedName),
+		isSpread:     isVariadic,
+		ins:          ins,
+		outNr:        *outNr,
+		outType:      *outTypeObj,
+		errorOutNr:   hasErrorOut,
+	}, nil
 }
 
 func formatGoNameToQL(input string) string {

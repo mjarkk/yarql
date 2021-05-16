@@ -28,12 +28,13 @@ func TestFormatGoNameToQL(t *testing.T) {
 	Equal(t, "", formatGoNameToQL(""))
 }
 
-func TestCheckString(t *testing.T) {
-	obj, err := check(reflect.TypeOf(""))
+type TestCheckEmptyStructData struct{}
+
+func TestCheckEmptyStruct(t *testing.T) {
+	obj, err := check(&Types{}, reflect.TypeOf(TestCheckEmptyStructData{}))
 	NoError(t, err)
 
-	Equal(t, valueTypeData, obj.valueType)
-	Equal(t, reflect.String, obj.dataValueType)
+	Equal(t, valueTypeObjRef, obj.valueType)
 }
 
 type TestCheckStructSimpleDemo struct {
@@ -43,11 +44,14 @@ type TestCheckStructSimpleDemo struct {
 }
 
 func TestCheckStructSimple(t *testing.T) {
-	obj, err := check(reflect.TypeOf(TestCheckStructSimpleDemo{}))
+	types := Types{}
+	obj, err := check(&types, reflect.TypeOf(TestCheckStructSimpleDemo{}))
 	NoError(t, err)
 
-	Equal(t, obj.valueType, valueTypeObj)
-	NotNil(t, obj.objContents)
+	Equal(t, obj.valueType, valueTypeObjRef)
+	typeObj, ok := types[obj.typeName]
+	True(t, ok)
+	NotNil(t, typeObj.objContents)
 
 	exists := map[string]reflect.Kind{
 		"a": reflect.String,
@@ -55,7 +59,7 @@ func TestCheckStructSimple(t *testing.T) {
 		"c": reflect.Float64,
 	}
 	for name, expectedType := range exists {
-		val, ok := obj.objContents[name]
+		val, ok := typeObj.objContents[name]
 		True(t, ok)
 		Equal(t, valueTypeData, val.valueType)
 		Equal(t, expectedType, val.dataValueType)
@@ -63,9 +67,7 @@ func TestCheckStructSimple(t *testing.T) {
 }
 
 func TestParseSchema(t *testing.T) {
-	ParseSchema(map[string]interface{}{
-		"a": TestCheckStructSimpleDemo{},
-	})
+	ParseSchema(TestCheckStructSimpleDemo{}, TestCheckStructSimpleDemo{}, SchemaOptions{noMethodEqualToQueryChecks: true})
 }
 
 type TestCheckStructWArrayData struct {
@@ -73,8 +75,10 @@ type TestCheckStructWArrayData struct {
 }
 
 func TestCheckStructWArray(t *testing.T) {
-	obj, err := check(reflect.TypeOf(TestCheckStructWArrayData{}))
+	types := Types{}
+	ref, err := check(&types, reflect.TypeOf(TestCheckStructWArrayData{}))
 	NoError(t, err)
+	obj := types[ref.typeName]
 
 	// Foo is an array
 	val, ok := obj.objContents["foo"]
@@ -93,8 +97,10 @@ type TestCheckStructWPtrData struct {
 }
 
 func TestCheckStructWPtr(t *testing.T) {
-	obj, err := check(reflect.TypeOf(TestCheckStructWPtrData{}))
+	types := Types{}
+	ref, err := check(&types, reflect.TypeOf(TestCheckStructWPtrData{}))
 	NoError(t, err)
+	obj := types[ref.typeName]
 
 	// Foo is a ptr
 	val, ok := obj.objContents["foo"]
@@ -114,8 +120,10 @@ type TestCheckStructTagsData struct {
 }
 
 func TestCheckStructTags(t *testing.T) {
-	obj, err := check(reflect.TypeOf(TestCheckStructTagsData{}))
+	types := Types{}
+	ref, err := check(&types, reflect.TypeOf(TestCheckStructTagsData{}))
 	NoError(t, err)
+	obj := types[ref.typeName]
 
 	_, ok := obj.objContents["otherName"]
 	True(t, ok, "name should now be called otherName")
@@ -128,17 +136,17 @@ func TestCheckStructTags(t *testing.T) {
 }
 
 func TestCheckInvalidStruct(t *testing.T) {
-	_, err := check(reflect.TypeOf(struct {
+	_, err := check(&Types{}, reflect.TypeOf(struct {
 		Foo interface{}
 	}{}))
 	Error(t, err)
 
-	_, err = check(reflect.TypeOf(struct {
+	_, err = check(&Types{}, reflect.TypeOf(struct {
 		Foo complex64
 	}{}))
 	Error(t, err)
 
-	_, err = check(reflect.TypeOf(struct {
+	_, err = check(&Types{}, reflect.TypeOf(struct {
 		Foo struct {
 			Bar complex64
 		}
@@ -151,21 +159,66 @@ type TestCheckMethodsData struct{}
 func (TestCheckMethodsData) ResolveName(in int) string {
 	return ""
 }
-func (TestCheckMethodsData) ResolveBanana(in int) string {
-	return ""
+func (TestCheckMethodsData) ResolveBanana(in int) (string, error) {
+	return "", nil
 }
 func (TestCheckMethodsData) ResolvePeer(in int) string {
 	return ""
 }
 
 func TestCheckMethods(t *testing.T) {
-	obj, err := check(reflect.TypeOf(TestCheckMethodsData{}))
+	types := Types{}
+	ref, err := check(&types, reflect.TypeOf(TestCheckMethodsData{}))
 	Nil(t, err)
+	obj := types[ref.typeName]
 
 	_, ok := obj.methods["name"]
 	True(t, ok)
 	_, ok = obj.methods["banana"]
 	True(t, ok)
 	_, ok = obj.methods["peer"]
+	True(t, ok)
+}
+
+type TestCheckMethodsFailData1 struct{}
+
+func (TestCheckMethodsFailData1) ResolveName(in int) (string, string) {
+	return "", ""
+}
+
+type TestCheckMethodsFailData2 struct{}
+
+func (TestCheckMethodsFailData2) ResolveName(in int) (error, error) {
+	return nil, nil
+}
+
+type TestCheckMethodsFailData3 struct{}
+
+func (TestCheckMethodsFailData3) ResolveName(in int) func(string) string {
+	return nil
+}
+
+func TestCheckMethodsFail(t *testing.T) {
+	_, err := check(&Types{}, reflect.TypeOf(TestCheckMethodsFailData1{}))
+	Error(t, err)
+
+	_, err = check(&Types{}, reflect.TypeOf(TestCheckMethodsFailData2{}))
+	Error(t, err)
+
+	_, err = check(&Types{}, reflect.TypeOf(TestCheckMethodsFailData3{}))
+	Error(t, err)
+}
+
+type TestCheckStructFuncsData struct {
+	Name func(string) string
+}
+
+func TestCheckStructFuncs(t *testing.T) {
+	types := Types{}
+	ref, err := check(&types, reflect.TypeOf(TestCheckStructFuncsData{}))
+	Nil(t, err)
+	obj := types[ref.typeName]
+
+	_, ok := obj.methods["name"]
 	True(t, ok)
 }
