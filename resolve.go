@@ -9,7 +9,7 @@ import (
 
 // TODO check for query dept
 
-func (s *Schema) Exec(query string, operatorTarget string) (string, []error) {
+func (s *Schema) Resolve(query string, operatorTarget string) (string, []error) {
 	s.m.Lock()
 	defer s.m.Unlock()
 
@@ -18,7 +18,7 @@ func (s *Schema) Exec(query string, operatorTarget string) (string, []error) {
 		return "{}", errs
 	}
 
-	ctx := &ExecCtx{
+	ctx := &ResolveCtx{
 		fragments:  fragments,
 		schema:     s,
 		Values:     map[string]interface{}{},
@@ -55,7 +55,7 @@ func (s *Schema) Exec(query string, operatorTarget string) (string, []error) {
 }
 
 // ExecCtx contains all the request information and responses
-type ExecCtx struct {
+type ResolveCtx struct {
 	fragments  map[string]Operator    // Query fragments
 	schema     *Schema                // The Go code schema (grahql schema)
 	Values     map[string]interface{} // API User values, user can put all their shitty things in here like poems or tax papers
@@ -63,15 +63,15 @@ type ExecCtx struct {
 	errors     []error
 }
 
-func (ctx *ExecCtx) addErr(err string) {
+func (ctx *ResolveCtx) addErr(err string) {
 	ctx.errors = append(ctx.errors, errors.New(err))
 }
 
-func (ctx *ExecCtx) addErrf(err string, args ...interface{}) {
+func (ctx *ResolveCtx) addErrf(err string, args ...interface{}) {
 	ctx.errors = append(ctx.errors, fmt.Errorf(err, args...))
 }
 
-func (ctx *ExecCtx) start(operator *Operator) string {
+func (ctx *ResolveCtx) start(operator *Operator) string {
 	// TODO add variables to exec ctx
 	if operator.directives != nil && len(operator.directives) > 0 {
 		ctx.directvies = append(ctx.directvies, operator.directives)
@@ -81,7 +81,7 @@ func (ctx *ExecCtx) start(operator *Operator) string {
 	return ctx.parseSelection(operator.selection, ctx.schema.rootQueryValue, ctx.schema.rootQuery)
 }
 
-func (ctx *ExecCtx) parseSelection(selectionSet SelectionSet, struct_ reflect.Value, structType *Obj) string {
+func (ctx *ResolveCtx) parseSelection(selectionSet SelectionSet, struct_ reflect.Value, structType *Obj) string {
 	res := "{"
 	writtenToRes := false
 	for _, selection := range selectionSet {
@@ -109,7 +109,7 @@ func (ctx *ExecCtx) parseSelection(selectionSet SelectionSet, struct_ reflect.Va
 	return res + "}"
 }
 
-func (ctx *ExecCtx) parseField(field *Field, struct_ reflect.Value, structType *Obj) (fieldValue string, returnedOnError bool) {
+func (ctx *ResolveCtx) parseField(field *Field, struct_ reflect.Value, structType *Obj) (fieldValue string, returnedOnError bool) {
 	okRes := func(data string) (string, bool) {
 		name := field.name
 		if len(field.alias) > 0 {

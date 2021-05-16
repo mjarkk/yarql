@@ -11,7 +11,7 @@ import (
 func parseAndTest(t *testing.T, query string, queries interface{}, methods interface{}) (string, []error) {
 	s, err := ParseSchema(queries, methods, SchemaOptions{})
 	NoError(t, err, query)
-	out, errs := s.Exec(query, "")
+	out, errs := s.Resolve(query, "")
 	if !json.Valid([]byte(out)) {
 		panic(fmt.Sprintf("query %s, returned invalid json: %s", query, out))
 	}
