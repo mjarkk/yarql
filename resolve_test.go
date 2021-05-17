@@ -9,8 +9,13 @@ import (
 )
 
 func parseAndTest(t *testing.T, query string, queries interface{}, methods interface{}) (string, []error) {
+	return parseAndTestMaxDept(t, query, queries, methods, 255)
+}
+
+func parseAndTestMaxDept(t *testing.T, query string, queries interface{}, methods interface{}, maxDept uint8) (string, []error) {
 	s, err := ParseSchema(queries, methods, SchemaOptions{})
 	NoError(t, err, query)
+	s.MaxDepth = maxDept
 	out, errs := s.Resolve(query, "")
 	if !json.Valid([]byte(out)) {
 		panic(fmt.Sprintf("query %s, returned invalid json: %s", query, out))
@@ -19,10 +24,10 @@ func parseAndTest(t *testing.T, query string, queries interface{}, methods inter
 }
 
 type TestExecEmptyQueryDataQ struct{}
-type TestExecEmptyQueryDataM struct{}
+type M struct{}
 
 func TestExecEmptyQuery(t *testing.T) {
-	_, errs := parseAndTest(t, `{}`, TestExecEmptyQueryDataQ{}, TestExecEmptyQueryDataM{})
+	_, errs := parseAndTest(t, `{}`, TestExecEmptyQueryDataQ{}, M{})
 	for _, err := range errs {
 		panic(err)
 	}
@@ -38,7 +43,7 @@ func TestExecSimpleQuery(t *testing.T) {
 	out, errs := parseAndTest(t, `{
 		a
 		b
-	}`, TestExecSimpleQueryData{A: "foo", B: "bar", C: "baz"}, TestExecEmptyQueryDataM{})
+	}`, TestExecSimpleQueryData{A: "foo", B: "bar", C: "baz"}, M{})
 	for _, err := range errs {
 		panic(err)
 	}
@@ -75,7 +80,7 @@ func TestExecStructInStructInline(t *testing.T) {
 			a
 			b
 		}
-	}`, schema, TestExecEmptyQueryDataM{})
+	}`, schema, M{})
 	for _, err := range errs {
 		panic(err)
 	}
@@ -104,7 +109,7 @@ func TestExecStructInStruct(t *testing.T) {
 			B: "bar",
 			C: "baz",
 		},
-	}, TestExecEmptyQueryDataM{})
+	}, M{})
 	for _, err := range errs {
 		panic(err)
 	}
@@ -118,13 +123,13 @@ func TestExecStructInStruct(t *testing.T) {
 }
 
 func TestExecInvalidFields(t *testing.T) {
-	out, errs := parseAndTest(t, `{field_that_does_not_exsist{a b}}`, TestExecStructInStructData{}, TestExecEmptyQueryDataM{})
+	out, errs := parseAndTest(t, `{field_that_does_not_exsist{a b}}`, TestExecStructInStructData{}, M{})
 	Equal(t, 1, len(errs), "Response should have errors")
 	Equal(t, "{}", out, "response should be empty")
 
-	out, errs = parseAndTest(t, `{foo{field_that_does_not_exsist}}`, TestExecStructInStructData{}, TestExecEmptyQueryDataM{})
+	out, errs = parseAndTest(t, `{foo{field_that_does_not_exsist}}`, TestExecStructInStructData{}, M{})
 	Equal(t, 1, len(errs), "Response should have errors")
-	Equal(t, "{}", out, "response should be empty")
+	Equal(t, `{"foo":{}}`, out, "response should be empty")
 }
 
 func TestExecAlias(t *testing.T) {
@@ -144,7 +149,7 @@ func TestExecAlias(t *testing.T) {
 		A: "foo",
 		B: "bar",
 		C: "baz",
-	}, TestExecEmptyQueryDataM{})
+	}, M{})
 	for _, err := range errs {
 		panic(err)
 	}
@@ -167,6 +172,187 @@ func TestExecAlias(t *testing.T) {
 			Equal(t, test.expect, res[item], fmt.Sprintf("Expect %s to be %s", item, test.expect))
 		}
 	}
+}
+
+type TestExecArrayData struct {
+	Foo []string
+}
+
+func TestExecArray(t *testing.T) {
+	out, errs := parseAndTest(t, `{foo}`, TestExecArrayData{[]string{"a", "b", "c"}}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":["a","b","c"]}`, out)
+
+	out, errs = parseAndTest(t, `{foo}`, TestExecArrayData{[]string{}}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":[]}`, out)
+
+	out, errs = parseAndTest(t, `{foo}`, TestExecArrayData{nil}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":null}`, out)
+}
+
+type TestExecArrayWithStructData struct {
+	Foo []TestExecSimpleQueryData
+}
+
+func TestExecArrayWithStruct(t *testing.T) {
+	out, errs := parseAndTest(t, `{foo {a b}}`, TestExecArrayWithStructData{[]TestExecSimpleQueryData{{}}}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":[{"a":"","b":""}]}`, out)
+
+	out, errs = parseAndTest(t, `{foo}`, TestExecArrayWithStructData{[]TestExecSimpleQueryData{}}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":[]}`, out)
+
+	out, errs = parseAndTest(t, `{foo}`, TestExecArrayWithStructData{nil}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":null}`, out)
+}
+
+type TestExecArrayWithinArrayData struct {
+	Foo [][]string
+}
+
+func TestExecArrayWithinArray(t *testing.T) {
+	out, errs := parseAndTest(t, `{foo}`, TestExecArrayWithinArrayData{[][]string{{"a", "b", "c"}}}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":[["a","b","c"]]}`, out)
+
+	out, errs = parseAndTest(t, `{foo}`, TestExecArrayWithinArrayData{[][]string{{"a"}, {"b"}, {"c"}}}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":[["a"],["b"],["c"]]}`, out)
+
+	out, errs = parseAndTest(t, `{foo}`, TestExecArrayWithinArrayData{[][]string{{}}}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":[[]]}`, out)
+
+	out, errs = parseAndTest(t, `{foo}`, TestExecArrayWithinArrayData{[][]string{}}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":[]}`, out)
+
+	out, errs = parseAndTest(t, `{foo}`, TestExecArrayWithinArrayData{[][]string{nil}}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":[null]}`, out)
+
+	out, errs = parseAndTest(t, `{foo}`, TestExecArrayWithinArrayData{nil}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":null}`, out)
+}
+
+type TestExecPtrData struct {
+	Foo *string
+}
+
+func TestExecPtr(t *testing.T) {
+	out, errs := parseAndTest(t, `{foo}`, TestExecPtrData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":null}`, out)
+
+	data := "bar"
+	out, errs = parseAndTest(t, `{foo}`, TestExecPtrData{&data}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":"bar"}`, out)
+}
+
+type TestExecPtrInPtrData struct {
+	Foo **string
+}
+
+func TestExecPtrInPtr(t *testing.T) {
+	out, errs := parseAndTest(t, `{foo}`, TestExecPtrInPtrData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":null}`, out)
+
+	data := "bar"
+	dataPtr := &data
+	out, errs = parseAndTest(t, `{foo}`, TestExecPtrInPtrData{&dataPtr}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":"bar"}`, out)
+}
+
+type TestExecArrayWithPtrData struct {
+	Foo []*TestExecSimpleQueryData
+}
+
+func TestExecArrayWithPtr(t *testing.T) {
+	out, errs := parseAndTest(t, `{foo{a b}}`, TestExecArrayWithPtrData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":null}`, out)
+
+	out, errs = parseAndTest(t, `{foo{a b}}`, TestExecArrayWithPtrData{[]*TestExecSimpleQueryData{}}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":[]}`, out)
+
+	out, errs = parseAndTest(t, `{foo{a b}}`, TestExecArrayWithPtrData{[]*TestExecSimpleQueryData{nil}}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":[null]}`, out)
+
+	out, errs = parseAndTest(t, `{foo{a b}}`, TestExecArrayWithPtrData{[]*TestExecSimpleQueryData{{A: "foo", B: "bar", C: "baz"}}}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":[{"a":"foo","b":"bar"}]}`, out)
+}
+
+type TestExecMaxDeptData struct {
+	Foo struct {
+		Bar struct {
+			Baz struct {
+				FooBar struct {
+					BarBaz struct {
+						BazFoo string
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestExecMaxDept(t *testing.T) {
+	out, errs := parseAndTestMaxDept(t, `{foo{bar{baz{fooBar{barBaz{bazFoo}}}}}}`, TestExecMaxDeptData{}, M{}, 3)
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":{"bar":{"baz":null}}}`, out)
 }
 
 func TestValueToJson(t *testing.T) {
@@ -260,5 +446,4 @@ func TestValueToJson(t *testing.T) {
 		res, _ := valueToJson(option.value)
 		Equal(t, option.expect, res)
 	}
-
 }
