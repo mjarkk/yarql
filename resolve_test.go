@@ -357,7 +357,8 @@ func TestExecMaxDept(t *testing.T) {
 
 func TestValueToJson(t *testing.T) {
 	string_ := string(`a"b`)
-	bool_ := bool(true)
+	boolTrue := bool(true)
+	boolFalse := bool(false)
 	int_ := int(1)
 	int8_ := int8(2)
 	int16_ := int16(3)
@@ -393,7 +394,8 @@ func TestValueToJson(t *testing.T) {
 		expect string
 	}{
 		{string_, `"a\"b"`},
-		{bool_, "true"},
+		{boolTrue, "true"},
+		{boolFalse, "false"},
 		{int_, "1"},
 		{int8_, "2"},
 		{int16_, "3"},
@@ -409,7 +411,8 @@ func TestValueToJson(t *testing.T) {
 		{float64_, "13"},
 
 		{&string_, `"a\"b"`},
-		{&bool_, "true"},
+		{&boolTrue, "true"},
+		{&boolFalse, "false"},
 		{&int_, "1"},
 		{&int8_, "2"},
 		{&int16_, "3"},
