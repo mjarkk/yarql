@@ -77,17 +77,28 @@ func (ctx *ResolveCtx) start(operator *Operator) string {
 		ctx.directvies = append(ctx.directvies, operator.directives)
 	}
 
-	// TODO depending on the request type ctx.schema.rootQueryValue should be changed to root method value
-	return ctx.parseSelection(operator.selection, ctx.schema.rootQueryValue, ctx.schema.rootQuery)
+	switch operator.operationType {
+	case "query":
+		return ctx.resolveSelection(operator.selection, ctx.schema.rootQueryValue, ctx.schema.rootQuery)
+	case "mutation":
+		return ctx.resolveSelection(operator.selection, ctx.schema.rootQueryValue, ctx.schema.rootQuery)
+	case "subscription":
+		// TODO
+		ctx.addErr("subscription not suppored yet")
+		return "{}"
+	default:
+		ctx.addErrf("%s cannot be used as operator", operator.operationType)
+		return "{}"
+	}
 }
 
-func (ctx *ResolveCtx) parseSelection(selectionSet SelectionSet, struct_ reflect.Value, structType *Obj) string {
+func (ctx *ResolveCtx) resolveSelection(selectionSet SelectionSet, struct_ reflect.Value, structType *Obj) string {
 	res := "{"
 	writtenToRes := false
 	for _, selection := range selectionSet {
 		switch selection.selectionType {
 		case "Field":
-			value, hasError := ctx.parseField(selection.field, struct_, structType)
+			value, hasError := ctx.resolveField(selection.field, struct_, structType)
 			if !hasError {
 				if writtenToRes {
 					res += ","
@@ -109,195 +120,209 @@ func (ctx *ResolveCtx) parseSelection(selectionSet SelectionSet, struct_ reflect
 	return res + "}"
 }
 
-func (ctx *ResolveCtx) parseField(field *Field, struct_ reflect.Value, structType *Obj) (fieldValue string, returnedOnError bool) {
+func (ctx *ResolveCtx) resolveField(query *Field, struct_ reflect.Value, codeStructure *Obj) (fieldValue string, returnedOnError bool) {
+	structItem, ok := codeStructure.objContents[query.name]
+	var value reflect.Value
+	if !ok {
+		method, ok := codeStructure.methods[query.name]
+		if !ok {
+			ctx.addErrf("field %s does not exists on %s", query.name, codeStructure.typeName)
+			return "null", true
+		}
+		if method.isTypeMethod {
+			value = struct_.FieldByName(method.methodName)
+		} else {
+			value = struct_.MethodByName(method.methodName)
+		}
+		// TODO
+		ctx.addErrf("field %s uses function currently not supported", query.name)
+		return "null", true
+	} else {
+		value = struct_.FieldByName(structItem.structFieldName)
+	}
+	if value.IsZero() {
+		ctx.addErrf("field %s does not exists on %s", query.name, codeStructure.typeName)
+		return "null", true
+	}
+
+	return ctx.resolveFieldDataValue(query, value, structItem)
+}
+
+func (ctx *ResolveCtx) resolveFieldDataValue(query *Field, value reflect.Value, codeStructure *Obj) (fieldValue string, returnedOnError bool) {
 	okRes := func(data string) (string, bool) {
-		name := field.name
-		if len(field.alias) > 0 {
-			name = field.alias
+		name := query.name
+		if len(query.alias) > 0 {
+			name = query.alias
 		}
 		return fmt.Sprintf(`"%s":%s`, name, data), false
 	}
 
-	structItem, ok := structType.objContents[field.name]
-	structFieldName := structItem.structFieldName
-	var value reflect.Value
-	if !ok {
-		method, ok := structType.methods[field.name]
-		if !ok {
-			ctx.addErrf("field %s does not exists on %s", field.name, structType.typeName)
-			return "", true
-		}
-		if method.isTypeMethod {
-			value = struct_.FieldByName(structFieldName)
-		} else {
-			value = struct_.MethodByName(structFieldName)
-		}
-		// TODO
-		ctx.addErrf("field %s uses function currently not supported", field.name)
-		return "", true
-	} else {
-		value = struct_.FieldByName(structFieldName)
-	}
-	if value.IsZero() {
-		ctx.addErrf("field %s does not exists on %s", field.name, structType.typeName)
-		return "", true
-	}
-
-	switch structItem.valueType {
+	switch codeStructure.valueType {
 	case valueTypeArray:
-		// TODO
+		// TODO yes you can actually have a selection
+		// if len(query.selection) > 0 {
+		// 	ctx.addErrf("field %s cannot have a selection", query.name)
+		// 	return "", true
+		// }
+
+		if (value.Kind() != reflect.Array && value.Kind() != reflect.Slice) || value.IsNil() {
+			return "null", false
+		}
+
+		if codeStructure.innerContent == nil {
+			ctx.addErr("field %s does not have a internal array content type")
+			return "null", true
+		}
+		codeStructure = codeStructure.innerContent
+
+		for i := 0; i < value.Len(); i++ {
+
+			value.Index(i)
+		}
 	case valueTypeObj, valueTypeObjRef:
-		if len(field.selection) == 0 {
-			ctx.addErrf("field %s must have a selection", field.name)
-			return "", true
+		if len(query.selection) == 0 {
+			ctx.addErrf("field %s must have a selection", query.name)
+			return "null", true
 		}
 
-		if structItem.valueType == valueTypeObjRef {
-			structItem, ok = ctx.schema.types[structItem.typeName]
+		var ok bool
+		if codeStructure.valueType == valueTypeObjRef {
+			codeStructure, ok = ctx.schema.types[codeStructure.typeName]
 			if !ok {
-				ctx.addErrf("field %s cannot have a selection", field.name)
-				return "", true
+				ctx.addErrf("field %s cannot have a selection", query.name)
+				return "null", true
 			}
 		}
 
-		return okRes(ctx.parseSelection(field.selection, value, structItem))
+		return okRes(ctx.resolveSelection(query.selection, value, codeStructure))
 	case valueTypeData:
-		switch structItem.dataValueType {
-		case reflect.String, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64:
-			if len(field.selection) > 0 {
-				ctx.addErrf("field %s cannot have a selection", field.name)
-				return "", true
-			}
-
-			return okRes(valueToJson(value.Interface()))
-		case reflect.Struct, reflect.Map, reflect.UnsafePointer, reflect.Interface, reflect.Func, reflect.Chan, reflect.Uintptr, reflect.Complex64, reflect.Complex128:
-			ctx.addErrf("field %s has an invalid data type", field.name)
-			return "", true
-		case reflect.Array, reflect.Slice:
-			// TODO
-		case reflect.Ptr:
-			// TODO
+		if len(query.selection) > 0 {
+			ctx.addErrf("field %s cannot have a selection", query.name)
+			return "null", true
 		}
+		val, _ := ctx.valueToJson(value.Interface())
+		return okRes(val)
 	case valueTypePtr:
 		// TODO
 	}
 
-	ctx.addErrf("field %s has invalid data type", field.name)
-	return "", true
+	ctx.addErrf("field %s has invalid data type", query.name)
+	return "null", true
 }
 
-func valueToJson(in interface{}) string {
+func (ctx *ResolveCtx) valueToJson(in interface{}) (value string, returnedOnError bool) {
 	switch v := in.(type) {
 	case string:
-		return fmt.Sprintf("%q", v)
+		return fmt.Sprintf("%q", v), false
 	case bool:
 		if v {
-			return "true"
+			return "true", false
 		} else {
-			return "false"
+			return "false", false
 		}
 	case int:
-		return fmt.Sprintf("%d", v)
+		return fmt.Sprintf("%d", v), false
 	case int8:
-		return fmt.Sprintf("%d", v)
+		return fmt.Sprintf("%d", v), false
 	case int16:
-		return fmt.Sprintf("%d", v)
+		return fmt.Sprintf("%d", v), false
 	case int32: // = rune
-		return fmt.Sprintf("%d", v)
+		return fmt.Sprintf("%d", v), false
 	case int64:
-		return fmt.Sprintf("%d", v)
+		return fmt.Sprintf("%d", v), false
 	case uint:
-		return fmt.Sprintf("%d", v)
+		return fmt.Sprintf("%d", v), false
 	case uint8: // = byte
-		return fmt.Sprintf("%d", v)
+		return fmt.Sprintf("%d", v), false
 	case uint16:
-		return fmt.Sprintf("%d", v)
+		return fmt.Sprintf("%d", v), false
 	case uint32:
-		return fmt.Sprintf("%d", v)
+		return fmt.Sprintf("%d", v), false
 	case uint64:
-		return fmt.Sprintf("%d", v)
+		return fmt.Sprintf("%d", v), false
 	case uintptr:
-		return fmt.Sprintf("%d", v)
+		return fmt.Sprintf("%d", v), false
 	case float32:
-		return fmt.Sprintf("%e", v)
+		return fmt.Sprintf("%e", v), false
 	case float64:
-		return fmt.Sprintf("%e", v)
+		return fmt.Sprintf("%e", v), false
 	case *string:
 		if v == nil {
-			return "null"
+			return "null", false
 		}
-		return valueToJson(*v)
+		return ctx.valueToJson(*v)
 	case *bool:
 		if v == nil {
-			return "null"
+			return "null", false
 		}
-		return valueToJson(*v)
+		return ctx.valueToJson(*v)
 	case *int:
 		if v == nil {
-			return "null"
+			return "null", false
 		}
-		return valueToJson(*v)
+		return ctx.valueToJson(*v)
 	case *int8:
 		if v == nil {
-			return "null"
+			return "null", false
 		}
-		return valueToJson(*v)
+		return ctx.valueToJson(*v)
 	case *int16:
 		if v == nil {
-			return "null"
+			return "null", false
 		}
-		return valueToJson(*v)
+		return ctx.valueToJson(*v)
 	case *int32: // = *rune
 		if v == nil {
-			return "null"
+			return "null", false
 		}
-		return valueToJson(*v)
+		return ctx.valueToJson(*v)
 	case *int64:
 		if v == nil {
-			return "null"
+			return "null", false
 		}
-		return valueToJson(*v)
+		return ctx.valueToJson(*v)
 	case *uint:
 		if v == nil {
-			return "null"
+			return "null", false
 		}
-		return valueToJson(*v)
+		return ctx.valueToJson(*v)
 	case *uint8: // = *byte
 		if v == nil {
-			return "null"
+			return "null", false
 		}
-		return valueToJson(*v)
+		return ctx.valueToJson(*v)
 	case *uint16:
 		if v == nil {
-			return "null"
+			return "null", false
 		}
-		return valueToJson(*v)
+		return ctx.valueToJson(*v)
 	case *uint32:
 		if v == nil {
-			return "null"
+			return "null", false
 		}
-		return valueToJson(*v)
+		return ctx.valueToJson(*v)
 	case *uint64:
 		if v == nil {
-			return "null"
+			return "null", false
 		}
-		return valueToJson(*v)
+		return ctx.valueToJson(*v)
 	case *uintptr:
 		if v == nil {
-			return "null"
+			return "null", false
 		}
-		return valueToJson(*v)
+		return ctx.valueToJson(*v)
 	case *float32:
 		if v == nil {
-			return "null"
+			return "null", false
 		}
-		return valueToJson(*v)
+		return ctx.valueToJson(*v)
 	case *float64:
 		if v == nil {
-			return "null"
+			return "null", false
 		}
-		return valueToJson(*v)
+		return ctx.valueToJson(*v)
 	default:
-		return "null"
+		ctx.addErrf("invalid data type")
+		return "null", true
 	}
 }

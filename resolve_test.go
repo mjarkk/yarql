@@ -117,6 +117,16 @@ func TestExecStructInStruct(t *testing.T) {
 	Equal(t, "bar", res.Foo.B)
 }
 
+func TestExecInvalidFields(t *testing.T) {
+	out, errs := parseAndTest(t, `{field_that_does_not_exsist{a b}}`, TestExecStructInStructData{}, TestExecEmptyQueryDataM{})
+	Equal(t, 1, len(errs), "Response should have errors")
+	Equal(t, "{}", out, "response should be empty")
+
+	out, errs = parseAndTest(t, `{foo{field_that_does_not_exsist}}`, TestExecStructInStructData{}, TestExecEmptyQueryDataM{})
+	Equal(t, 1, len(errs), "Response should have errors")
+	Equal(t, "{}", out, "response should be empty")
+}
+
 func TestExecAlias(t *testing.T) {
 	out, errs := parseAndTest(t, `{
 		aa: a
@@ -143,15 +153,18 @@ func TestExecAlias(t *testing.T) {
 	err := json.Unmarshal([]byte(out), &res)
 	NoError(t, err)
 
-	Equal(t, "foo", res["aa"], "aa")
-	Equal(t, "foo", res["ba"], "ba")
-	Equal(t, "foo", res["ca"], "ca")
+	tests := []struct {
+		expect string
+		for_   []string
+	}{
+		{"foo", []string{"aa", "ba", "ca"}},
+		{"bar", []string{"ab", "bb", "cb"}},
+		{"baz", []string{"ac", "bc", "cc"}},
+	}
 
-	Equal(t, "bar", res["ab"], "ab")
-	Equal(t, "bar", res["bb"], "bb")
-	Equal(t, "bar", res["cb"], "cb")
-
-	Equal(t, "baz", res["ac"], "ac")
-	Equal(t, "baz", res["bc"], "bc")
-	Equal(t, "baz", res["cc"], "cc")
+	for _, test := range tests {
+		for _, item := range test.for_ {
+			Equal(t, test.expect, res[item], fmt.Sprintf("Expect %s to be %s", item, test.expect))
+		}
+	}
 }
