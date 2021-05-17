@@ -172,11 +172,11 @@ func TestCheckMethods(t *testing.T) {
 	Nil(t, err)
 	obj := types[ref.typeName]
 
-	_, ok := obj.methods["name"]
+	_, ok := obj.objContents["name"]
 	True(t, ok)
-	_, ok = obj.methods["banana"]
+	_, ok = obj.objContents["banana"]
 	True(t, ok)
-	_, ok = obj.methods["peer"]
+	_, ok = obj.objContents["peer"]
 	True(t, ok)
 }
 
@@ -219,6 +219,6 @@ func TestCheckStructFuncs(t *testing.T) {
 	Nil(t, err)
 	obj := types[ref.typeName]
 
-	_, ok := obj.methods["name"]
+	_, ok := obj.objContents["name"]
 	True(t, ok)
 }

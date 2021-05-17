@@ -47,18 +47,16 @@ const (
 	valueTypeObj
 	valueTypeData
 	valueTypePtr
+	valueTypeMethod
 )
 
 type Obj struct {
 	valueType valueType
-
-	// value type == valueTypeObjRef || type == valueTypeObj
-	typeName string
-	pkgPath  string
+	typeName  string
+	pkgPath   string
 
 	// Value type == valueTypeObj
 	objContents map[string]*Obj
-	methods     map[string]ObjMethod
 
 	// Value is inside struct
 	structFieldName string
@@ -68,6 +66,9 @@ type Obj struct {
 
 	// Value type == valueTypeData
 	dataValueType reflect.Kind
+
+	// Value type == valueTypeMethod
+	method *ObjMethod
 }
 
 func (o *Obj) getRef() Obj {
@@ -82,9 +83,10 @@ func (o *Obj) getRef() Obj {
 }
 
 type ObjMethod struct {
+	// Is this a function field inside this object or a method attached to the struct
+	// true = func (*someStruct) ResolveFooBar() string {}
+	// false = ResolveFooBar func() string
 	isTypeMethod bool
-	methodName   string // > ResolveBananaAndPeer
-	gqMethodName string // > bananaAndPeer
 
 	isSpread bool
 	ins      []Input
@@ -144,7 +146,6 @@ func ParseSchema(queries interface{}, methods interface{}, options SchemaOptions
 
 func check(types *Types, t reflect.Type) (*Obj, error) {
 	res := Obj{
-		methods:  map[string]ObjMethod{},
 		typeName: t.Name(),
 		pkgPath:  t.PkgPath(),
 	}
@@ -181,18 +182,24 @@ func check(types *Types, t reflect.Type) (*Obj, error) {
 				newName, hasNameRewrite := field.Tag.Lookup("gqName")
 
 				if field.Type.Kind() == reflect.Func {
-					name := field.Name
+					methodName := field.Name
 					if hasNameRewrite {
-						name = newName
+						methodName = newName
 					}
 
-					obj, err := checkFunction(types, name, field.Type, false)
+					methodObj, name, err := checkFunction(types, methodName, field.Type, false)
 					if err != nil {
 						return err
-					} else if obj == nil {
+					} else if methodObj == nil {
 						return nil
 					}
-					res.methods[obj.gqMethodName] = *obj
+
+					res.objContents[name] = &Obj{
+						valueType:       valueTypeMethod,
+						pkgPath:         field.PkgPath,
+						structFieldName: methodName,
+						method:          methodObj,
+					}
 				} else {
 					obj, err := check(types, field.Type)
 					if err != nil {
@@ -235,14 +242,20 @@ func check(types *Types, t reflect.Type) (*Obj, error) {
 	if res.valueType == valueTypeObj {
 		for i := 0; i < t.NumMethod(); i++ {
 			method := t.Method(i)
-			obj, err := checkFunction(types, method.Name, method.Type, true)
+			methodName := method.Name
+			methodObj, name, err := checkFunction(types, methodName, method.Type, true)
 			if err != nil {
 				return nil, err
-			} else if obj == nil {
+			} else if methodObj == nil {
 				continue
 			}
 
-			res.methods[obj.gqMethodName] = *obj
+			res.objContents[name] = &Obj{
+				valueType:       valueTypeMethod,
+				pkgPath:         method.PkgPath,
+				structFieldName: methodName,
+				method:          methodObj,
+			}
 		}
 	}
 
@@ -253,7 +266,7 @@ func check(types *Types, t reflect.Type) (*Obj, error) {
 	return &res, nil
 }
 
-func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool) (*ObjMethod, error) {
+func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool) (*ObjMethod, string, error) {
 	trimmedName := name
 
 	if strings.HasPrefix(name, "Resolve") {
@@ -261,13 +274,13 @@ func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool)
 			trimmedName = strings.TrimPrefix(name, "Resolve")
 			if isTypeMethod && strings.ToUpper(string(trimmedName[0]))[0] != trimmedName[0] {
 				// Resolve name must start with a uppercase letter
-				return nil, nil
+				return nil, "", nil
 			}
 		} else if isTypeMethod {
-			return nil, nil
+			return nil, "", nil
 		}
 	} else if isTypeMethod {
-		return nil, nil
+		return nil, "", nil
 	}
 
 	isVariadic := t.IsVariadic()
@@ -280,9 +293,9 @@ func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool)
 
 	numOuts := t.NumOut()
 	if numOuts == 0 {
-		return nil, fmt.Errorf("%s no value returned", name)
+		return nil, "", fmt.Errorf("%s no value returned", name)
 	} else if numOuts > 2 {
-		return nil, fmt.Errorf("%s cannot return more than 2 response values", name)
+		return nil, "", fmt.Errorf("%s cannot return more than 2 response values", name)
 	}
 
 	var outNr *int
@@ -297,21 +310,21 @@ func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool)
 		if outKind == reflect.Interface {
 			if outType.Implements(errInterface) {
 				if hasErrorOut != nil {
-					return nil, fmt.Errorf("%s cannot return multiple error types", name)
+					return nil, "", fmt.Errorf("%s cannot return multiple error types", name)
 				} else {
 					hasErrorOut = &i
 				}
 			} else {
-				return nil, fmt.Errorf("%s cannot return interface type", name)
+				return nil, "", fmt.Errorf("%s cannot return interface type", name)
 			}
 		} else {
 			if outNr != nil {
-				return nil, fmt.Errorf("%s cannot return multiple types of data", name)
+				return nil, "", fmt.Errorf("%s cannot return multiple types of data", name)
 			}
 
 			outObj, err := check(types, outType)
 			if err != nil {
-				return nil, err
+				return nil, "", err
 			}
 			outNr = &i
 			outTypeObj = outObj
@@ -319,19 +332,17 @@ func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool)
 	}
 
 	if outTypeObj == nil {
-		return nil, fmt.Errorf("%s does not return usable data", name)
+		return nil, "", fmt.Errorf("%s does not return usable data", name)
 	}
 
 	return &ObjMethod{
 		isTypeMethod: isTypeMethod,
-		methodName:   name,
-		gqMethodName: formatGoNameToQL(trimmedName),
 		isSpread:     isVariadic,
 		ins:          ins,
 		outNr:        *outNr,
 		outType:      *outTypeObj,
 		errorOutNr:   hasErrorOut,
-	}, nil
+	}, formatGoNameToQL(trimmedName), nil
 }
 
 func formatGoNameToQL(input string) string {

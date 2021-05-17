@@ -135,19 +135,10 @@ func (ctx *ResolveCtx) resolveField(query *Field, struct_ reflect.Value, codeStr
 	structItem, ok := codeStructure.objContents[query.name]
 	var value reflect.Value
 	if !ok {
-		method, ok := codeStructure.methods[query.name]
-		if !ok {
-			ctx.addErrf("field %s does not exists on %s", query.name, codeStructure.typeName)
-			return res("null"), true
-		}
-		if method.isTypeMethod {
-			value = struct_.FieldByName(method.methodName)
-		} else {
-			value = struct_.MethodByName(method.methodName)
-		}
-		// TODO
-		ctx.addErrf("field %s uses function currently not supported", query.name)
+		ctx.addErrf("field %s does not exists on %s", query.name, codeStructure.typeName)
 		return res("null"), true
+	} else if structItem.valueType == valueTypeMethod && structItem.method.isTypeMethod {
+		value = struct_.MethodByName(structItem.structFieldName)
 	} else {
 		value = struct_.FieldByName(structItem.structFieldName)
 	}
@@ -158,6 +149,9 @@ func (ctx *ResolveCtx) resolveField(query *Field, struct_ reflect.Value, codeStr
 
 func (ctx *ResolveCtx) resolveFieldDataValue(query *Field, value reflect.Value, codeStructure *Obj, dept uint8) (fieldValue string, returnedOnError bool) {
 	switch codeStructure.valueType {
+	case valueTypeMethod:
+		// TODO
+		return "null", true
 	case valueTypeArray:
 		if (value.Kind() != reflect.Array && value.Kind() != reflect.Slice) || value.IsNil() {
 			return "null", false
