@@ -200,7 +200,7 @@ func (ctx *ResolveCtx) resolveFieldDataValue(query *Field, value reflect.Value, 
 			ctx.addErrf("field %s cannot have a selection", query.name)
 			return "null", true
 		}
-		val, _ := ctx.valueToJson(value.Interface())
+		val, _ := valueToJson(value.Interface())
 		return okRes(val)
 	case valueTypePtr:
 		// TODO
@@ -210,119 +210,118 @@ func (ctx *ResolveCtx) resolveFieldDataValue(query *Field, value reflect.Value, 
 	return "null", true
 }
 
-func (ctx *ResolveCtx) valueToJson(in interface{}) (value string, returnedOnError bool) {
+func valueToJson(in interface{}) (string, error) {
 	switch v := in.(type) {
 	case string:
-		return fmt.Sprintf("%q", v), false
+		return fmt.Sprintf("%q", v), nil
 	case bool:
 		if v {
-			return "true", false
+			return "true", nil
 		} else {
-			return "false", false
+			return "false", nil
 		}
 	case int:
-		return fmt.Sprintf("%d", v), false
+		return fmt.Sprintf("%d", v), nil
 	case int8:
-		return fmt.Sprintf("%d", v), false
+		return fmt.Sprintf("%d", v), nil
 	case int16:
-		return fmt.Sprintf("%d", v), false
-	case int32: // = rune
-		return fmt.Sprintf("%d", v), false
+		return fmt.Sprintf("%d", v), nil
+	case int32: // == rune
+		return fmt.Sprintf("%d", v), nil
 	case int64:
-		return fmt.Sprintf("%d", v), false
+		return fmt.Sprintf("%d", v), nil
 	case uint:
-		return fmt.Sprintf("%d", v), false
-	case uint8: // = byte
-		return fmt.Sprintf("%d", v), false
+		return fmt.Sprintf("%d", v), nil
+	case uint8: // == byte
+		return fmt.Sprintf("%d", v), nil
 	case uint16:
-		return fmt.Sprintf("%d", v), false
+		return fmt.Sprintf("%d", v), nil
 	case uint32:
-		return fmt.Sprintf("%d", v), false
+		return fmt.Sprintf("%d", v), nil
 	case uint64:
-		return fmt.Sprintf("%d", v), false
+		return fmt.Sprintf("%d", v), nil
 	case uintptr:
-		return fmt.Sprintf("%d", v), false
+		return fmt.Sprintf("%d", v), nil
 	case float32:
-		return fmt.Sprintf("%e", v), false
+		return floatToJson(32, float64(v)), nil
 	case float64:
-		return fmt.Sprintf("%e", v), false
+		return floatToJson(64, v), nil
 	case *string:
 		if v == nil {
-			return "null", false
+			return "null", nil
 		}
-		return ctx.valueToJson(*v)
+		return valueToJson(*v)
 	case *bool:
 		if v == nil {
-			return "null", false
+			return "null", nil
 		}
-		return ctx.valueToJson(*v)
+		return valueToJson(*v)
 	case *int:
 		if v == nil {
-			return "null", false
+			return "null", nil
 		}
-		return ctx.valueToJson(*v)
+		return valueToJson(*v)
 	case *int8:
 		if v == nil {
-			return "null", false
+			return "null", nil
 		}
-		return ctx.valueToJson(*v)
+		return valueToJson(*v)
 	case *int16:
 		if v == nil {
-			return "null", false
+			return "null", nil
 		}
-		return ctx.valueToJson(*v)
+		return valueToJson(*v)
 	case *int32: // = *rune
 		if v == nil {
-			return "null", false
+			return "null", nil
 		}
-		return ctx.valueToJson(*v)
+		return valueToJson(*v)
 	case *int64:
 		if v == nil {
-			return "null", false
+			return "null", nil
 		}
-		return ctx.valueToJson(*v)
+		return valueToJson(*v)
 	case *uint:
 		if v == nil {
-			return "null", false
+			return "null", nil
 		}
-		return ctx.valueToJson(*v)
+		return valueToJson(*v)
 	case *uint8: // = *byte
 		if v == nil {
-			return "null", false
+			return "null", nil
 		}
-		return ctx.valueToJson(*v)
+		return valueToJson(*v)
 	case *uint16:
 		if v == nil {
-			return "null", false
+			return "null", nil
 		}
-		return ctx.valueToJson(*v)
+		return valueToJson(*v)
 	case *uint32:
 		if v == nil {
-			return "null", false
+			return "null", nil
 		}
-		return ctx.valueToJson(*v)
+		return valueToJson(*v)
 	case *uint64:
 		if v == nil {
-			return "null", false
+			return "null", nil
 		}
-		return ctx.valueToJson(*v)
+		return valueToJson(*v)
 	case *uintptr:
 		if v == nil {
-			return "null", false
+			return "null", nil
 		}
-		return ctx.valueToJson(*v)
+		return valueToJson(*v)
 	case *float32:
 		if v == nil {
-			return "null", false
+			return "null", nil
 		}
-		return ctx.valueToJson(*v)
+		return valueToJson(*v)
 	case *float64:
 		if v == nil {
-			return "null", false
+			return "null", nil
 		}
-		return ctx.valueToJson(*v)
+		return valueToJson(*v)
 	default:
-		ctx.addErrf("invalid data type")
-		return "null", true
+		return "null", errors.New("invalid data type")
 	}
 }

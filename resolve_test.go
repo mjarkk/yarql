@@ -168,3 +168,97 @@ func TestExecAlias(t *testing.T) {
 		}
 	}
 }
+
+func TestValueToJson(t *testing.T) {
+	string_ := string(`a"b`)
+	bool_ := bool(true)
+	int_ := int(1)
+	int8_ := int8(2)
+	int16_ := int16(3)
+	int32_ := int32(4)
+	int64_ := int64(5)
+	uint_ := uint(6)
+	uint8_ := uint8(7)
+	uint16_ := uint16(8)
+	uint32_ := uint32(9)
+	uint64_ := uint64(10)
+	uintptr_ := uintptr(11)
+	float32_ := float32(12)
+	float64_ := float64(13)
+
+	var stringPtr *string
+	var boolPtr *bool
+	var intPtr *int
+	var int8Ptr *int8
+	var int16Ptr *int16
+	var int32Ptr *int32
+	var int64Ptr *int64
+	var uintPtr *uint
+	var uint8Ptr *uint8
+	var uint16Ptr *uint16
+	var uint32Ptr *uint32
+	var uint64Ptr *uint64
+	var uintptrPtr *uintptr
+	var float32Ptr *float32
+	var float64Ptr *float64
+
+	options := []struct {
+		value  interface{}
+		expect string
+	}{
+		{string_, `"a\"b"`},
+		{bool_, "true"},
+		{int_, "1"},
+		{int8_, "2"},
+		{int16_, "3"},
+		{int32_, "4"},
+		{int64_, "5"},
+		{uint_, "6"},
+		{uint8_, "7"},
+		{uint16_, "8"},
+		{uint32_, "9"},
+		{uint64_, "10"},
+		{uintptr_, "11"},
+		{float32_, "12"},
+		{float64_, "13"},
+
+		{&string_, `"a\"b"`},
+		{&bool_, "true"},
+		{&int_, "1"},
+		{&int8_, "2"},
+		{&int16_, "3"},
+		{&int32_, "4"},
+		{&int64_, "5"},
+		{&uint_, "6"},
+		{&uint8_, "7"},
+		{&uint16_, "8"},
+		{&uint32_, "9"},
+		{&uint64_, "10"},
+		{&uintptr_, "11"},
+		{&float32_, "12"},
+		{&float64_, "13"},
+
+		{stringPtr, `null`},
+		{boolPtr, "null"},
+		{intPtr, "null"},
+		{int8Ptr, "null"},
+		{int16Ptr, "null"},
+		{int32Ptr, "null"},
+		{int64Ptr, "null"},
+		{uintPtr, "null"},
+		{uint8Ptr, "null"},
+		{uint16Ptr, "null"},
+		{uint32Ptr, "null"},
+		{uint64Ptr, "null"},
+		{uintptrPtr, "null"},
+		{float32Ptr, "null"},
+		{float64Ptr, "null"},
+
+		{complex64(1), "null"},
+	}
+	for _, option := range options {
+		res, _ := valueToJson(option.value)
+		Equal(t, option.expect, res)
+	}
+
+}
