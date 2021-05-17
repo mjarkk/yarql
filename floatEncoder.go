@@ -11,6 +11,8 @@ import (
 // Copyright 2010 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
+//
+// IMPORTANT the full license can be found in this repo: https://github.com/golang/go
 func floatToJson(bits int, f float64) string {
 	if math.IsInf(f, 0) || math.IsNaN(f) {
 		return "0.0"
