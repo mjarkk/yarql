@@ -375,12 +375,16 @@ func (TestExecStructTypeMethodData) ResolveBar() string {
 	return "foo"
 }
 
+func (TestExecStructTypeMethodData) ResolveBaz() (string, error) {
+	return "bar", nil
+}
+
 func TestExecStructTypeMethod(t *testing.T) {
-	out, errs := parseAndTest(t, `{bar}`, TestExecStructTypeMethodData{}, M{})
+	out, errs := parseAndTest(t, `{bar, baz}`, TestExecStructTypeMethodData{}, M{})
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"bar":"foo"}`, out)
+	Equal(t, `{"bar":"foo","baz":"bar"}`, out)
 }
 
 func TestValueToJson(t *testing.T) {

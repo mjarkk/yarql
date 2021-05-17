@@ -161,12 +161,15 @@ func (ctx *ResolveCtx) resolveFieldDataValue(query *Field, value reflect.Value, 
 
 		outs := value.Call(inputs)
 		if method.errorOutNr != nil {
-			err, ok := outs[*method.errorOutNr].Interface().(error)
-			if !ok {
-				ctx.addErrf("field %s returned a invalid kind of error", query.name)
-				return "null", true
-			} else if err != nil {
-				ctx.addErr(err.Error())
+			errOut := outs[*method.errorOutNr]
+			if !errOut.IsNil() {
+				err, ok := errOut.Interface().(error)
+				if !ok {
+					ctx.addErrf("field %s returned a invalid kind of error", query.name)
+					return "null", true
+				} else if err != nil {
+					ctx.addErr(err.Error())
+				}
 			}
 		}
 
