@@ -150,15 +150,34 @@ func (ctx *ResolveCtx) resolveField(query *Field, struct_ reflect.Value, codeStr
 func (ctx *ResolveCtx) resolveFieldDataValue(query *Field, value reflect.Value, codeStructure *Obj, dept uint8) (fieldValue string, returnedOnError bool) {
 	switch codeStructure.valueType {
 	case valueTypeMethod:
-		// TODO
-		return "null", true
+		method := codeStructure.method
+
+		inputs := []reflect.Value{}
+		if len(method.ins) > 0 {
+			// TODO support function inputs
+			ctx.addErrf("field %s does not yet have support for arguments", query.name)
+			return "null", false
+		}
+
+		outs := value.Call(inputs)
+		if method.errorOutNr != nil {
+			err, ok := outs[*method.errorOutNr].Interface().(error)
+			if !ok {
+				ctx.addErrf("field %s returned a invalid kind of error", query.name)
+				return "null", true
+			} else if err != nil {
+				ctx.addErr(err.Error())
+			}
+		}
+
+		return ctx.resolveFieldDataValue(query, outs[method.outNr], &method.outType, dept)
 	case valueTypeArray:
 		if (value.Kind() != reflect.Array && value.Kind() != reflect.Slice) || value.IsNil() {
 			return "null", false
 		}
 
 		if codeStructure.innerContent == nil {
-			ctx.addErr("field %s does not have a internal array content type")
+			ctx.addErrf("field %s does not have an internal type of an array", query.name)
 			return "null", true
 		}
 		codeStructure = codeStructure.innerContent

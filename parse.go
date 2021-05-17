@@ -180,14 +180,13 @@ func check(types *Types, t reflect.Type) (*Obj, error) {
 				}
 
 				newName, hasNameRewrite := field.Tag.Lookup("gqName")
+				name := formatGoNameToQL(field.Name)
+				if hasNameRewrite {
+					name = newName
+				}
 
 				if field.Type.Kind() == reflect.Func {
-					methodName := field.Name
-					if hasNameRewrite {
-						methodName = newName
-					}
-
-					methodObj, name, err := checkFunction(types, methodName, field.Type, false)
+					methodObj, _, err := checkFunction(types, field.Name, field.Type, false)
 					if err != nil {
 						return err
 					} else if methodObj == nil {
@@ -197,7 +196,7 @@ func check(types *Types, t reflect.Type) (*Obj, error) {
 					res.objContents[name] = &Obj{
 						valueType:       valueTypeMethod,
 						pkgPath:         field.PkgPath,
-						structFieldName: methodName,
+						structFieldName: field.Name,
 						method:          methodObj,
 					}
 				} else {
@@ -206,12 +205,6 @@ func check(types *Types, t reflect.Type) (*Obj, error) {
 						return err
 					}
 					obj.structFieldName = field.Name
-
-					name := formatGoNameToQL(field.Name)
-					if hasNameRewrite {
-						name = newName
-					}
-
 					res.objContents[name] = obj
 				}
 				return nil
@@ -287,6 +280,11 @@ func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool)
 
 	ins := []Input{}
 	for i := 0; i < t.NumIn(); i++ {
+		if i == 0 && isTypeMethod {
+			// First argument can be skipped here
+			continue
+		}
+
 		type_ := t.In(i)
 		ins = append(ins, Input{type_: &type_})
 	}
@@ -312,7 +310,9 @@ func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool)
 				if hasErrorOut != nil {
 					return nil, "", fmt.Errorf("%s cannot return multiple error types", name)
 				} else {
-					hasErrorOut = &i
+					hasErrorOut = func(i int) *int {
+						return &i
+					}(i)
 				}
 			} else {
 				return nil, "", fmt.Errorf("%s cannot return interface type", name)
@@ -326,7 +326,10 @@ func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool)
 			if err != nil {
 				return nil, "", err
 			}
-			outNr = &i
+
+			outNr = func(i int) *int {
+				return &i
+			}(i)
 			outTypeObj = outObj
 		}
 	}

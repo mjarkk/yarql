@@ -355,6 +355,34 @@ func TestExecMaxDept(t *testing.T) {
 	Equal(t, `{"foo":{"bar":{"baz":null}}}`, out)
 }
 
+type TestExecStructMethodData struct {
+	Foo func() string
+}
+
+func TestExecStructMethod(t *testing.T) {
+	out, errs := parseAndTest(t, `{foo}`, TestExecStructMethodData{
+		Foo: func() string { return "bar" },
+	}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":"bar"}`, out)
+}
+
+type TestExecStructTypeMethodData struct{}
+
+func (TestExecStructTypeMethodData) ResolveBar() string {
+	return "foo"
+}
+
+func TestExecStructTypeMethod(t *testing.T) {
+	out, errs := parseAndTest(t, `{bar}`, TestExecStructTypeMethodData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"bar":"foo"}`, out)
+}
+
 func TestValueToJson(t *testing.T) {
 	string_ := string(`a"b`)
 	boolTrue := bool(true)
