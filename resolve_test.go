@@ -8,15 +8,113 @@ import (
 	. "github.com/stretchr/testify/assert"
 )
 
-func parseAndTest(t *testing.T, query string, queries interface{}, methods interface{}) (string, []error) {
-	return parseAndTestMaxDept(t, query, queries, methods, 255)
+func TestValueToJson(t *testing.T) {
+	string_ := string(`a"b`)
+	boolTrue := bool(true)
+	boolFalse := bool(false)
+	int_ := int(1)
+	int8_ := int8(2)
+	int16_ := int16(3)
+	int32_ := int32(4)
+	int64_ := int64(5)
+	uint_ := uint(6)
+	uint8_ := uint8(7)
+	uint16_ := uint16(8)
+	uint32_ := uint32(9)
+	uint64_ := uint64(10)
+	uintptr_ := uintptr(11)
+	float32_ := float32(12)
+	float64_ := float64(13)
+	float64WExponent := 100e-100
+
+	var stringPtr *string
+	var boolPtr *bool
+	var intPtr *int
+	var int8Ptr *int8
+	var int16Ptr *int16
+	var int32Ptr *int32
+	var int64Ptr *int64
+	var uintPtr *uint
+	var uint8Ptr *uint8
+	var uint16Ptr *uint16
+	var uint32Ptr *uint32
+	var uint64Ptr *uint64
+	var uintptrPtr *uintptr
+	var float32Ptr *float32
+	var float64Ptr *float64
+
+	options := []struct {
+		value  interface{}
+		expect string
+	}{
+		{string_, `"a\"b"`},
+		{boolTrue, "true"},
+		{boolFalse, "false"},
+		{int_, "1"},
+		{int8_, "2"},
+		{int16_, "3"},
+		{int32_, "4"},
+		{int64_, "5"},
+		{uint_, "6"},
+		{uint8_, "7"},
+		{uint16_, "8"},
+		{uint32_, "9"},
+		{uint64_, "10"},
+		{uintptr_, "11"},
+		{float32_, "12"},
+		{float64_, "13"},
+		{float64WExponent, "1e-98"},
+
+		{&string_, `"a\"b"`},
+		{&boolTrue, "true"},
+		{&boolFalse, "false"},
+		{&int_, "1"},
+		{&int8_, "2"},
+		{&int16_, "3"},
+		{&int32_, "4"},
+		{&int64_, "5"},
+		{&uint_, "6"},
+		{&uint8_, "7"},
+		{&uint16_, "8"},
+		{&uint32_, "9"},
+		{&uint64_, "10"},
+		{&uintptr_, "11"},
+		{&float32_, "12"},
+		{&float64_, "13"},
+
+		{stringPtr, `null`},
+		{boolPtr, "null"},
+		{intPtr, "null"},
+		{int8Ptr, "null"},
+		{int16Ptr, "null"},
+		{int32Ptr, "null"},
+		{int64Ptr, "null"},
+		{uintPtr, "null"},
+		{uint8Ptr, "null"},
+		{uint16Ptr, "null"},
+		{uint32Ptr, "null"},
+		{uint64Ptr, "null"},
+		{uintptrPtr, "null"},
+		{float32Ptr, "null"},
+		{float64Ptr, "null"},
+
+		{complex64(1), "null"},
+	}
+	for _, option := range options {
+		res, _ := valueToJson(option.value)
+		Equal(t, option.expect, res)
+	}
 }
 
-func parseAndTestMaxDept(t *testing.T, query string, queries interface{}, methods interface{}, maxDept uint8) (string, []error) {
+func parseAndTest(t *testing.T, query string, queries interface{}, methods interface{}) (string, []error) {
+	return parseAndTestMaxDeptAndOperatorTarget(t, query, queries, methods, 255, "")
+}
+
+func parseAndTestMaxDeptAndOperatorTarget(t *testing.T, query string, queries interface{}, methods interface{}, maxDept uint8, operatorTarget string) (string, []error) {
 	s, err := ParseSchema(queries, methods, SchemaOptions{})
 	NoError(t, err, query)
 	s.MaxDepth = maxDept
-	out, errs := s.Resolve(query, "")
+	out, errs := s.Resolve(query, operatorTarget)
 	if !json.Valid([]byte(out)) {
 		panic(fmt.Sprintf("query %s, returned invalid json: %s", query, out))
 	}
@@ -37,6 +135,7 @@ type TestExecSimpleQueryData struct {
 	A string
 	B string
 	C string
+	D string
 }
 
 func TestExecSimpleQuery(t *testing.T) {
@@ -348,7 +447,7 @@ type TestExecMaxDeptData struct {
 }
 
 func TestExecMaxDept(t *testing.T) {
-	out, errs := parseAndTestMaxDept(t, `{foo{bar{baz{fooBar{barBaz{bazFoo}}}}}}`, TestExecMaxDeptData{}, M{}, 3)
+	out, errs := parseAndTestMaxDeptAndOperatorTarget(t, `{foo{bar{baz{fooBar{barBaz{bazFoo}}}}}}`, TestExecMaxDeptData{}, M{}, 3, "")
 	for _, err := range errs {
 		panic(err)
 	}
@@ -387,98 +486,46 @@ func TestExecStructTypeMethod(t *testing.T) {
 	Equal(t, `{"bar":"foo","baz":"bar"}`, out)
 }
 
-func TestValueToJson(t *testing.T) {
-	string_ := string(`a"b`)
-	boolTrue := bool(true)
-	boolFalse := bool(false)
-	int_ := int(1)
-	int8_ := int8(2)
-	int16_ := int16(3)
-	int32_ := int32(4)
-	int64_ := int64(5)
-	uint_ := uint(6)
-	uint8_ := uint8(7)
-	uint16_ := uint16(8)
-	uint32_ := uint32(9)
-	uint64_ := uint64(10)
-	uintptr_ := uintptr(11)
-	float32_ := float32(12)
-	float64_ := float64(13)
-
-	var stringPtr *string
-	var boolPtr *bool
-	var intPtr *int
-	var int8Ptr *int8
-	var int16Ptr *int16
-	var int32Ptr *int32
-	var int64Ptr *int64
-	var uintPtr *uint
-	var uint8Ptr *uint8
-	var uint16Ptr *uint16
-	var uint32Ptr *uint32
-	var uint64Ptr *uint64
-	var uintptrPtr *uintptr
-	var float32Ptr *float32
-	var float64Ptr *float64
-
-	options := []struct {
-		value  interface{}
-		expect string
-	}{
-		{string_, `"a\"b"`},
-		{boolTrue, "true"},
-		{boolFalse, "false"},
-		{int_, "1"},
-		{int8_, "2"},
-		{int16_, "3"},
-		{int32_, "4"},
-		{int64_, "5"},
-		{uint_, "6"},
-		{uint8_, "7"},
-		{uint16_, "8"},
-		{uint32_, "9"},
-		{uint64_, "10"},
-		{uintptr_, "11"},
-		{float32_, "12"},
-		{float64_, "13"},
-
-		{&string_, `"a\"b"`},
-		{&boolTrue, "true"},
-		{&boolFalse, "false"},
-		{&int_, "1"},
-		{&int8_, "2"},
-		{&int16_, "3"},
-		{&int32_, "4"},
-		{&int64_, "5"},
-		{&uint_, "6"},
-		{&uint8_, "7"},
-		{&uint16_, "8"},
-		{&uint32_, "9"},
-		{&uint64_, "10"},
-		{&uintptr_, "11"},
-		{&float32_, "12"},
-		{&float64_, "13"},
-
-		{stringPtr, `null`},
-		{boolPtr, "null"},
-		{intPtr, "null"},
-		{int8Ptr, "null"},
-		{int16Ptr, "null"},
-		{int32Ptr, "null"},
-		{int64Ptr, "null"},
-		{uintPtr, "null"},
-		{uint8Ptr, "null"},
-		{uint16Ptr, "null"},
-		{uint32Ptr, "null"},
-		{uint64Ptr, "null"},
-		{uintptrPtr, "null"},
-		{float32Ptr, "null"},
-		{float64Ptr, "null"},
-
-		{complex64(1), "null"},
+func TestExecInlineFragment(t *testing.T) {
+	out, errs := parseAndTest(t, `{a...{b, c} d}`, TestExecSimpleQueryData{A: "foo", B: "bar", C: "baz", D: "foobar"}, M{})
+	for _, err := range errs {
+		panic(err)
 	}
-	for _, option := range options {
-		res, _ := valueToJson(option.value)
-		Equal(t, option.expect, res)
+	Equal(t, `{"a":"foo","b":"bar","c":"baz","d":"foobar"}`, out)
+}
+
+func TestExecFragment(t *testing.T) {
+	query := `
+	fragment BAndCFrag on Something{b c}
+
+	query {a...BAndCFrag d}
+	`
+
+	out, errs := parseAndTest(t, query, TestExecSimpleQueryData{A: "foo", B: "bar", C: "baz", D: "foobar"}, M{})
+	for _, err := range errs {
+		panic(err)
 	}
+	Equal(t, `{"a":"foo","b":"bar","c":"baz","d":"foobar"}`, out)
+}
+
+func TestExecMultipleOperators(t *testing.T) {
+	query := `
+	query QueryA {a b}
+	query QueryB {c d}
+	`
+	out, errs := parseAndTestMaxDeptAndOperatorTarget(t, query, TestExecSimpleQueryData{}, M{}, 255, "")
+	Equal(t, 1, len(errs))
+	Equal(t, "{}", out)
+
+	out, errs = parseAndTestMaxDeptAndOperatorTarget(t, query, TestExecSimpleQueryData{}, M{}, 255, "QueryA")
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"a":"","b":""}`, out)
+
+	out, errs = parseAndTestMaxDeptAndOperatorTarget(t, query, TestExecSimpleQueryData{}, M{}, 255, "QueryB")
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"c":"","d":""}`, out)
 }

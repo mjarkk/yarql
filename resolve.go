@@ -95,8 +95,11 @@ func (ctx *ResolveCtx) resolveSelection(selectionSet SelectionSet, struct_ refle
 		return "null"
 	}
 	dept = dept + 1
+	return "{" + ctx.resolveSelectionContent(selectionSet, struct_, structType, dept) + "}"
+}
 
-	res := "{"
+func (ctx *ResolveCtx) resolveSelectionContent(selectionSet SelectionSet, struct_ reflect.Value, structType *Obj, dept uint8) string {
+	res := ""
 	writtenToRes := false
 	for _, selection := range selectionSet {
 		switch selection.selectionType {
@@ -111,16 +114,34 @@ func (ctx *ResolveCtx) resolveSelection(selectionSet SelectionSet, struct_ refle
 				res += value
 			}
 		case "FragmentSpread":
-			// TODO
-			ctx.addErr("fragment spread are currently unsupported")
-			return "{}"
+			operator, ok := ctx.fragments[selection.fragmentSpread.name]
+			if !ok {
+				ctx.addErrf("unknown fragment %s", selection.fragmentSpread.name)
+				continue
+			}
+
+			value := ctx.resolveSelectionContent(operator.fragment.selection, struct_, structType, dept)
+			if len(value) > 0 {
+				if writtenToRes {
+					res += ","
+				} else {
+					writtenToRes = true
+				}
+				res += value
+			}
 		case "InlineFragment":
-			// TODO
-			ctx.addErr("inline fragment are currently unsupported")
-			return "{}"
+			value := ctx.resolveSelectionContent(selection.inlineFragment.selection, struct_, structType, dept)
+			if len(value) > 0 {
+				if writtenToRes {
+					res += ","
+				} else {
+					writtenToRes = true
+				}
+				res += value
+			}
 		}
 	}
-	return res + "}"
+	return res
 }
 
 func (ctx *ResolveCtx) resolveField(query *Field, struct_ reflect.Value, codeStructure *Obj, dept uint8) (fieldValue string, returnedOnError bool) {
