@@ -16,7 +16,7 @@ func (s *Schema) Resolve(query string, operatorTarget string) (string, []error) 
 		return "{}", errs
 	}
 
-	ctx := &ResolveCtx{
+	ctx := &Ctx{
 		fragments:  fragments,
 		schema:     s,
 		Values:     map[string]interface{}{},
@@ -52,24 +52,15 @@ func (s *Schema) Resolve(query string, operatorTarget string) (string, []error) 
 	}
 }
 
-// ExecCtx contains all the request information and responses
-type ResolveCtx struct {
-	fragments  map[string]Operator    // Query fragments
-	schema     *Schema                // The Go code schema (grahql schema)
-	Values     map[string]interface{} // API User values, user can put all their shitty things in here like poems or tax papers
-	directvies []Directives           // Directives stored in ctx
-	errors     []error
-}
-
-func (ctx *ResolveCtx) addErr(err string) {
+func (ctx *Ctx) addErr(err string) {
 	ctx.errors = append(ctx.errors, errors.New(err))
 }
 
-func (ctx *ResolveCtx) addErrf(err string, args ...interface{}) {
+func (ctx *Ctx) addErrf(err string, args ...interface{}) {
 	ctx.errors = append(ctx.errors, fmt.Errorf(err, args...))
 }
 
-func (ctx *ResolveCtx) start(operator *Operator) string {
+func (ctx *Ctx) start(operator *Operator) string {
 	// TODO add variables to exec ctx
 	if operator.directives != nil && len(operator.directives) > 0 {
 		ctx.directvies = append(ctx.directvies, operator.directives)
@@ -90,7 +81,7 @@ func (ctx *ResolveCtx) start(operator *Operator) string {
 	}
 }
 
-func (ctx *ResolveCtx) resolveSelection(selectionSet SelectionSet, struct_ reflect.Value, structType *Obj, dept uint8) string {
+func (ctx *Ctx) resolveSelection(selectionSet SelectionSet, struct_ reflect.Value, structType *Obj, dept uint8) string {
 	if dept >= ctx.schema.MaxDepth {
 		return "null"
 	}
@@ -98,7 +89,7 @@ func (ctx *ResolveCtx) resolveSelection(selectionSet SelectionSet, struct_ refle
 	return "{" + ctx.resolveSelectionContent(selectionSet, struct_, structType, dept) + "}"
 }
 
-func (ctx *ResolveCtx) resolveSelectionContent(selectionSet SelectionSet, struct_ reflect.Value, structType *Obj, dept uint8) string {
+func (ctx *Ctx) resolveSelectionContent(selectionSet SelectionSet, struct_ reflect.Value, structType *Obj, dept uint8) string {
 	res := ""
 	writtenToRes := false
 	for _, selection := range selectionSet {
@@ -144,7 +135,7 @@ func (ctx *ResolveCtx) resolveSelectionContent(selectionSet SelectionSet, struct
 	return res
 }
 
-func (ctx *ResolveCtx) resolveField(query *Field, struct_ reflect.Value, codeStructure *Obj, dept uint8) (fieldValue string, returnedOnError bool) {
+func (ctx *Ctx) resolveField(query *Field, struct_ reflect.Value, codeStructure *Obj, dept uint8) (fieldValue string, returnedOnError bool) {
 	res := func(data string) string {
 		name := query.name
 		if len(query.alias) > 0 {
@@ -168,15 +159,20 @@ func (ctx *ResolveCtx) resolveField(query *Field, struct_ reflect.Value, codeStr
 	return res(fieldValue), returnedOnError
 }
 
-func (ctx *ResolveCtx) resolveFieldDataValue(query *Field, value reflect.Value, codeStructure *Obj, dept uint8) (fieldValue string, returnedOnError bool) {
+func (ctx *Ctx) resolveFieldDataValue(query *Field, value reflect.Value, codeStructure *Obj, dept uint8) (fieldValue string, returnedOnError bool) {
 	switch codeStructure.valueType {
 	case valueTypeMethod:
 		method := codeStructure.method
 
 		inputs := []reflect.Value{}
-		if len(method.ins) > 0 {
+		for _, in := range method.ins {
+			if in.isCtx {
+				inputs = append(inputs, reflect.ValueOf(ctx))
+				continue
+			}
+
 			// TODO support function inputs
-			ctx.addErrf("field %s does not yet have support for arguments", query.name)
+			ctx.addErrf("field %s does not yet have support for custom arguments", query.name)
 			return "null", false
 		}
 

@@ -259,6 +259,12 @@ func check(types *Types, t reflect.Type) (*Obj, error) {
 	return &res, nil
 }
 
+var simpleCtx = reflect.TypeOf(Ctx{})
+
+func isCtx(t reflect.Type) bool {
+	return t.Kind() == reflect.Struct && simpleCtx.Name() == t.Name() && simpleCtx.PkgPath() == t.PkgPath()
+}
+
 func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool) (*ObjMethod, string, error) {
 	trimmedName := name
 
@@ -279,14 +285,29 @@ func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool)
 	isVariadic := t.IsVariadic()
 
 	ins := []Input{}
-	for i := 0; i < t.NumIn(); i++ {
+
+	totalInputs := t.NumIn()
+	for i := 0; i < totalInputs; i++ {
 		if i == 0 && isTypeMethod {
 			// First argument can be skipped here
 			continue
 		}
 
 		type_ := t.In(i)
-		ins = append(ins, Input{type_: &type_})
+		input := Input{}
+		if type_.Kind() == reflect.Ptr && isCtx(type_.Elem()) {
+			if i+1 == totalInputs && isVariadic {
+				return nil, "", fmt.Errorf("%s ctx cannot be a spread operator", name)
+			}
+
+			input.isCtx = true
+		} else if isCtx(type_) {
+			return nil, "", fmt.Errorf("%s ctx must be a pointer", name)
+		} else {
+			input.type_ = &type_
+		}
+
+		ins = append(ins, input)
 	}
 
 	numOuts := t.NumOut()

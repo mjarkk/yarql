@@ -2,6 +2,7 @@ package graphql
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -479,6 +480,29 @@ func (TestExecStructTypeMethodData) ResolveBaz() (string, error) {
 }
 
 func TestExecStructTypeMethod(t *testing.T) {
+	out, errs := parseAndTest(t, `{bar, baz}`, TestExecStructTypeMethodData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"bar":"foo","baz":"bar"}`, out)
+}
+
+type TestExecStructTypeMethodWithCtxData struct{}
+
+func (TestExecStructTypeMethodWithCtxData) ResolveBar(c *Ctx) string {
+	c.Values["baz"] = "bar"
+	return "foo"
+}
+
+func (TestExecStructTypeMethodWithCtxData) ResolveBaz(c *Ctx) (string, error) {
+	value, ok := c.Values["baz"]
+	if !ok {
+		return "", errors.New("baz not set by bar resolver")
+	}
+	return value.(string), nil
+}
+
+func TestExecStructTypeMethodWithCtx(t *testing.T) {
 	out, errs := parseAndTest(t, `{bar, baz}`, TestExecStructTypeMethodData{}, M{})
 	for _, err := range errs {
 		panic(err)
