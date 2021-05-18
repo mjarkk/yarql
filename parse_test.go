@@ -156,13 +156,13 @@ func TestCheckInvalidStruct(t *testing.T) {
 
 type TestCheckMethodsData struct{}
 
-func (TestCheckMethodsData) ResolveName(in int) string {
+func (TestCheckMethodsData) ResolveName(in struct{}) string {
 	return ""
 }
-func (TestCheckMethodsData) ResolveBanana(in int) (string, error) {
+func (TestCheckMethodsData) ResolveBanana(in struct{}) (string, error) {
 	return "", nil
 }
-func (TestCheckMethodsData) ResolvePeer(in int) string {
+func (TestCheckMethodsData) ResolvePeer(in struct{}) string {
 	return ""
 }
 
@@ -210,7 +210,7 @@ func TestCheckMethodsFail(t *testing.T) {
 }
 
 type TestCheckStructFuncsData struct {
-	Name func(string) string
+	Name func(struct{}) string
 }
 
 func TestCheckStructFuncs(t *testing.T) {

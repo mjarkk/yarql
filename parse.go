@@ -88,18 +88,23 @@ type ObjMethod struct {
 	// false = ResolveFooBar func() string
 	isTypeMethod bool
 
-	isSpread bool
 	ins      []Input
+	inFields map[string]referToInput
 
 	outNr      int
 	outType    Obj
 	errorOutNr *int
 }
 
-type Input struct {
-	isCtx bool // TODO add suport for this
+type referToInput struct {
+	inputIdx int
+	kind     reflect.Kind
+	goName   string
+	gqName   string
+}
 
-	// Input type if isCtx is false
+type Input struct {
+	isCtx bool
 	type_ *reflect.Type
 }
 
@@ -282,29 +287,77 @@ func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool)
 		return nil, "", nil
 	}
 
-	isVariadic := t.IsVariadic()
+	if t.IsVariadic() {
+		return nil, "", errors.New("function method cannot end with spread argument")
+	}
 
 	ins := []Input{}
+	inFields := map[string]referToInput{}
 
 	totalInputs := t.NumIn()
 	for i := 0; i < totalInputs; i++ {
-		if i == 0 && isTypeMethod {
-			// First argument can be skipped here
-			continue
+		iInList := i
+		if isTypeMethod {
+			if i == 0 {
+				// First argument can be skipped if type method
+				continue
+			}
+			iInList = i - 1
 		}
 
 		type_ := t.In(i)
 		input := Input{}
-		if type_.Kind() == reflect.Ptr && isCtx(type_.Elem()) {
-			if i+1 == totalInputs && isVariadic {
-				return nil, "", fmt.Errorf("%s ctx cannot be a spread operator", name)
-			}
-
+		typeKind := type_.Kind()
+		if typeKind == reflect.Ptr && isCtx(type_.Elem()) {
 			input.isCtx = true
 		} else if isCtx(type_) {
 			return nil, "", fmt.Errorf("%s ctx must be a pointer", name)
-		} else {
+		} else if typeKind == reflect.Struct {
 			input.type_ = &type_
+			for i := 0; i < type_.NumField(); i++ {
+				field := type_.Field(i)
+				if field.Anonymous {
+					// skip field
+					continue
+				}
+
+				val, ok := field.Tag.Lookup("gqIgnore")
+				if ok && valueLooksTrue(val) {
+					// skip field
+					continue
+				}
+
+				// TODO abstract this code
+
+				kind := field.Type.Kind()
+				switch kind {
+				case reflect.String, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64:
+
+				case reflect.Map, reflect.Ptr, reflect.Array, reflect.Slice, reflect.Struct:
+					// TODO suppor these fields
+					fallthrough
+				case reflect.Func:
+					// MAYBE TODO maybe we can do something with this
+					fallthrough
+				default:
+					return nil, "", fmt.Errorf("invalid struct argument for %s (#%d), argument %s, type: %s", type_.Name(), i, field.Name, field.Type.String())
+				}
+
+				newName, hasNameRewrite := field.Tag.Lookup("gqName")
+				name := formatGoNameToQL(field.Name)
+				if hasNameRewrite {
+					name = newName
+				}
+
+				inFields[name] = referToInput{
+					inputIdx: iInList,
+					kind:     kind,
+					goName:   field.Name,
+					gqName:   name,
+				}
+			}
+		} else {
+			return nil, "", fmt.Errorf("invalid struct item type %s (#%d)", type_.Name(), i)
 		}
 
 		ins = append(ins, input)
@@ -324,7 +377,6 @@ func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool)
 	errInterface := reflect.TypeOf((*error)(nil)).Elem()
 	for i := 0; i < numOuts; i++ {
 		outType := t.Out(i)
-
 		outKind := outType.Kind()
 		if outKind == reflect.Interface {
 			if outType.Implements(errInterface) {
@@ -361,8 +413,8 @@ func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool)
 
 	return &ObjMethod{
 		isTypeMethod: isTypeMethod,
-		isSpread:     isVariadic,
 		ins:          ins,
+		inFields:     inFields,
 		outNr:        *outNr,
 		outType:      *outTypeObj,
 		errorOutNr:   hasErrorOut,

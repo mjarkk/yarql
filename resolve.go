@@ -168,15 +168,76 @@ func (ctx *Ctx) resolveFieldDataValue(query *Field, value reflect.Value, codeStr
 		for _, in := range method.ins {
 			if in.isCtx {
 				inputs = append(inputs, reflect.ValueOf(ctx))
+			} else {
+				inputs = append(inputs, reflect.New(*in.type_).Elem())
+			}
+		}
+
+		for key, value := range query.arguments {
+			inField, ok := method.inFields[key]
+			inKind := inField.kind
+			if !ok {
+				ctx.addErrf("undefined function %s input: %s", query.name, key)
 				continue
 			}
+			field := inputs[inField.inputIdx].FieldByName(inField.goName)
 
-			// TODO support function inputs
-			ctx.addErrf("field %s does not yet have support for custom arguments", query.name)
-			return "null", false
+			if value.isVar {
+			} else if value.isNull {
+				// Na mate just keep it at it's default
+			} else if value.isEnum {
+				// TODO support this
+				ctx.addErrf("enum function arguments are currently unsupported, function: %s, property: %s", query.name, key)
+			} else {
+				switch value.valType {
+				case reflect.Int:
+					switch inKind {
+					case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+						field.SetInt(int64(value.intValue))
+					case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+						field.SetUint(uint64(value.intValue))
+					default:
+						ctx.addErrf("function arguments type missmatch expected number, function: %s, property: %s", query.name, key)
+						return "null", true
+					}
+				case reflect.Float64:
+					switch inKind {
+					case reflect.Float32, reflect.Float64:
+						field.SetFloat(value.floatValue)
+					default:
+						ctx.addErrf("function arguments type missmatch expected float, function: %s, property: %s", query.name, key)
+						return "null", true
+					}
+				case reflect.String:
+					switch inKind {
+					case reflect.String:
+						field.SetString(value.stringValue)
+					default:
+						ctx.addErrf("function arguments type missmatch expected string, function: %s, property: %s", query.name, key)
+						return "null", true
+					}
+				case reflect.Bool:
+					switch inKind {
+					case reflect.Bool:
+						field.SetBool(value.booleanValue)
+					default:
+						ctx.addErrf("function arguments type missmatch expected string, function: %s, property: %s", query.name, key)
+						return "null", true
+					}
+				case reflect.Array:
+					// TODO support this
+					ctx.addErrf("undefined function %s input type: %s", query.name, key)
+				case reflect.Map:
+					// TODO support this
+					ctx.addErrf("undefined function %s input type: %s", query.name, key)
+				default:
+					ctx.addErrf("undefined function %s input type: %s", query.name, key)
+				}
+			}
 		}
 
 		outs := value.Call(inputs)
+
 		if method.errorOutNr != nil {
 			errOut := outs[*method.errorOutNr]
 			if !errOut.IsNil() {

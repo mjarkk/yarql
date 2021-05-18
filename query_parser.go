@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
+	"reflect"
 	"strconv"
 	"strings"
 	"unicode"
@@ -79,8 +80,14 @@ type VariableDefinition struct {
 type Arguments map[string]Value
 
 type Value struct {
-	// "Variable" || "IntValue" || "FloatValue" || "StringValue" || "BooleanValue" || "NullValue" || "EnumValue" || "ListValue" || "ObjectValue"
-	valType string
+	// Check these before valType
+	isVar  bool
+	isNull bool
+	isEnum bool
+
+	// depending on this field the below is filled in
+	// Supported: Int, Float64, String, Bool, Array, Map
+	valType reflect.Kind
 
 	variable     string
 	intValue     int
@@ -323,7 +330,7 @@ func (i *Iter) parseValue() (*Value, error) {
 		if err != nil {
 			return nil, err
 		}
-		res.valType = "Variable"
+		res.isVar = true
 		res.variable = varName
 	case '-', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0':
 		val, err := i.parseNumberValue()
@@ -336,7 +343,7 @@ func (i *Iter) parseValue() (*Value, error) {
 		if err != nil {
 			return nil, err
 		}
-		res.valType = "StringValue"
+		res.valType = reflect.String
 		res.stringValue = val
 	case '[':
 		i.charNr++
@@ -344,7 +351,7 @@ func (i *Iter) parseValue() (*Value, error) {
 		if err != nil {
 			return nil, err
 		}
-		res.valType = "ListValue"
+		res.valType = reflect.Array
 		res.listValue = list
 	case '{':
 		i.charNr++
@@ -352,6 +359,7 @@ func (i *Iter) parseValue() (*Value, error) {
 		if err != nil {
 			return nil, err
 		}
+		res.valType = reflect.Map
 		res.objectValue = values
 	default:
 		name, err := i.parseName()
@@ -360,14 +368,14 @@ func (i *Iter) parseValue() (*Value, error) {
 		}
 		switch name {
 		case "null":
-			res.valType = "NullValue"
+			res.isNull = true
 		case "true", "false":
-			res.valType = "BooleanValue"
+			res.valType = reflect.Bool
 			res.booleanValue = name == "true"
 		case "":
 			return nil, errors.New("invalid value")
 		default:
-			res.valType = "EnumValue"
+			res.isEnum = true
 			res.enumValue = name
 		}
 	}
@@ -556,7 +564,7 @@ func (i *Iter) parseNumberValue() (*Value, error) {
 				return nil, errors.New("unable to parse int")
 			}
 			return &Value{
-				valType:  "IntValue",
+				valType:  reflect.Int,
 				intValue: i,
 			}, nil
 		}
@@ -567,7 +575,7 @@ func (i *Iter) parseNumberValue() (*Value, error) {
 		}
 
 		return &Value{
-			valType:    "FloatValue",
+			valType:    reflect.Float64,
 			floatValue: f,
 		}, nil
 	}
@@ -1015,6 +1023,7 @@ func (i *Iter) parseArgumentsOrObjectValues(closure rune) (Arguments, error) {
 	}
 
 	if c == closure {
+		i.charNr++
 		return res, nil
 	}
 

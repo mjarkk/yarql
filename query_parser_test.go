@@ -478,7 +478,7 @@ func TestQueryParserFieldWithArguments(t *testing.T) {
 		client {
 			foo
 			bar(a: 1,b:true c : false , d: [1,2 3 , 4,], e: $foo_bar, f: null, g: SomeEnumValue, h: {a: 1, b: true})
-			baz
+			baz()
 		}
 	}`)
 	Nil(t, err)
