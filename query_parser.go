@@ -99,6 +99,8 @@ type Value struct {
 	objectValue  Arguments
 }
 
+type ValueData struct{}
+
 func ParseQuery(input string) ([]*Operator, error) {
 	res := []*Operator{}
 	iter := &Iter{

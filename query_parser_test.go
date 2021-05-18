@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"reflect"
 	"strconv"
 	"sync"
 	"testing"
@@ -162,11 +163,11 @@ func TestQueryParserNumbers(t *testing.T) {
 		item := res[0].variableDefinitions["b"]
 
 		if option.isInt {
-			Equal(t, "IntValue", item.defaultValue.valType, option.input)
+			Equal(t, reflect.Int, item.defaultValue.valType, option.input)
 			n, _ := strconv.Atoi(option.input)
 			Equal(t, n, item.defaultValue.intValue, option.input)
 		} else {
-			Equal(t, "FloatValue", item.defaultValue.valType, option.input)
+			Equal(t, reflect.Float64, item.defaultValue.valType, option.input)
 			f, _ := strconv.ParseFloat(option.input, 64)
 			Equal(t, f, item.defaultValue.floatValue, option.input)
 		}
@@ -206,7 +207,7 @@ func TestQueryParserStrings(t *testing.T) {
 
 		item := res[0].variableDefinitions["b"]
 
-		Equal(t, "StringValue", item.defaultValue.valType, option.input)
+		Equal(t, reflect.String, item.defaultValue.valType, option.input)
 		Equal(t, option.output, item.defaultValue.stringValue)
 
 		injectCodeSurviveTest(query, `\u`, `"`, `\`, "\n")
@@ -489,27 +490,27 @@ func TestQueryParserFieldWithArguments(t *testing.T) {
 
 	a, ok := arguments["a"]
 	True(t, ok)
-	Equal(t, "IntValue", a.valType)
+	Equal(t, reflect.Int, a.valType)
 	Equal(t, 1, a.intValue)
 
 	b, ok := arguments["b"]
 	True(t, ok)
-	Equal(t, "BooleanValue", b.valType)
+	Equal(t, reflect.Bool, b.valType)
 	True(t, b.booleanValue)
 
 	c, ok := arguments["c"]
 	True(t, ok)
-	Equal(t, "BooleanValue", c.valType)
+	Equal(t, reflect.Bool, c.valType)
 	False(t, c.booleanValue)
 
 	d, ok := arguments["d"]
 	True(t, ok)
-	Equal(t, "ListValue", d.valType)
+	Equal(t, reflect.Array, d.valType)
 	list := d.listValue
 	Equal(t, 4, len(list))
 
 	for i, item := range list {
-		Equal(t, "IntValue", item.valType)
+		Equal(t, reflect.Int, item.valType)
 		Equal(t, i+1, item.intValue)
 	}
 }
@@ -540,17 +541,17 @@ func TestQueryParserFieldDirectiveWithArguments(t *testing.T) {
 
 		a, ok := arguments["a"]
 		True(t, ok, "directive: "+item)
-		Equal(t, "IntValue", a.valType, "directive: "+item)
+		Equal(t, reflect.Int, a.valType, "directive: "+item)
 		Equal(t, 1, a.intValue, "directive: "+item)
 
 		b, ok := arguments["b"]
 		True(t, ok, "directive: "+item)
-		Equal(t, "BooleanValue", b.valType, "directive: "+item)
+		Equal(t, reflect.Bool, b.valType, "directive: "+item)
 		True(t, b.booleanValue, "directive: "+item)
 
 		c, ok := arguments["c"]
 		True(t, ok, "directive: "+item)
-		Equal(t, "BooleanValue", c.valType, "directive: "+item)
+		Equal(t, reflect.Bool, c.valType, "directive: "+item)
 		False(t, c.booleanValue, "directive: "+item)
 	}
 }
