@@ -358,9 +358,7 @@ func formatGoNameToQL(input string) string {
 		return input
 	}
 
-	input = string(bytes.ToLower([]byte{input[0]})) + input[1:]
-
-	return input
+	return string(bytes.ToLower([]byte{input[0]})) + input[1:]
 }
 
 func valueLooksTrue(val string) bool {
