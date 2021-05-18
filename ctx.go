@@ -16,3 +16,7 @@ func (ctx *Ctx) HasErrors() bool {
 func (ctx *Ctx) Errors() []error {
 	return ctx.errors
 }
+
+func (ctx *Ctx) AddError(err error) {
+	ctx.errors = append(ctx.errors, err)
+}
