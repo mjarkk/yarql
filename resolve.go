@@ -159,7 +159,11 @@ func (ctx *Ctx) resolveField(query *Field, struct_ reflect.Value, codeStructure 
 	return res(fieldValue), returnedOnError
 }
 
-func matchInputValue(queryValue *Value, goField *reflect.Value, goFieldKind reflect.Kind) error {
+func matchInputValue(queryValue *Value, goField *reflect.Value, goAnylizedData *Input) error {
+	// TODO: support poitners
+
+	goFieldKind := goAnylizedData.kind
+
 	mismatchError := func() error {
 		m := map[reflect.Kind]string{
 			reflect.Invalid:       "an unknown type",
@@ -245,9 +249,9 @@ func matchInputValue(queryValue *Value, goField *reflect.Value, goFieldKind refl
 
 				for i, item := range queryValue.listValue {
 					arrayItem := arr.Index(i)
-					err := matchInputValue(&item, &arrayItem, arrayItem.Kind())
+					err := matchInputValue(&item, &arrayItem, goAnylizedData.elem)
 					if err != nil {
-						return err
+						return fmt.Errorf("%s, Array index: [%d]", err.Error(), i)
 					}
 				}
 
@@ -256,8 +260,22 @@ func matchInputValue(queryValue *Value, goField *reflect.Value, goFieldKind refl
 				return mismatchError()
 			}
 		case reflect.Map:
-			// TODO support this
-			return errors.New("function input type not supported")
+			if goFieldKind == reflect.Struct {
+				for queryKey, arg := range queryValue.objectValue {
+					structItemMeta, ok := goAnylizedData.structContent[queryKey]
+					if !ok {
+						return fmt.Errorf("undefined property %s", queryKey)
+					}
+
+					field := goField.FieldByName(structItemMeta.goStructName)
+					err := matchInputValue(&arg, &field, &structItemMeta)
+					if err != nil {
+						return fmt.Errorf("%s, property: %s", err.Error(), queryKey)
+					}
+				}
+			} else {
+				return mismatchError()
+			}
 		default:
 			return errors.New("undefined function input type")
 		}
@@ -288,7 +306,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *Field, value reflect.Value, codeStr
 			}
 			goField := inputs[inField.inputIdx].FieldByName(inField.input.goStructName)
 
-			err := matchInputValue(&queryValue, &goField, inField.input.kind)
+			err := matchInputValue(&queryValue, &goField, &inField.input)
 			if err != nil {
 				ctx.addErrf("%s, function: %s, property: %s", err.Error(), query.name, queryKey)
 				return "null", true

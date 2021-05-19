@@ -316,7 +316,7 @@ func checkFunctionInput(t reflect.Type) (Input, error) {
 		if err != nil {
 			return res, err
 		}
-		input.elem = &input
+		res.elem = &input
 	case reflect.Struct:
 		res.structContent = map[string]Input{}
 		for i := 0; i < t.NumField(); i++ {
