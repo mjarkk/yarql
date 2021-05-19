@@ -140,10 +140,7 @@ type TestExecSimpleQueryData struct {
 }
 
 func TestExecSimpleQuery(t *testing.T) {
-	out, errs := parseAndTest(t, `{
-		a
-		b
-	}`, TestExecSimpleQueryData{A: "foo", B: "bar", C: "baz"}, M{})
+	out, errs := parseAndTest(t, `{a b}`, TestExecSimpleQueryData{A: "foo", B: "bar", C: "baz"}, M{})
 	for _, err := range errs {
 		panic(err)
 	}
@@ -163,6 +160,16 @@ func TestExecSimpleQuery(t *testing.T) {
 	False(t, ok)
 }
 
+func TestGenerateResponse(t *testing.T) {
+	out, errs := parseAndTest(t, `{
+		a
+		b
+		non_exsisting_field
+	}`, TestExecSimpleQueryData{A: "foo", B: "bar", C: "baz"}, M{})
+	res := GenerateResponse(out, errs)
+	Equal(t, `{"data":{"a":"foo","b":"bar"}"errors":[{"message":"field non_exsisting_field does not exists on TestExecSimpleQueryData"}]}`, res)
+}
+
 type TestExecStructInStructInlineData struct {
 	Foo struct {
 		A string `json:"a"`
@@ -175,12 +182,7 @@ func TestExecStructInStructInline(t *testing.T) {
 	schema := TestExecStructInStructInlineData{}
 	json.Unmarshal([]byte(`{"foo": {"a": "foo", "b": "bar", "c": "baz"}}`), &schema)
 
-	out, errs := parseAndTest(t, `{
-		foo {
-			a
-			b
-		}
-	}`, schema, M{})
+	out, errs := parseAndTest(t, `{foo{a b}}`, schema, M{})
 	for _, err := range errs {
 		panic(err)
 	}
