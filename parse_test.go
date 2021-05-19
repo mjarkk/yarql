@@ -67,7 +67,7 @@ func TestCheckStructSimple(t *testing.T) {
 }
 
 func TestParseSchema(t *testing.T) {
-	ParseSchema(TestCheckStructSimpleDemo{}, TestCheckStructSimpleDemo{}, SchemaOptions{noMethodEqualToQueryChecks: true})
+	ParseSchema(TestCheckStructSimpleDemo{}, TestCheckStructSimpleDemo{}, &SchemaOptions{noMethodEqualToQueryChecks: true})
 }
 
 type TestCheckStructWArrayData struct {

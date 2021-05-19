@@ -118,7 +118,7 @@ type SchemaOptions struct {
 	noMethodEqualToQueryChecks bool // internal for testing
 }
 
-func ParseSchema(queries interface{}, methods interface{}, options SchemaOptions) (*Schema, error) {
+func ParseSchema(queries interface{}, methods interface{}, options *SchemaOptions) (*Schema, error) {
 	res := Schema{
 		types:           Types{},
 		rootQueryValue:  reflect.ValueOf(queries),
@@ -144,7 +144,7 @@ func ParseSchema(queries interface{}, methods interface{}, options SchemaOptions
 	}
 	res.rootMethod = res.types[obj.typeName]
 
-	if !options.noMethodEqualToQueryChecks {
+	if options == nil || !options.noMethodEqualToQueryChecks {
 		queryPkg := res.rootQuery.pkgPath + res.rootQuery.typeName
 		methodPkg := res.rootMethod.pkgPath + res.rootMethod.typeName
 		if queryPkg == methodPkg {

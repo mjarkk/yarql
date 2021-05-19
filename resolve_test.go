@@ -112,7 +112,7 @@ func parseAndTest(t *testing.T, query string, queries interface{}, methods inter
 }
 
 func parseAndTestMaxDeptAndOperatorTarget(t *testing.T, query string, queries interface{}, methods interface{}, maxDept uint8, operatorTarget string) (string, []error) {
-	s, err := ParseSchema(queries, methods, SchemaOptions{})
+	s, err := ParseSchema(queries, methods, nil)
 	NoError(t, err, query)
 	s.MaxDepth = maxDept
 	out, errs := s.Resolve(query, operatorTarget)
