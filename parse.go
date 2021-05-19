@@ -88,7 +88,7 @@ type ObjMethod struct {
 	// false = ResolveFooBar func() string
 	isTypeMethod bool
 
-	ins      []Input
+	ins      []BaseInput
 	inFields map[string]referToInput
 
 	outNr      int
@@ -98,12 +98,18 @@ type ObjMethod struct {
 
 type referToInput struct {
 	inputIdx int
-	kind     reflect.Kind
-	goName   string
-	gqName   string
+	input    Input
 }
 
 type Input struct {
+	kind          reflect.Kind
+	goStructName  string
+	gqStructName  string
+	elem          *Input // In case of a Slice, Array or Ptr
+	structContent map[string]Input
+}
+
+type BaseInput struct {
 	isCtx bool
 	type_ *reflect.Type
 }
@@ -270,6 +276,70 @@ func isCtx(t reflect.Type) bool {
 	return t.Kind() == reflect.Struct && simpleCtx.Name() == t.Name() && simpleCtx.PkgPath() == t.PkgPath()
 }
 
+func checkFunctionInputStruct(field *reflect.StructField) (res Input, skipThisField bool, err error) {
+	if field.Anonymous {
+		// skip field
+		return res, true, nil
+	}
+
+	val, ok := field.Tag.Lookup("gqIgnore")
+	if ok && valueLooksTrue(val) {
+		// skip field
+		return res, true, nil
+	}
+
+	res, err = checkFunctionInput(field.Type)
+	if err != nil {
+		return Input{}, false, fmt.Errorf("%s, struct field: %s", err.Error(), field.Name)
+	}
+
+	newName, hasNameRewrite := field.Tag.Lookup("gqName")
+	name := formatGoNameToQL(field.Name)
+	if hasNameRewrite {
+		name = newName
+	}
+	res.goStructName = field.Name
+	res.gqStructName = name
+
+	return
+}
+
+func checkFunctionInput(t reflect.Type) (Input, error) {
+	kind := t.Kind()
+	res := Input{kind: kind}
+
+	switch kind {
+	case reflect.String, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64:
+		// We don't have todo anything here just go to the next input
+	case reflect.Ptr, reflect.Array, reflect.Slice:
+		input, err := checkFunctionInput(t.Elem())
+		if err != nil {
+			return res, err
+		}
+		input.elem = &input
+	case reflect.Struct:
+		res.structContent = map[string]Input{}
+		for i := 0; i < t.NumField(); i++ {
+			field := t.Field(i)
+			input, skip, err := checkFunctionInputStruct(&field)
+			if skip {
+				continue
+			}
+			if err != nil {
+				return res, err
+			}
+			res.structContent[input.gqStructName] = input
+		}
+	case reflect.Map, reflect.Func:
+		// MAYBE TODO maybe we can do something with these
+		fallthrough
+	default:
+		return res, fmt.Errorf("unsupported type %s", kind.String())
+	}
+
+	return res, nil
+}
+
 func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool) (*ObjMethod, string, error) {
 	trimmedName := name
 
@@ -291,7 +361,7 @@ func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool)
 		return nil, "", errors.New("function method cannot end with spread argument")
 	}
 
-	ins := []Input{}
+	ins := []BaseInput{}
 	inFields := map[string]referToInput{}
 
 	totalInputs := t.NumIn()
@@ -306,7 +376,7 @@ func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool)
 		}
 
 		type_ := t.In(i)
-		input := Input{}
+		input := BaseInput{}
 		typeKind := type_.Kind()
 		if typeKind == reflect.Ptr && isCtx(type_.Elem()) {
 			input.isCtx = true
@@ -316,44 +386,17 @@ func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool)
 			input.type_ = &type_
 			for i := 0; i < type_.NumField(); i++ {
 				field := type_.Field(i)
-				if field.Anonymous {
-					// skip field
+				input, skip, err := checkFunctionInputStruct(&field)
+				if skip {
 					continue
 				}
-
-				val, ok := field.Tag.Lookup("gqIgnore")
-				if ok && valueLooksTrue(val) {
-					// skip field
-					continue
+				if err != nil {
+					return nil, "", fmt.Errorf("%s, type %s (#%d)", err.Error(), type_.Name(), i)
 				}
 
-				// TODO abstract this code
-
-				kind := field.Type.Kind()
-				switch kind {
-				case reflect.String, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64:
-
-				case reflect.Map, reflect.Ptr, reflect.Array, reflect.Slice, reflect.Struct:
-					// TODO suppor these fields
-					fallthrough
-				case reflect.Func:
-					// MAYBE TODO maybe we can do something with this
-					fallthrough
-				default:
-					return nil, "", fmt.Errorf("invalid struct argument for %s (#%d), argument %s, type: %s", type_.Name(), i, field.Name, field.Type.String())
-				}
-
-				newName, hasNameRewrite := field.Tag.Lookup("gqName")
-				name := formatGoNameToQL(field.Name)
-				if hasNameRewrite {
-					name = newName
-				}
-
-				inFields[name] = referToInput{
+				inFields[input.gqStructName] = referToInput{
 					inputIdx: iInList,
-					kind:     kind,
-					goName:   field.Name,
-					gqName:   name,
+					input:    input,
 				}
 			}
 		} else {

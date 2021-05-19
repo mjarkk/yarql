@@ -160,6 +160,44 @@ func (ctx *Ctx) resolveField(query *Field, struct_ reflect.Value, codeStructure 
 }
 
 func matchInputValue(queryValue *Value, goField *reflect.Value, goFieldKind reflect.Kind) error {
+	mismatchError := func() error {
+		m := map[reflect.Kind]string{
+			reflect.Invalid:       "an unknown type",
+			reflect.Bool:          "a boolean",
+			reflect.Int:           "a number",
+			reflect.Int8:          "a number",
+			reflect.Int16:         "a number",
+			reflect.Int32:         "a number",
+			reflect.Int64:         "a number",
+			reflect.Uint:          "a number",
+			reflect.Uint8:         "a number",
+			reflect.Uint16:        "a number",
+			reflect.Uint32:        "a number",
+			reflect.Uint64:        "a number",
+			reflect.Uintptr:       "a number",
+			reflect.Float32:       "a float",
+			reflect.Float64:       "a float",
+			reflect.Complex64:     "a number",
+			reflect.Complex128:    "a number",
+			reflect.Array:         "an array",
+			reflect.Chan:          "an unknown type",
+			reflect.Func:          "an unknown type",
+			reflect.Interface:     "an unknown type",
+			reflect.Map:           "an unknown type",
+			reflect.Ptr:           "optional type",
+			reflect.Slice:         "an array",
+			reflect.String:        "a string",
+			reflect.Struct:        "a object",
+			reflect.UnsafePointer: "a number",
+		}
+
+		t := goField.Type()
+		for t.Kind() == reflect.Ptr {
+			t = t.Elem()
+		}
+		return fmt.Errorf("function arguments type missmatch expected %s", m[t.Kind()])
+	}
+
 	if queryValue.isVar {
 		// TODO support this
 		return errors.New("variable function arguments are currently unsupported")
@@ -178,32 +216,32 @@ func matchInputValue(queryValue *Value, goField *reflect.Value, goFieldKind refl
 			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 				goField.SetUint(uint64(queryValue.intValue))
 			default:
-				return errors.New("function arguments type missmatch expected number")
+				return mismatchError()
 			}
 		case reflect.Float64:
 			if goFieldKind == reflect.Float32 || goFieldKind == reflect.Float64 {
 				goField.SetFloat(queryValue.floatValue)
 			} else {
-				return errors.New("function arguments type missmatch expected float")
+				return mismatchError()
 			}
 		case reflect.String:
 			if goFieldKind == reflect.String {
 				goField.SetString(queryValue.stringValue)
 			} else {
-				return errors.New("function arguments type missmatch expected string")
+				return mismatchError()
 			}
 		case reflect.Bool:
 			if goFieldKind == reflect.Bool {
 				goField.SetBool(queryValue.booleanValue)
 			} else {
-				return errors.New("function arguments type missmatch expected string")
+				return mismatchError()
 			}
 		case reflect.Array:
 			if goFieldKind == reflect.Array || goFieldKind == reflect.Slice {
 				// TODO support this
 				return errors.New("function input type not supported")
 			} else {
-				return errors.New("function arguments type missmatch expected array")
+				return mismatchError()
 			}
 		case reflect.Map:
 			// TODO support this
@@ -236,9 +274,9 @@ func (ctx *Ctx) resolveFieldDataValue(query *Field, value reflect.Value, codeStr
 				ctx.addErrf("undefined function %s input: %s", query.name, queryKey)
 				continue
 			}
-			goField := inputs[inField.inputIdx].FieldByName(inField.goName)
+			goField := inputs[inField.inputIdx].FieldByName(inField.input.goStructName)
 
-			err := matchInputValue(&queryValue, &goField, inField.kind)
+			err := matchInputValue(&queryValue, &goField, inField.input.kind)
 			if err != nil {
 				ctx.addErrf("%s, function: %s, property: %s", err.Error(), query.name, queryKey)
 				return "null", true
