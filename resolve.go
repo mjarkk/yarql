@@ -237,9 +237,21 @@ func matchInputValue(queryValue *Value, goField *reflect.Value, goFieldKind refl
 				return mismatchError()
 			}
 		case reflect.Array:
-			if goFieldKind == reflect.Array || goFieldKind == reflect.Slice {
-				// TODO support this
-				return errors.New("function input type not supported")
+			if goFieldKind == reflect.Array {
+				// TODO
+				return errors.New("fixed length arrays not supported")
+			} else if goFieldKind == reflect.Slice {
+				arr := reflect.MakeSlice(goField.Type(), len(queryValue.listValue), len(queryValue.listValue))
+
+				for i, item := range queryValue.listValue {
+					arrayItem := arr.Index(i)
+					err := matchInputValue(&item, &arrayItem, arrayItem.Kind())
+					if err != nil {
+						return err
+					}
+				}
+
+				goField.Set(arr)
 			} else {
 				return mismatchError()
 			}

@@ -524,6 +524,32 @@ func TestExecStructTypeMethodWithArgs(t *testing.T) {
 	Equal(t, `{"bar":"foo"}`, out)
 }
 
+type TestExecStructTypeMethodWithListArgData struct{}
+
+func (TestExecStructTypeMethodWithListArgData) ResolveBar(args struct{ A []string }) []string {
+	return args.A
+}
+
+func TestExecStructTypeMethodWithListArg(t *testing.T) {
+	out, errs := parseAndTest(t, `{bar(a: [])}`, TestExecStructTypeMethodWithListArgData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"bar":[]}`, out)
+
+	out, errs = parseAndTest(t, `{bar()}`, TestExecStructTypeMethodWithListArgData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"bar":null}`, out)
+
+	out, errs = parseAndTest(t, `{bar(a: ["foo","bar"])}`, TestExecStructTypeMethodWithListArgData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"bar":["foo","bar"]}`, out)
+}
+
 func TestExecInlineFragment(t *testing.T) {
 	out, errs := parseAndTest(t, `{a...{b, c} d}`, TestExecSimpleQueryData{A: "foo", B: "bar", C: "baz", D: "foobar"}, M{})
 	for _, err := range errs {
