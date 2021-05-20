@@ -177,9 +177,26 @@ func (ctx *Ctx) resolveField(query *Field, struct_ reflect.Value, codeStructure 
 }
 
 func matchInputValue(queryValue *Value, goField *reflect.Value, goAnylizedData *Input) error {
-	// TODO: support poitners
-
 	goFieldKind := goAnylizedData.kind
+
+	if goFieldKind == reflect.Ptr {
+		if queryValue.isNull {
+			// Na mate just keep it at it's default
+			return nil
+		}
+
+		expectedType := goField.Type().Elem()
+		newVal := reflect.New(expectedType)
+		newValInner := newVal.Elem()
+
+		err := matchInputValue(queryValue, &newValInner, goAnylizedData.elem)
+		if err != nil {
+			return err
+		}
+
+		goField.Set(newVal)
+		return nil
+	}
 
 	mismatchError := func() error {
 		m := map[reflect.Kind]string{

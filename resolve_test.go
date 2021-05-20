@@ -566,6 +566,58 @@ func TestExecStructTypeMethodWithStructArg(t *testing.T) {
 	Equal(t, `{"bar":"foo"}`, out)
 }
 
+type TestExecStructTypeMethodWithPtrArgData struct{}
+
+func (TestExecStructTypeMethodWithPtrArgData) ResolveBar(c *Ctx, args struct{ A *string }) *string {
+	return args.A
+}
+
+func TestExecStructTypeMethodWithPtrArg(t *testing.T) {
+	out, errs := parseAndTest(t, `{bar()}`, TestExecStructTypeMethodWithPtrArgData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"bar":null}`, out)
+
+	out, errs = parseAndTest(t, `{bar(a: null)}`, TestExecStructTypeMethodWithPtrArgData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"bar":null}`, out)
+
+	out, errs = parseAndTest(t, `{bar(a: "foo")}`, TestExecStructTypeMethodWithPtrArgData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"bar":"foo"}`, out)
+}
+
+type TestExecStructTypeMethodWithPtrInPtrArgData struct{}
+
+func (TestExecStructTypeMethodWithPtrInPtrArgData) ResolveBar(c *Ctx, args struct{ A **string }) **string {
+	return args.A
+}
+
+func TestExecStructTypeMethodWithPtrInPtrArg(t *testing.T) {
+	out, errs := parseAndTest(t, `{bar()}`, TestExecStructTypeMethodWithPtrInPtrArgData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"bar":null}`, out)
+
+	out, errs = parseAndTest(t, `{bar(a: null)}`, TestExecStructTypeMethodWithPtrInPtrArgData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"bar":null}`, out)
+
+	out, errs = parseAndTest(t, `{bar(a: "foo")}`, TestExecStructTypeMethodWithPtrInPtrArgData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"bar":"foo"}`, out)
+}
+
 func TestExecInlineFragment(t *testing.T) {
 	out, errs := parseAndTest(t, `{a...{b, c} d}`, TestExecSimpleQueryData{A: "foo", B: "bar", C: "baz", D: "foobar"}, M{})
 	for _, err := range errs {
