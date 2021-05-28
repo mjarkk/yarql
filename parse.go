@@ -42,7 +42,8 @@ type Schema struct {
 type valueType int
 
 const (
-	valueTypeArray valueType = iota
+	valueTypeUndefined valueType = iota
+	valueTypeArray
 	valueTypeObjRef
 	valueTypeObj
 	valueTypeData
@@ -56,7 +57,8 @@ type Obj struct {
 	pkgPath   string
 
 	// Value type == valueTypeObj
-	objContents map[string]*Obj
+	objContents    map[string]*Obj
+	customObjValue *reflect.Value // Mainly Graphql internal values like __schema
 
 	// Value is inside struct
 	structFieldName string
@@ -116,6 +118,12 @@ type BaseInput struct {
 
 type SchemaOptions struct {
 	noMethodEqualToQueryChecks bool // internal for testing
+	SkipGraphqlTypesInjection  bool
+}
+
+type parseCtx struct {
+	types             *Types
+	unknownTypesCount int
 }
 
 func ParseSchema(queries interface{}, methods interface{}, options *SchemaOptions) (*Schema, error) {
@@ -126,7 +134,11 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 		MaxDepth:        255,
 	}
 
-	obj, err := check(&res.types, reflect.TypeOf(queries))
+	ctx := parseCtx{
+		types: &res.types,
+	}
+
+	obj, err := ctx.check(reflect.TypeOf(queries))
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +147,7 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 	}
 	res.rootQuery = res.types[obj.typeName]
 
-	obj, err = check(&res.types, reflect.TypeOf(methods))
+	obj, err = ctx.check(reflect.TypeOf(methods))
 	if err != nil {
 		return nil, err
 	}
@@ -152,10 +164,14 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 		}
 	}
 
+	if options == nil || !options.SkipGraphqlTypesInjection {
+		res.injectQLTypes(&ctx)
+	}
+
 	return &res, nil
 }
 
-func check(types *Types, t reflect.Type) (*Obj, error) {
+func (c *parseCtx) check(t reflect.Type) (*Obj, error) {
 	res := Obj{
 		typeName: t.Name(),
 		pkgPath:  t.PkgPath(),
@@ -166,7 +182,12 @@ func check(types *Types, t reflect.Type) (*Obj, error) {
 		res.valueType = valueTypeObj
 
 		if res.typeName != "" {
-			v, ok := types.Get(res.typeName)
+			newName, ok := renamedTypes[res.typeName]
+			if ok {
+				res.typeName = newName
+			}
+
+			v, ok := c.types.Get(res.typeName)
 			if ok {
 				if v.pkgPath != res.pkgPath {
 					return nil, fmt.Errorf("cannot have 2 structs with same type in structure: %s(%s) != %s(%s)", v.pkgPath, res.typeName, res.pkgPath, res.typeName)
@@ -175,9 +196,16 @@ func check(types *Types, t reflect.Type) (*Obj, error) {
 				res = v.getRef()
 				return &res, nil
 			}
+		} else {
+			c.unknownTypesCount++
+			res.typeName = fmt.Sprintf("__UnknownType%d", c.unknownTypesCount)
 		}
 
 		res.objContents = map[string]*Obj{}
+
+		typesInner := *c.types
+		typesInner[res.typeName] = &res
+		*c.types = typesInner
 
 		for i := 0; i < t.NumField(); i++ {
 			err := func(field reflect.StructField) error {
@@ -197,7 +225,7 @@ func check(types *Types, t reflect.Type) (*Obj, error) {
 				}
 
 				if field.Type.Kind() == reflect.Func {
-					methodObj, _, err := checkFunction(types, field.Name, field.Type, false)
+					methodObj, _, err := c.checkFunction(field.Name, field.Type, false)
 					if err != nil {
 						return err
 					} else if methodObj == nil {
@@ -211,7 +239,7 @@ func check(types *Types, t reflect.Type) (*Obj, error) {
 						method:          methodObj,
 					}
 				} else {
-					obj, err := check(types, field.Type)
+					obj, err := c.check(field.Type)
 					if err != nil {
 						return err
 					}
@@ -231,7 +259,7 @@ func check(types *Types, t reflect.Type) (*Obj, error) {
 			res.valueType = valueTypeArray
 		}
 
-		obj, err := check(types, t.Elem())
+		obj, err := c.check(t.Elem())
 		if err != nil {
 			return nil, err
 		}
@@ -247,7 +275,7 @@ func check(types *Types, t reflect.Type) (*Obj, error) {
 		for i := 0; i < t.NumMethod(); i++ {
 			method := t.Method(i)
 			methodName := method.Name
-			methodObj, name, err := checkFunction(types, methodName, method.Type, true)
+			methodObj, name, err := c.checkFunction(methodName, method.Type, true)
 			if err != nil {
 				return nil, err
 			} else if methodObj == nil {
@@ -263,8 +291,9 @@ func check(types *Types, t reflect.Type) (*Obj, error) {
 		}
 	}
 
-	if res.typeName != "" && res.valueType == valueTypeObj {
-		res = types.Add(res)
+	if res.valueType == valueTypeObj {
+		res = c.types.Add(res)
+		// res is now a objptr pointing to the obj
 	}
 
 	return &res, nil
@@ -340,7 +369,7 @@ func checkFunctionInput(t reflect.Type) (Input, error) {
 	return res, nil
 }
 
-func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool) (*ObjMethod, string, error) {
+func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool) (*ObjMethod, string, error) {
 	trimmedName := name
 
 	if strings.HasPrefix(name, "Resolve") {
@@ -438,7 +467,7 @@ func checkFunction(types *Types, name string, t reflect.Type, isTypeMethod bool)
 				return nil, "", fmt.Errorf("%s cannot return multiple types of data", name)
 			}
 
-			outObj, err := check(types, outType)
+			outObj, err := c.check(outType)
 			if err != nil {
 				return nil, "", err
 			}

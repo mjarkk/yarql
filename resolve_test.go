@@ -451,9 +451,7 @@ type TestExecMaxDeptData struct {
 
 func TestExecMaxDept(t *testing.T) {
 	out, errs := parseAndTestMaxDeptAndOperatorTarget(t, `{foo{bar{baz{fooBar{barBaz{bazFoo}}}}}}`, TestExecMaxDeptData{}, M{}, 3, "")
-	for _, err := range errs {
-		panic(err)
-	}
+	Greater(t, len(errs), 0)
 	Equal(t, `{"foo":{"bar":{"baz":null}}}`, out)
 }
 
@@ -471,7 +469,9 @@ func TestExecStructMethod(t *testing.T) {
 	Equal(t, `{"foo":"bar"}`, out)
 }
 
-type TestExecStructTypeMethodData struct{}
+type TestExecStructTypeMethodData struct {
+	Foo func() string
+}
 
 func (TestExecStructTypeMethodData) ResolveBar() string {
 	return "foo"
@@ -482,11 +482,11 @@ func (TestExecStructTypeMethodData) ResolveBaz() (string, error) {
 }
 
 func TestExecStructTypeMethod(t *testing.T) {
-	out, errs := parseAndTest(t, `{bar, baz}`, TestExecStructTypeMethodData{}, M{})
+	out, errs := parseAndTest(t, `{foo, bar, baz}`, TestExecStructTypeMethodData{}, M{})
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"bar":"foo","baz":"bar"}`, out)
+	Equal(t, `{"foo":null,"bar":"foo","baz":"bar"}`, out)
 }
 
 type TestExecStructTypeMethodWithCtxData struct{}
@@ -660,4 +660,228 @@ func TestExecMultipleOperators(t *testing.T) {
 		panic(err)
 	}
 	Equal(t, `{"c":"","d":""}`, out)
+}
+
+// This is the request graphql playground makes to get the schema
+var schemaQuery = `
+query IntrospectionQuery {
+	__schema {
+		queryType {
+			name
+		}
+		mutationType {
+			name
+		}
+		subscriptionType {
+			name
+		}
+		types {
+			...FullType
+		}
+		directives {
+			name
+			description
+			locations
+			args {
+				...InputValue
+			}
+		}
+	}
+}
+
+fragment FullType on __Type {
+	kind
+	name
+	description
+	fields(includeDeprecated: true) {
+		name
+		description
+		args {
+			...InputValue
+		}
+		type {
+			...TypeRef
+		}
+		isDeprecated
+		deprecationReason
+	}
+	inputFields {
+		...InputValue
+	}
+	interfaces {
+		...TypeRef
+	}
+	enumValues(includeDeprecated: true) {
+		name
+		description
+		isDeprecated
+		deprecationReason
+	}
+	possibleTypes {
+		...TypeRef
+	}
+}
+
+fragment InputValue on __InputValue {
+	name
+	description
+	type {
+		...TypeRef
+	}
+	defaultValue
+}
+
+fragment TypeRef on __Type {
+	kind
+	name
+	ofType {
+		kind
+		name
+		ofType {
+			kind
+			name
+			ofType {
+				kind
+				name
+				ofType {
+					kind
+					name
+					ofType {
+						kind
+						name
+						ofType {
+							kind
+							name
+							ofType {
+								kind
+								name
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+`
+
+type TestExecSchemaRequestSimpleData struct{}
+
+func TestExecSchemaRequestSimple(t *testing.T) {
+	resString, errs := parseAndTest(t, schemaQuery, TestExecSchemaRequestSimpleData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+
+	res := struct {
+		Schema QLSchema `json:"__schema"`
+	}{}
+	err := json.Unmarshal([]byte(resString), &res)
+	NoError(t, err)
+
+	schema := res.Schema
+	types := schema.Types
+	Equal(t, 12, len(types))
+
+	idx := 0
+	is := func(kind, name string) {
+		item := types[idx]
+		Equalf(t, kind, item.Kind, "(KIND) Index: %d", idx)
+		NotNilf(t, item.Name, "(NAME) Index: %d", idx)
+		Equalf(t, name, *item.Name, "(NAME) Index: %d", idx)
+		idx++
+	}
+
+	is("OBJECT", "M")                               // 0
+	is("OBJECT", "TestExecSchemaRequestSimpleData") // 1
+	is("OBJECT", "__Directive")                     // 2
+	is("OBJECT", "__EnumValue")                     // 3
+	is("OBJECT", "__Field")                         // 4
+	is("OBJECT", "__InputValue")                    // 5
+	is("OBJECT", "__Schema")                        // 6
+	is("OBJECT", "__Type")                          // 7
+	is("SCALAR", "Boolean")                         // 8
+	is("SCALAR", "Int")                             // 9
+	is("SCALAR", "Float")                           // 10
+	is("SCALAR", "String")                          // 11
+}
+
+type TestExecSchemaRequestWithFieldsDataInnerStruct struct {
+	Foo *string
+	Bar string
+}
+
+type TestExecSchemaRequestWithFieldsData struct {
+	A TestExecSchemaRequestWithFieldsDataInnerStruct
+	B struct {
+		Baz string
+	}
+	C struct {
+		FooBar []TestExecSchemaRequestWithFieldsDataInnerStruct
+	}
+}
+
+func (TestExecSchemaRequestWithFieldsData) ResolveD() TestExecSchemaRequestWithFieldsDataInnerStruct {
+	return TestExecSchemaRequestWithFieldsDataInnerStruct{}
+}
+
+func TestExecSchemaRequestWithFields(t *testing.T) {
+	resString, errs := parseAndTest(t, schemaQuery, TestExecSchemaRequestWithFieldsData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+
+	res := struct {
+		Schema QLSchema `json:"__schema"`
+	}{}
+	err := json.Unmarshal([]byte(resString), &res)
+	NoError(t, err)
+
+	schema := res.Schema
+	types := schema.Types
+	Equal(t, 15, len(types))
+
+	idx := 0
+	is := func(kind, name string) {
+		item := types[idx]
+		Equalf(t, kind, item.Kind, "(KIND) Index: %d", idx)
+		NotNilf(t, item.Name, "(NAME) Index: %d", idx)
+		Equalf(t, name, *item.Name, "(NAME) Index: %d", idx)
+		idx++
+	}
+
+	is("OBJECT", "M") // 0
+	queryIdx := 1
+	is("OBJECT", "TestExecSchemaRequestWithFieldsData")            // 1
+	is("OBJECT", "TestExecSchemaRequestWithFieldsDataInnerStruct") // 2
+	is("OBJECT", "__Directive")                                    // 3
+	is("OBJECT", "__EnumValue")                                    // 4
+	is("OBJECT", "__Field")                                        // 5
+	is("OBJECT", "__InputValue")                                   // 6
+	is("OBJECT", "__Schema")                                       // 7
+	is("OBJECT", "__Type")                                         // 8
+	is("OBJECT", "__UnknownType1")                                 // 9
+	is("OBJECT", "__UnknownType2")                                 // 10
+	is("SCALAR", "Boolean")                                        // 11
+	is("SCALAR", "Int")                                            // 12
+	is("SCALAR", "Float")                                          // 13
+	is("SCALAR", "String")                                         // 14
+
+	fields := types[queryIdx].JSONFields
+	Equal(t, 5, len(fields))
+
+	idx = 0
+	isField := func(name string) {
+		field := fields[idx]
+		Equalf(t, name, field.Name, "(NAME) Index: %d", idx)
+		Equalf(t, "NON_NULL", field.Type.Kind, "(KIND) Index: %d", idx)
+		Equalf(t, "OBJECT", field.Type.OfType.Kind, "(OFTYPE KIND) Index: %d", idx)
+		idx++
+	}
+
+	isField("__schema")
+	isField("a")
+	isField("b")
+	isField("c")
+	isField("d")
 }

@@ -7,6 +7,10 @@ import (
 	. "github.com/stretchr/testify/assert"
 )
 
+func newParseCtx() *parseCtx {
+	return &parseCtx{types: &Types{}}
+}
+
 func TestValueLooksTrue(t *testing.T) {
 	True(t, valueLooksTrue("true"))
 	True(t, valueLooksTrue("t"))
@@ -31,7 +35,7 @@ func TestFormatGoNameToQL(t *testing.T) {
 type TestCheckEmptyStructData struct{}
 
 func TestCheckEmptyStruct(t *testing.T) {
-	obj, err := check(&Types{}, reflect.TypeOf(TestCheckEmptyStructData{}))
+	obj, err := newParseCtx().check(reflect.TypeOf(TestCheckEmptyStructData{}))
 	NoError(t, err)
 
 	Equal(t, valueTypeObjRef, obj.valueType)
@@ -44,12 +48,12 @@ type TestCheckStructSimpleDemo struct {
 }
 
 func TestCheckStructSimple(t *testing.T) {
-	types := Types{}
-	obj, err := check(&types, reflect.TypeOf(TestCheckStructSimpleDemo{}))
+	ctx := newParseCtx()
+	obj, err := ctx.check(reflect.TypeOf(TestCheckStructSimpleDemo{}))
 	NoError(t, err)
 
 	Equal(t, obj.valueType, valueTypeObjRef)
-	typeObj, ok := types[obj.typeName]
+	typeObj, ok := (*ctx.types)[obj.typeName]
 	True(t, ok)
 	NotNil(t, typeObj.objContents)
 
@@ -75,10 +79,10 @@ type TestCheckStructWArrayData struct {
 }
 
 func TestCheckStructWArray(t *testing.T) {
-	types := Types{}
-	ref, err := check(&types, reflect.TypeOf(TestCheckStructWArrayData{}))
+	ctx := newParseCtx()
+	ref, err := ctx.check(reflect.TypeOf(TestCheckStructWArrayData{}))
 	NoError(t, err)
-	obj := types[ref.typeName]
+	obj := (*ctx.types)[ref.typeName]
 
 	// Foo is an array
 	val, ok := obj.objContents["foo"]
@@ -97,10 +101,10 @@ type TestCheckStructWPtrData struct {
 }
 
 func TestCheckStructWPtr(t *testing.T) {
-	types := Types{}
-	ref, err := check(&types, reflect.TypeOf(TestCheckStructWPtrData{}))
+	ctx := newParseCtx()
+	ref, err := ctx.check(reflect.TypeOf(TestCheckStructWPtrData{}))
 	NoError(t, err)
-	obj := types[ref.typeName]
+	obj := (*ctx.types)[ref.typeName]
 
 	// Foo is a ptr
 	val, ok := obj.objContents["foo"]
@@ -120,10 +124,10 @@ type TestCheckStructTagsData struct {
 }
 
 func TestCheckStructTags(t *testing.T) {
-	types := Types{}
-	ref, err := check(&types, reflect.TypeOf(TestCheckStructTagsData{}))
+	ctx := newParseCtx()
+	ref, err := ctx.check(reflect.TypeOf(TestCheckStructTagsData{}))
 	NoError(t, err)
-	obj := types[ref.typeName]
+	obj := (*ctx.types)[ref.typeName]
 
 	_, ok := obj.objContents["otherName"]
 	True(t, ok, "name should now be called otherName")
@@ -136,17 +140,17 @@ func TestCheckStructTags(t *testing.T) {
 }
 
 func TestCheckInvalidStruct(t *testing.T) {
-	_, err := check(&Types{}, reflect.TypeOf(struct {
+	_, err := newParseCtx().check(reflect.TypeOf(struct {
 		Foo interface{}
 	}{}))
 	Error(t, err)
 
-	_, err = check(&Types{}, reflect.TypeOf(struct {
+	_, err = newParseCtx().check(reflect.TypeOf(struct {
 		Foo complex64
 	}{}))
 	Error(t, err)
 
-	_, err = check(&Types{}, reflect.TypeOf(struct {
+	_, err = newParseCtx().check(reflect.TypeOf(struct {
 		Foo struct {
 			Bar complex64
 		}
@@ -167,10 +171,10 @@ func (TestCheckMethodsData) ResolvePeer(in struct{}) string {
 }
 
 func TestCheckMethods(t *testing.T) {
-	types := Types{}
-	ref, err := check(&types, reflect.TypeOf(TestCheckMethodsData{}))
+	ctx := newParseCtx()
+	ref, err := ctx.check(reflect.TypeOf(TestCheckMethodsData{}))
 	Nil(t, err)
-	obj := types[ref.typeName]
+	obj := (*ctx.types)[ref.typeName]
 
 	_, ok := obj.objContents["name"]
 	True(t, ok)
@@ -199,13 +203,13 @@ func (TestCheckMethodsFailData3) ResolveName(in int) func(string) string {
 }
 
 func TestCheckMethodsFail(t *testing.T) {
-	_, err := check(&Types{}, reflect.TypeOf(TestCheckMethodsFailData1{}))
+	_, err := newParseCtx().check(reflect.TypeOf(TestCheckMethodsFailData1{}))
 	Error(t, err)
 
-	_, err = check(&Types{}, reflect.TypeOf(TestCheckMethodsFailData2{}))
+	_, err = newParseCtx().check(reflect.TypeOf(TestCheckMethodsFailData2{}))
 	Error(t, err)
 
-	_, err = check(&Types{}, reflect.TypeOf(TestCheckMethodsFailData3{}))
+	_, err = newParseCtx().check(reflect.TypeOf(TestCheckMethodsFailData3{}))
 	Error(t, err)
 }
 
@@ -214,11 +218,38 @@ type TestCheckStructFuncsData struct {
 }
 
 func TestCheckStructFuncs(t *testing.T) {
-	types := Types{}
-	ref, err := check(&types, reflect.TypeOf(TestCheckStructFuncsData{}))
+	ctx := newParseCtx()
+	ref, err := ctx.check(reflect.TypeOf(TestCheckStructFuncsData{}))
 	Nil(t, err)
-	obj := types[ref.typeName]
+	obj := (*ctx.types)[ref.typeName]
 
 	_, ok := obj.objContents["name"]
 	True(t, ok)
+}
+
+type ReferToSelf1 struct {
+	Bar *ReferToSelf1
+}
+
+func TestReferenceLoop1(t *testing.T) {
+	_, err := newParseCtx().check(reflect.TypeOf(ReferToSelf1{}))
+	Nil(t, err)
+}
+
+type ReferToSelf2 struct {
+	Bar []ReferToSelf1
+}
+
+func TestReferenceLoop2(t *testing.T) {
+	_, err := newParseCtx().check(reflect.TypeOf(ReferToSelf2{}))
+	Nil(t, err)
+}
+
+type ReferToSelf3 struct {
+	Bar func() ReferToSelf1
+}
+
+func TestReferenceLoop3(t *testing.T) {
+	_, err := newParseCtx().check(reflect.TypeOf(ReferToSelf3{}))
+	Nil(t, err)
 }

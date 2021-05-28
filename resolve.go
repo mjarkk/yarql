@@ -100,6 +100,7 @@ func (ctx *Ctx) start(operator *Operator) string {
 
 func (ctx *Ctx) resolveSelection(selectionSet SelectionSet, struct_ reflect.Value, structType *Obj, dept uint8) string {
 	if dept >= ctx.schema.MaxDepth {
+		ctx.addErr("reached max dept")
 		return "null"
 	}
 	dept = dept + 1
@@ -166,6 +167,10 @@ func (ctx *Ctx) resolveField(query *Field, struct_ reflect.Value, codeStructure 
 	if !ok {
 		ctx.addErrf("field %s does not exists on %s", query.name, codeStructure.typeName)
 		return res("null"), true
+	}
+
+	if structItem.customObjValue != nil {
+		value = *structItem.customObjValue
 	} else if structItem.valueType == valueTypeMethod && structItem.method.isTypeMethod {
 		value = struct_.MethodByName(structItem.structFieldName)
 	} else {
@@ -321,6 +326,10 @@ func matchInputValue(queryValue *Value, goField *reflect.Value, goAnylizedData *
 func (ctx *Ctx) resolveFieldDataValue(query *Field, value reflect.Value, codeStructure *Obj, dept uint8) (fieldValue string, returnedOnError bool) {
 	switch codeStructure.valueType {
 	case valueTypeMethod:
+		if value.IsNil() {
+			return "null", false
+		}
+
 		method := codeStructure.method
 
 		inputs := []reflect.Value{}

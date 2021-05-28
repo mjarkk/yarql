@@ -1,12 +1,13 @@
-# WIP Grahql library for GoLang
+# WIP Graphql library for GoLang
 
 ## Example
+
 ```go
 package main
 
 import (
     "log"
-    "github.com/mjarkk/go-grahql"
+    "github.com/mjarkk/go-graphql"
 )
 
 type Post struct {
