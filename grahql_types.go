@@ -53,7 +53,9 @@ type QLType struct {
 	EnumValues func(IsDeprecatedArgs) []QLEnumValue `json:"-"`
 
 	// INPUT_OBJECT only
-	InputFields []QLInputValue `json:"inputFields"`
+	InputFields func() []QLInputValue `json:"-"`
+	// For testing perposes mainly
+	JSONInputFields []QLField `json:"inputFields" gqlignore:"true"`
 
 	// NON_NULL and LIST only
 	OfType *QLType `json:"ofType"`

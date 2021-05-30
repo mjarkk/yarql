@@ -840,7 +840,7 @@ type TestExecSchemaRequestWithFieldsData struct {
 	}
 }
 
-func (TestExecSchemaRequestWithFieldsData) ResolveD() TestExecSchemaRequestWithFieldsDataInnerStruct {
+func (TestExecSchemaRequestWithFieldsData) ResolveD(args struct{ Foo struct{ Bar string } }) TestExecSchemaRequestWithFieldsDataInnerStruct {
 	return TestExecSchemaRequestWithFieldsDataInnerStruct{}
 }
 
@@ -858,7 +858,7 @@ func TestExecSchemaRequestWithFields(t *testing.T) {
 
 	schema := res.Schema
 	types := schema.Types
-	Equal(t, 15, len(types))
+	Equal(t, 16, len(types))
 
 	idx := 0
 	is := func(kind, name string) {
@@ -879,12 +879,13 @@ func TestExecSchemaRequestWithFields(t *testing.T) {
 	is("OBJECT", "__InputValue")                                   // 6
 	is("OBJECT", "__Schema")                                       // 7
 	is("OBJECT", "__Type")                                         // 8
-	is("OBJECT", "__UnknownType1")                                 // 9
-	is("OBJECT", "__UnknownType2")                                 // 10
-	is("SCALAR", "Boolean")                                        // 11
-	is("SCALAR", "Int")                                            // 12
-	is("SCALAR", "Float")                                          // 13
-	is("SCALAR", "String")                                         // 14
+	is("INPUT_OBJECT", "__UnknownInput1")                          // 9
+	is("OBJECT", "__UnknownType1")                                 // 10
+	is("OBJECT", "__UnknownType2")                                 // 11
+	is("SCALAR", "Boolean")                                        // 12
+	is("SCALAR", "Int")                                            // 13
+	is("SCALAR", "Float")                                          // 14
+	is("SCALAR", "String")                                         // 15
 
 	fields := types[queryIdx].JSONFields
 	Equal(t, 5, len(fields))

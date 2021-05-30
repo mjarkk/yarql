@@ -110,12 +110,44 @@ func (s *Schema) inputToQLType(in *Input) (res *QLType, isNonNull bool) {
 			Kind:        "INPUT_OBJECT",
 			Name:        h.StrPtr(in.structName),
 			Description: h.StrPtr(""),
-			InputFields: []QLInputValue{},
+			InputFields: func() []QLInputValue {
+				res := []QLInputValue{}
+				for key, item := range in.structContent {
+					res = append(res, QLInputValue{
+						Name:         key,
+						Description:  h.StrPtr(""),
+						Type:         *wrapQLTypeInNonNull(s.inputToQLType(&item)),
+						DefaultValue: nil, // We do not support this atm
+					})
+				}
+				sort.Slice(res, func(a int, b int) bool { return res[a].Name < res[b].Name })
+				return res
+			},
 		}
+	case reflect.Array, reflect.Slice:
+		res = &QLType{
+			Kind:   "LIST",
+			OfType: wrapQLTypeInNonNull(s.inputToQLType(in.elem)),
+		}
+	case reflect.Ptr:
+		// This basically sets the isNonNull to false
+		res, _ = s.inputToQLType(in.elem)
+	case reflect.Bool:
+		isNonNull = true
+		res = &ScalarBoolean
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.UnsafePointer, reflect.Complex64, reflect.Complex128:
+		isNonNull = true
+		res = &ScalarInt
+	case reflect.Float32, reflect.Float64:
+		isNonNull = true
+		res = &ScalarFloat
+	case reflect.String:
+		isNonNull = true
+		res = &ScalarString
 	default:
-		// TODO: Support more types
+		isNonNull = true
+		res = &QLType{Kind: "SCALAR", Name: h.StrPtr(""), Description: h.StrPtr("")}
 	}
-
 	return
 }
 
@@ -126,10 +158,8 @@ func (s *Schema) objToQLType(item *Obj) (res *QLType, isNonNull bool) {
 		// FIXME: maybe we should return an error here
 	case valueTypeArray:
 		res = &QLType{
-			Kind:        "LIST",
-			Name:        nil,
-			Description: nil,
-			OfType:      wrapQLTypeInNonNull(s.objToQLType(item.innerContent)),
+			Kind:   "LIST",
+			OfType: wrapQLTypeInNonNull(s.objToQLType(item.innerContent)),
 		}
 	case valueTypeObjRef:
 		return s.objToQLType(s.types[item.typeName])
@@ -167,6 +197,7 @@ func (s *Schema) objToQLType(item *Obj) (res *QLType, isNonNull bool) {
 			res = &QLType{Kind: "SCALAR", Name: h.StrPtr(""), Description: h.StrPtr("")}
 		}
 	case valueTypePtr:
+		// This basically sets the isNonNull to false
 		res, _ := s.objToQLType(item.innerContent)
 		return res, false
 	case valueTypeMethod:
