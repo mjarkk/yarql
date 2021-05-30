@@ -109,7 +109,7 @@ type referToInput struct {
 type Input struct {
 	kind reflect.Kind
 
-	goFieldName string // NOTE: In case of a re-named type this name will be diffrent
+	goFieldName string
 	gqFieldName string
 
 	// kind == Slice, Array or Ptr
