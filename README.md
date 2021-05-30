@@ -1,5 +1,7 @@
 # WIP Graphql library for GoLang
 
+Just a different approach to making graphql servers in Go
+
 ## Example
 
 ```go
@@ -45,10 +47,17 @@ func main() {
     fmt.Println(out)
     // {"data": {
     //   "posts": [
-    //     {"id":1,"name":"post 1"},
-    //     {"id":2,"name":"post 2"},
-    //     {"id":3,"name":"post 3"}
+    //     {"id": 1, "name": "post 1"},
+    //     {"id": 2, "name": "post 2"},
+    //     {"id": 3, "name": "post 3"}
     //   ]
     // }}
 }
 ```
+
+## Alternatives
+
+- [graph-gophers/graphql-go](https://github.com/graph-gophers/graphql-go)
+- [ccbrown/api-fu](https://github.com/ccbrown/api-fu)
+- [99designs/gqlgen](https://github.com/99designs/gqlgen)
+- [graphql-go/graphql](https://github.com/graphql-go/graphql)
