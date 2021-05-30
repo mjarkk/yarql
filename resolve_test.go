@@ -618,6 +618,25 @@ func TestExecStructTypeMethodWithPtrInPtrArg(t *testing.T) {
 	Equal(t, `{"bar":"foo"}`, out)
 }
 
+type TestExecStructTypeMethodWithStructArgNPlus1Data struct{}
+
+type TestNPlus1Input struct {
+	Ptr *TestNPlus1Input
+	Arr []TestNPlus1Input
+}
+
+func (TestExecStructTypeMethodWithStructArgNPlus1Data) ResolveBar(c *Ctx, args struct{ A TestNPlus1Input }) []TestNPlus1Input {
+	return args.A.Ptr.Ptr.Arr
+}
+
+func TestExecStructTypeMethodWithStructArgNPlus1(t *testing.T) {
+	out, errs := parseAndTest(t, `{bar(a: {ptr: {ptr: {arr: []}}})}`, TestExecStructTypeMethodWithStructArgNPlus1Data{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"bar":[]}`, out)
+}
+
 func TestExecInlineFragment(t *testing.T) {
 	out, errs := parseAndTest(t, `{a...{b, c} d}`, TestExecSimpleQueryData{A: "foo", B: "bar", C: "baz", D: "foobar"}, M{})
 	for _, err := range errs {

@@ -181,7 +181,7 @@ func (ctx *Ctx) resolveField(query *Field, struct_ reflect.Value, codeStructure 
 	return res(fieldValue), returnedOnError
 }
 
-func matchInputValue(queryValue *Value, goField *reflect.Value, goAnylizedData *Input) error {
+func (ctx *Ctx) matchInputValue(queryValue *Value, goField *reflect.Value, goAnylizedData *Input) error {
 	goFieldKind := goAnylizedData.kind
 
 	if goFieldKind == reflect.Ptr {
@@ -194,7 +194,7 @@ func matchInputValue(queryValue *Value, goField *reflect.Value, goAnylizedData *
 		newVal := reflect.New(expectedType)
 		newValInner := newVal.Elem()
 
-		err := matchInputValue(queryValue, &newValInner, goAnylizedData.elem)
+		err := ctx.matchInputValue(queryValue, &newValInner, goAnylizedData.elem)
 		if err != nil {
 			return err
 		}
@@ -288,7 +288,7 @@ func matchInputValue(queryValue *Value, goField *reflect.Value, goAnylizedData *
 
 				for i, item := range queryValue.listValue {
 					arrayItem := arr.Index(i)
-					err := matchInputValue(&item, &arrayItem, goAnylizedData.elem)
+					err := ctx.matchInputValue(&item, &arrayItem, goAnylizedData.elem)
 					if err != nil {
 						return fmt.Errorf("%s, Array index: [%d]", err.Error(), i)
 					}
@@ -300,14 +300,18 @@ func matchInputValue(queryValue *Value, goField *reflect.Value, goAnylizedData *
 			}
 		case reflect.Map:
 			if goFieldKind == reflect.Struct {
+				if goAnylizedData.isStructPointers {
+					goAnylizedData = ctx.schema.inTypes[goAnylizedData.structName]
+				}
+
 				for queryKey, arg := range queryValue.objectValue {
 					structItemMeta, ok := goAnylizedData.structContent[queryKey]
 					if !ok {
 						return fmt.Errorf("undefined property %s", queryKey)
 					}
 
-					field := goField.FieldByName(structItemMeta.goStructName)
-					err := matchInputValue(&arg, &field, &structItemMeta)
+					field := goField.FieldByName(structItemMeta.goFieldName)
+					err := ctx.matchInputValue(&arg, &field, &structItemMeta)
 					if err != nil {
 						return fmt.Errorf("%s, property: %s", err.Error(), queryKey)
 					}
@@ -347,9 +351,9 @@ func (ctx *Ctx) resolveFieldDataValue(query *Field, value reflect.Value, codeStr
 				ctx.addErrf("undefined function %s input: %s", query.name, queryKey)
 				continue
 			}
-			goField := inputs[inField.inputIdx].FieldByName(inField.input.goStructName)
+			goField := inputs[inField.inputIdx].FieldByName(inField.input.goFieldName)
 
-			err := matchInputValue(&queryValue, &goField, &inField.input)
+			err := ctx.matchInputValue(&queryValue, &goField, &inField.input)
 			if err != nil {
 				ctx.addErrf("%s, function: %s, property: %s", err.Error(), query.name, queryKey)
 				return "null", true

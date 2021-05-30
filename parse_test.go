@@ -7,10 +7,6 @@ import (
 	. "github.com/stretchr/testify/assert"
 )
 
-func newParseCtx() *parseCtx {
-	return &parseCtx{types: &Types{}}
-}
-
 func TestValueLooksTrue(t *testing.T) {
 	True(t, valueLooksTrue("true"))
 	True(t, valueLooksTrue("t"))

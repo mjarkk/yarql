@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"sort"
 
-	. "github.com/mjarkk/go-graphql/helpers"
+	h "github.com/mjarkk/go-graphql/helpers"
 )
 
 func (s *Schema) injectQLTypes(ctx *parseCtx) {
@@ -30,9 +30,8 @@ func (s *Schema) GetQLSchema() QLSchema {
 		Directives: []QLDirective{},
 		QueryType: &QLType{
 			Kind:        "OBJECT",
-			Name:        StrPtr(s.rootQuery.typeName),
-			Description: StrPtr(""),
-
+			Name:        h.StrPtr(s.rootQuery.typeName),
+			Description: h.StrPtr(""),
 			Fields: func(args IsDeprecatedArgs) []QLField {
 				res := []QLField{}
 				for key, item := range s.rootQuery.objContents {
@@ -53,8 +52,8 @@ func (s *Schema) GetQLSchema() QLSchema {
 		},
 		MutationType: &QLType{
 			Kind:        "OBJECT",
-			Name:        StrPtr(s.rootMethod.typeName),
-			Description: StrPtr(""),
+			Name:        h.StrPtr(s.rootMethod.typeName),
+			Description: h.StrPtr(""),
 		},
 	}
 
@@ -92,18 +91,18 @@ func wrapQLTypeInNonNull(type_ *QLType, isNonNull bool) *QLType {
 }
 
 var (
-	ScalarBoolean = QLType{Kind: "SCALAR", Name: StrPtr("Boolean"), Description: StrPtr("The `Boolean` scalar type represents `true` or `false`.")}
-	ScalarInt     = QLType{Kind: "SCALAR", Name: StrPtr("Int"), Description: StrPtr("The Int scalar type represents a signed 32‐bit numeric non‐fractional value.")}
-	ScalarFloat   = QLType{Kind: "SCALAR", Name: StrPtr("Float"), Description: StrPtr("The Float scalar type represents signed double‐precision fractional values as specified by IEEE 754.")}
-	ScalarString  = QLType{Kind: "SCALAR", Name: StrPtr("String"), Description: StrPtr("The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.")}
-	// ScalarID      = QLType{Kind: "SCALAR", Name: StrPtr("ID"), Description: StrPtr("The ID scalar type represents a unique identifier, often used to refetch an object or as the key for a cache")}
+	ScalarBoolean = QLType{Kind: "SCALAR", Name: h.StrPtr("Boolean"), Description: h.StrPtr("The `Boolean` scalar type represents `true` or `false`.")}
+	ScalarInt     = QLType{Kind: "SCALAR", Name: h.StrPtr("Int"), Description: h.StrPtr("The Int scalar type represents a signed 32‐bit numeric non‐fractional value.")}
+	ScalarFloat   = QLType{Kind: "SCALAR", Name: h.StrPtr("Float"), Description: h.StrPtr("The Float scalar type represents signed double‐precision fractional values as specified by IEEE 754.")}
+	ScalarString  = QLType{Kind: "SCALAR", Name: h.StrPtr("String"), Description: h.StrPtr("The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.")}
+	// ScalarID      = QLType{Kind: "SCALAR", Name: h.StrPtr("ID"), Description: h.StrPtr("The ID scalar type represents a unique identifier, often used to refetch an object or as the key for a cache")}
 )
 
 func (s *Schema) objToQLType(item *Obj) (res *QLType, isNonNull bool) {
 	switch item.valueType {
 	case valueTypeUndefined:
 		// WUT??, we'll just look away and continue as if nothing happend
-		// Tough maybe we should return an error here
+		// FIXME: maybe we should return an error here
 	case valueTypeArray:
 		res = &QLType{
 			Kind:        "LIST",
@@ -117,8 +116,8 @@ func (s *Schema) objToQLType(item *Obj) (res *QLType, isNonNull bool) {
 		isNonNull = true
 		res = &QLType{
 			Kind:        "OBJECT",
-			Name:        StrPtr(item.typeName),
-			Description: StrPtr(""),
+			Name:        h.StrPtr(item.typeName),
+			Description: h.StrPtr(""),
 			Fields: func(args IsDeprecatedArgs) []QLField {
 				res := []QLField{}
 				for key, item := range item.objContents {
@@ -144,7 +143,7 @@ func (s *Schema) objToQLType(item *Obj) (res *QLType, isNonNull bool) {
 		case reflect.String:
 			res = &ScalarString
 		default:
-			res = &QLType{Kind: "SCALAR", Name: StrPtr(""), Description: StrPtr("")}
+			res = &QLType{Kind: "SCALAR", Name: h.StrPtr(""), Description: h.StrPtr("")}
 		}
 	case valueTypePtr:
 		res, _ := s.objToQLType(item.innerContent)

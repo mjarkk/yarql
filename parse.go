@@ -31,6 +31,7 @@ func (t *Types) Get(key string) (*Obj, bool) {
 // Schema defines the graphql schema
 type Schema struct {
 	types           Types
+	inTypes         InputMap
 	rootQuery       *Obj
 	rootQueryValue  reflect.Value
 	rootMethod      *Obj
@@ -90,13 +91,15 @@ type ObjMethod struct {
 	// false = ResolveFooBar func() string
 	isTypeMethod bool
 
-	ins      []BaseInput
-	inFields map[string]referToInput
+	ins      []BaseInput             // The real function inputs
+	inFields map[string]referToInput // Contains all the fields of all the ins
 
 	outNr      int
 	outType    Obj
 	errorOutNr *int
 }
+
+type InputMap map[string]*Input
 
 type referToInput struct {
 	inputIdx int
@@ -104,11 +107,18 @@ type referToInput struct {
 }
 
 type Input struct {
-	kind          reflect.Kind
-	goStructName  string
-	gqStructName  string
-	elem          *Input // In case of a Slice, Array or Ptr
-	structContent map[string]Input
+	kind reflect.Kind
+
+	goFieldName string // NOTE: In case of a re-named type this name will be diffrent
+	gqFieldName string
+
+	// kind == Slice, Array or Ptr
+	elem *Input
+
+	// kind == struct
+	isStructPointers bool
+	structName       string
+	structContent    map[string]Input
 }
 
 type BaseInput struct {
@@ -122,20 +132,32 @@ type SchemaOptions struct {
 }
 
 type parseCtx struct {
-	types             *Types
-	unknownTypesCount int
+	// TODO: Maybe change this to objects as the types defined here are always objects
+	types              *Types
+	inTypes            *InputMap
+	unknownTypesCount  int
+	unkonwnInputsCount int
+}
+
+func newParseCtx() *parseCtx {
+	return &parseCtx{
+		types:   &Types{},
+		inTypes: &InputMap{},
+	}
 }
 
 func ParseSchema(queries interface{}, methods interface{}, options *SchemaOptions) (*Schema, error) {
 	res := Schema{
 		types:           Types{},
+		inTypes:         InputMap{},
 		rootQueryValue:  reflect.ValueOf(queries),
 		rootMethodValue: reflect.ValueOf(methods),
 		MaxDepth:        255,
 	}
 
 	ctx := parseCtx{
-		types: &res.types,
+		types:   &res.types,
+		inTypes: &res.inTypes,
 	}
 
 	obj, err := ctx.check(reflect.TypeOf(queries))
@@ -305,7 +327,7 @@ func isCtx(t reflect.Type) bool {
 	return t.Kind() == reflect.Struct && simpleCtx.Name() == t.Name() && simpleCtx.PkgPath() == t.PkgPath()
 }
 
-func checkFunctionInputStruct(field *reflect.StructField) (res Input, skipThisField bool, err error) {
+func (c *parseCtx) checkFunctionInputStruct(field *reflect.StructField) (res Input, skipThisField bool, err error) {
 	if field.Anonymous {
 		// skip field
 		return res, true, nil
@@ -317,50 +339,79 @@ func checkFunctionInputStruct(field *reflect.StructField) (res Input, skipThisFi
 		return res, true, nil
 	}
 
-	res, err = checkFunctionInput(field.Type)
+	qlFieldName := formatGoNameToQL(field.Name)
+	newQlFieldName, hasNameRewrite := field.Tag.Lookup("gqName")
+	if hasNameRewrite {
+		qlFieldName = newQlFieldName
+	}
+
+	res, err = c.checkFunctionInput(field.Type)
 	if err != nil {
 		return Input{}, false, fmt.Errorf("%s, struct field: %s", err.Error(), field.Name)
 	}
 
-	newName, hasNameRewrite := field.Tag.Lookup("gqName")
-	name := formatGoNameToQL(field.Name)
-	if hasNameRewrite {
-		name = newName
-	}
-	res.goStructName = field.Name
-	res.gqStructName = name
+	res.goFieldName = field.Name
+	res.gqFieldName = qlFieldName
 
 	return
 }
 
-func checkFunctionInput(t reflect.Type) (Input, error) {
+func (c *parseCtx) checkFunctionInput(t reflect.Type) (Input, error) {
 	kind := t.Kind()
-	res := Input{kind: kind}
+	res := Input{
+		kind: kind,
+	}
 
 	switch kind {
 	case reflect.String, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64:
 		// We don't have todo anything here just go to the next input
 	case reflect.Ptr, reflect.Array, reflect.Slice:
-		input, err := checkFunctionInput(t.Elem())
+		input, err := c.checkFunctionInput(t.Elem())
 		if err != nil {
 			return res, err
 		}
 		res.elem = &input
 	case reflect.Struct:
-		res.structContent = map[string]Input{}
-		for i := 0; i < t.NumField(); i++ {
-			field := t.Field(i)
-			input, skip, err := checkFunctionInputStruct(&field)
-			if skip {
-				continue
+		structName := t.Name()
+		if len(structName) == 0 {
+			c.unkonwnInputsCount++
+			structName = fmt.Sprintf("__UnknownInput%d", c.unkonwnInputsCount)
+		} else {
+			newStructName, ok := renamedTypes[structName]
+			if ok {
+				structName = newStructName
 			}
-			if err != nil {
-				return res, err
-			}
-			res.structContent[input.gqStructName] = input
 		}
+
+		types := *c.inTypes
+		_, ok := types[structName]
+		if !ok {
+			// Make sure the input types entry is set before looping over it's fields to fix the n+1 problem
+			types[structName] = &res
+			*c.inTypes = types
+
+			res.structName = structName
+			res.structContent = map[string]Input{}
+			for i := 0; i < t.NumField(); i++ {
+				field := t.Field(i)
+				input, skip, err := c.checkFunctionInputStruct(&field)
+				if skip {
+					continue
+				}
+				if err != nil {
+					return res, err
+				}
+				res.structContent[input.gqFieldName] = input
+			}
+		}
+
+		return Input{
+			kind:             kind,
+			structName:       structName,
+			isStructPointers: true,
+		}, nil
 	case reflect.Map, reflect.Func:
-		// MAYBE TODO maybe we can do something with these
+		// TODO: maybe we can do something with these
 		fallthrough
 	default:
 		return res, fmt.Errorf("unsupported type %s", kind.String())
@@ -415,7 +466,7 @@ func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool)
 			input.type_ = &type_
 			for i := 0; i < type_.NumField(); i++ {
 				field := type_.Field(i)
-				input, skip, err := checkFunctionInputStruct(&field)
+				input, skip, err := c.checkFunctionInputStruct(&field)
 				if skip {
 					continue
 				}
@@ -423,7 +474,7 @@ func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool)
 					return nil, "", fmt.Errorf("%s, type %s (#%d)", err.Error(), type_.Name(), i)
 				}
 
-				inFields[input.gqStructName] = referToInput{
+				inFields[input.gqFieldName] = referToInput{
 					inputIdx: iInList,
 					input:    input,
 				}
