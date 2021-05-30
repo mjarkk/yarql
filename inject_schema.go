@@ -37,7 +37,7 @@ func (s *Schema) GetQLSchema() QLSchema {
 				for key, item := range s.rootQuery.objContents {
 					res = append(res, QLField{
 						Name: key,
-						Args: []QLInputValue{},
+						Args: s.getObjectArgs(item),
 						Type: *wrapQLTypeInNonNull(s.objToQLType(item)),
 					})
 				}
@@ -106,9 +106,16 @@ func (s *Schema) inputToQLType(in *Input) (res *QLType, isNonNull bool) {
 	switch in.kind {
 	case reflect.Struct:
 		isNonNull = true
+
+		name := in.structName
+		_, ok := s.types[name]
+		if ok {
+			name += "Input"
+		}
+
 		res = &QLType{
 			Kind:        "INPUT_OBJECT",
-			Name:        h.StrPtr(in.structName),
+			Name:        h.StrPtr(name),
 			Description: h.StrPtr(""),
 			InputFields: func() []QLInputValue {
 				res := []QLInputValue{}
@@ -151,6 +158,22 @@ func (s *Schema) inputToQLType(in *Input) (res *QLType, isNonNull bool) {
 	return
 }
 
+func (s *Schema) getObjectArgs(item *Obj) []QLInputValue {
+	res := []QLInputValue{}
+	if item.valueType == valueTypeMethod {
+		for key, value := range item.method.inFields {
+			res = append(res, QLInputValue{
+				Name:         key,
+				Description:  h.StrPtr(""),
+				Type:         *wrapQLTypeInNonNull(s.inputToQLType(&value.input)),
+				DefaultValue: nil,
+			})
+		}
+		sort.Slice(res, func(a int, b int) bool { return res[a].Name < res[b].Name })
+	}
+	return res
+}
+
 func (s *Schema) objToQLType(item *Obj) (res *QLType, isNonNull bool) {
 	switch item.valueType {
 	case valueTypeUndefined:
@@ -174,7 +197,7 @@ func (s *Schema) objToQLType(item *Obj) (res *QLType, isNonNull bool) {
 				for key, item := range item.objContents {
 					res = append(res, QLField{
 						Name: key,
-						Args: []QLInputValue{},
+						Args: s.getObjectArgs(item),
 						Type: *wrapQLTypeInNonNull(s.objToQLType(item)),
 					})
 				}
@@ -201,7 +224,6 @@ func (s *Schema) objToQLType(item *Obj) (res *QLType, isNonNull bool) {
 		res, _ := s.objToQLType(item.innerContent)
 		return res, false
 	case valueTypeMethod:
-		// TODO
 		res, isNonNull = s.objToQLType(&item.method.outType)
 		if !item.method.isTypeMethod {
 			isNonNull = false
