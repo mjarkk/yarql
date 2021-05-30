@@ -383,12 +383,10 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type) (Input, error) {
 			}
 		}
 
-		types := *c.inTypes
-		_, ok := types[structName]
+		_, ok := (*c.inTypes)[structName]
 		if !ok {
 			// Make sure the input types entry is set before looping over it's fields to fix the n+1 problem
-			types[structName] = &res
-			*c.inTypes = types
+			(*c.inTypes)[structName] = &res
 
 			res.structName = structName
 			res.structContent = map[string]Input{}

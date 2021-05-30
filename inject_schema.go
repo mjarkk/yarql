@@ -69,6 +69,10 @@ func (s *Schema) GetAllQLTypes() []QLType {
 		obj, _ := s.objToQLType(type_)
 		res = append(res, *obj)
 	}
+	for _, in := range s.inTypes {
+		obj, _ := s.inputToQLType(in)
+		res = append(res, *obj)
+	}
 	sort.Slice(res, func(a int, b int) bool { return *res[a].Name < *res[b].Name })
 
 	return append(res,
@@ -97,6 +101,23 @@ var (
 	ScalarString  = QLType{Kind: "SCALAR", Name: h.StrPtr("String"), Description: h.StrPtr("The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.")}
 	// ScalarID      = QLType{Kind: "SCALAR", Name: h.StrPtr("ID"), Description: h.StrPtr("The ID scalar type represents a unique identifier, often used to refetch an object or as the key for a cache")}
 )
+
+func (s *Schema) inputToQLType(in *Input) (res *QLType, isNonNull bool) {
+	switch in.kind {
+	case reflect.Struct:
+		isNonNull = true
+		res = &QLType{
+			Kind:        "INPUT_OBJECT",
+			Name:        h.StrPtr(in.structName),
+			Description: h.StrPtr(""),
+			InputFields: []QLInputValue{},
+		}
+	default:
+		// TODO: Support more types
+	}
+
+	return
+}
 
 func (s *Schema) objToQLType(item *Obj) (res *QLType, isNonNull bool) {
 	switch item.valueType {
