@@ -30,12 +30,12 @@ func (QueryRoot) ResolvePosts() []Post {
 type MethodRoot struct{}
 
 func main() {
-    s, err := ParseSchema(QueryRoot{}, MethodRoot{}, nil)
+    s, err := graphql.ParseSchema(QueryRoot{}, MethodRoot{}, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	out := GenerateResponse(s.Resolve(`
+	out := graphql.GenerateResponse(s.Resolve(`
 		{
 			posts {
 				id
