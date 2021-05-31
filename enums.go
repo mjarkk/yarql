@@ -8,16 +8,57 @@ import (
 
 type enum struct {
 	contentType reflect.Type
-	options     map[string]interface{}
+	key         string
+	keyValue    map[string]reflect.Value
+	valueKey    reflect.Value
 }
 
 func getEnumKey(t reflect.Type) string {
 	return t.PkgPath() + " " + t.Name()
 }
 
+func getEnum(t reflect.Type) *enum {
+	if len(t.PkgPath()) == 0 || len(t.Name()) == 0 || !validEnumType(t) {
+		return nil
+	}
+
+	enum, ok := definedEnums[getEnumKey(t)]
+	if !ok {
+		return nil
+	}
+
+	return &enum
+}
+
+func validEnumType(t reflect.Type) bool {
+	switch t.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		// All int kinds are allowed
+		return true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		// All uint kinds are allowed
+		return true
+	case reflect.String:
+		// Strings are allowed
+		return true
+	default:
+		return false
+	}
+}
+
 var definedEnums = map[string]enum{}
 
-func RegisterEnum(map_ interface{}) {
+func RegisterEnum(map_ interface{}) bool {
+	enum := registerEnumCheck(map_)
+	if enum == nil {
+		return false
+	}
+
+	definedEnums[enum.key] = *enum
+	return true
+}
+
+func registerEnumCheck(map_ interface{}) *enum {
 	mapReflection := reflect.ValueOf(map_)
 	mapType := mapReflection.Type()
 
@@ -32,14 +73,7 @@ func RegisterEnum(map_ interface{}) {
 		panic(invalidTypeMsg)
 	}
 	contentType := mapType.Elem()
-	switch contentType.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		// All int kinds are allowed
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		// All uint kinds are allowed
-	case reflect.String:
-		// Strings are allowed
-	default:
+	if !validEnumType(contentType) {
 		panic(invalidTypeMsg)
 	}
 
@@ -50,12 +84,11 @@ func RegisterEnum(map_ interface{}) {
 	inputLen := mapReflection.Len()
 	if inputLen == 0 {
 		// No point in registering enums with 0 items
-		return
+		return nil
 	}
 
-	res := map[string]interface{}{}
-	valuesMap := reflect.MakeMapWithSize(reflect.MapOf(contentType, reflect.TypeOf(true)), inputLen)
-	trueReflectValue := reflect.ValueOf(true)
+	res := map[string]reflect.Value{}
+	valueKeyMap := reflect.MakeMapWithSize(reflect.MapOf(contentType, reflect.TypeOf("")), inputLen)
 
 	iter := mapReflection.MapRange()
 	for iter.Next() {
@@ -95,16 +128,17 @@ func RegisterEnum(map_ interface{}) {
 		}
 
 		v := iter.Value()
-		vInterface := v.Interface()
-		if valuesMap.MapIndex(v).IsValid() {
-			panic(fmt.Sprintf("RegisterEnum input map cannot have duplicated values, value: %+v", vInterface))
+		if valueKeyMap.MapIndex(v).IsValid() {
+			panic(fmt.Sprintf("RegisterEnum input map cannot have duplicated values, value: %+v", v.Interface()))
 		}
-		valuesMap.SetMapIndex(v, trueReflectValue)
-		res[keyStr] = vInterface
+		valueKeyMap.SetMapIndex(v, k)
+		res[keyStr] = v
 	}
 
-	definedEnums[getEnumKey(contentType)] = enum{
+	return &enum{
 		contentType: contentType,
-		options:     res,
+		keyValue:    res,
+		valueKey:    valueKeyMap,
+		key:         getEnumKey(contentType),
 	}
 }

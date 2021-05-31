@@ -248,8 +248,27 @@ func (ctx *Ctx) matchInputValue(queryValue *Value, goField *reflect.Value, goAny
 		// Na mate just keep it at it's default
 		return nil
 	} else if queryValue.isEnum {
-		// TODO support this
-		return errors.New("enum function arguments are currently unsupported")
+		if !goAnylizedData.isEnum {
+			return mismatchError()
+		}
+
+		enum := definedEnums[goAnylizedData.enumKey]
+		value, ok := enum.keyValue[queryValue.enumValue]
+		if !ok {
+			return fmt.Errorf("unknown enum value %s for enum %s", queryValue.enumValue, goAnylizedData.enumKey)
+		}
+
+		switch value.Kind() {
+		case reflect.String:
+			goField.SetString(value.String())
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			goField.SetInt(value.Int())
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			goField.SetUint(value.Uint())
+		default:
+			return errors.New("internal error, type missmatch on enum")
+		}
+
 	} else {
 		switch queryValue.valType {
 		case reflect.Int:
@@ -258,13 +277,16 @@ func (ctx *Ctx) matchInputValue(queryValue *Value, goField *reflect.Value, goAny
 				goField.SetInt(int64(queryValue.intValue))
 			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 				goField.SetUint(uint64(queryValue.intValue))
+			case reflect.Float32, reflect.Float64:
+				goField.SetFloat(float64(queryValue.intValue))
 			default:
 				return mismatchError()
 			}
 		case reflect.Float64:
-			if goFieldKind == reflect.Float32 || goFieldKind == reflect.Float64 {
+			switch goFieldKind {
+			case reflect.Float32, reflect.Float64:
 				goField.SetFloat(queryValue.floatValue)
-			} else {
+			default:
 				return mismatchError()
 			}
 		case reflect.String:
@@ -423,6 +445,14 @@ func (ctx *Ctx) resolveFieldDataValue(query *Field, value reflect.Value, codeStr
 		}
 
 		return ctx.resolveFieldDataValue(query, value.Elem(), codeStructure.innerContent, dept)
+	case valueTypeEnum:
+		enum := definedEnums[codeStructure.enumKey]
+
+		key := enum.valueKey.MapIndex(value)
+		if !key.IsValid() {
+			return "null", false
+		}
+		return `"` + key.Interface().(string) + `"`, false
 	default:
 		ctx.addErrf("field %s has invalid data type", query.name)
 		return "null", true

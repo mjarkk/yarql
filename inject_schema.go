@@ -29,7 +29,7 @@ func (s *Schema) GetQLSchema() QLSchema {
 		Types:      s.GetAllQLTypes(),
 		Directives: []QLDirective{},
 		QueryType: &QLType{
-			Kind:        "OBJECT",
+			Kind:        TypeKindObject,
 			Name:        h.StrPtr(s.rootQuery.typeName),
 			Description: h.StrPtr(""),
 			Fields: func(args IsDeprecatedArgs) []QLField {
@@ -44,14 +44,10 @@ func (s *Schema) GetQLSchema() QLSchema {
 				sort.Slice(res, func(a int, b int) bool { return res[a].Name < res[b].Name })
 				return res
 			},
-			Interfaces:    []QLType{},
-			PossibleTypes: nil,
-			EnumValues:    nil,
-			InputFields:   nil,
-			OfType:        nil,
+			Interfaces: []QLType{},
 		},
 		MutationType: &QLType{
-			Kind:        "OBJECT",
+			Kind:        TypeKindObject,
 			Name:        h.StrPtr(s.rootMethod.typeName),
 			Description: h.StrPtr(""),
 		},
@@ -73,6 +69,9 @@ func (s *Schema) GetAllQLTypes() []QLType {
 		obj, _ := s.inputToQLType(in)
 		res = append(res, *obj)
 	}
+	for _, enum := range definedEnums {
+		res = append(res, enumToQlType(enum))
+	}
 	sort.Slice(res, func(a int, b int) bool { return *res[a].Name < *res[b].Name })
 
 	return append(res,
@@ -89,17 +88,17 @@ func wrapQLTypeInNonNull(type_ *QLType, isNonNull bool) *QLType {
 		return type_
 	}
 	return &QLType{
-		Kind:   "NON_NULL",
+		Kind:   TypeKindNonNull,
 		OfType: type_,
 	}
 }
 
 var (
-	ScalarBoolean = QLType{Kind: "SCALAR", Name: h.StrPtr("Boolean"), Description: h.StrPtr("The `Boolean` scalar type represents `true` or `false`.")}
-	ScalarInt     = QLType{Kind: "SCALAR", Name: h.StrPtr("Int"), Description: h.StrPtr("The Int scalar type represents a signed 32‐bit numeric non‐fractional value.")}
-	ScalarFloat   = QLType{Kind: "SCALAR", Name: h.StrPtr("Float"), Description: h.StrPtr("The Float scalar type represents signed double‐precision fractional values as specified by IEEE 754.")}
-	ScalarString  = QLType{Kind: "SCALAR", Name: h.StrPtr("String"), Description: h.StrPtr("The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.")}
-	// ScalarID      = QLType{Kind: "SCALAR", Name: h.StrPtr("ID"), Description: h.StrPtr("The ID scalar type represents a unique identifier, often used to refetch an object or as the key for a cache")}
+	ScalarBoolean = QLType{Kind: TypeKindScalar, Name: h.StrPtr("Boolean"), Description: h.StrPtr("The `Boolean` scalar type represents `true` or `false`.")}
+	ScalarInt     = QLType{Kind: TypeKindScalar, Name: h.StrPtr("Int"), Description: h.StrPtr("The Int scalar type represents a signed 32‐bit numeric non‐fractional value.")}
+	ScalarFloat   = QLType{Kind: TypeKindScalar, Name: h.StrPtr("Float"), Description: h.StrPtr("The Float scalar type represents signed double‐precision fractional values as specified by IEEE 754.")}
+	ScalarString  = QLType{Kind: TypeKindScalar, Name: h.StrPtr("String"), Description: h.StrPtr("The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.")}
+	// ScalarID      = QLType{Kind: TypeKindScalar, Name: h.StrPtr("ID"), Description: h.StrPtr("The ID scalar type represents a unique identifier, often used to refetch an object or as the key for a cache")}
 )
 
 func (s *Schema) inputToQLType(in *Input) (res *QLType, isNonNull bool) {
@@ -114,7 +113,7 @@ func (s *Schema) inputToQLType(in *Input) (res *QLType, isNonNull bool) {
 		}
 
 		res = &QLType{
-			Kind:        "INPUT_OBJECT",
+			Kind:        TypeKindInputObject,
 			Name:        h.StrPtr(name),
 			Description: h.StrPtr(""),
 			InputFields: func() []QLInputValue {
@@ -133,7 +132,7 @@ func (s *Schema) inputToQLType(in *Input) (res *QLType, isNonNull bool) {
 		}
 	case reflect.Array, reflect.Slice:
 		res = &QLType{
-			Kind:   "LIST",
+			Kind:   TypeKindList,
 			OfType: wrapQLTypeInNonNull(s.inputToQLType(in.elem)),
 		}
 	case reflect.Ptr:
@@ -153,7 +152,7 @@ func (s *Schema) inputToQLType(in *Input) (res *QLType, isNonNull bool) {
 		res = &ScalarString
 	default:
 		isNonNull = true
-		res = &QLType{Kind: "SCALAR", Name: h.StrPtr(""), Description: h.StrPtr("")}
+		res = &QLType{Kind: TypeKindScalar, Name: h.StrPtr(""), Description: h.StrPtr("")}
 	}
 	return
 }
@@ -181,7 +180,7 @@ func (s *Schema) objToQLType(item *Obj) (res *QLType, isNonNull bool) {
 		// FIXME: maybe we should return an error here
 	case valueTypeArray:
 		res = &QLType{
-			Kind:   "LIST",
+			Kind:   TypeKindList,
 			OfType: wrapQLTypeInNonNull(s.objToQLType(item.innerContent)),
 		}
 	case valueTypeObjRef:
@@ -189,16 +188,16 @@ func (s *Schema) objToQLType(item *Obj) (res *QLType, isNonNull bool) {
 	case valueTypeObj:
 		isNonNull = true
 		res = &QLType{
-			Kind:        "OBJECT",
+			Kind:        TypeKindObject,
 			Name:        h.StrPtr(item.typeName),
 			Description: h.StrPtr(""),
 			Fields: func(args IsDeprecatedArgs) []QLField {
 				res := []QLField{}
-				for key, item := range item.objContents {
+				for key, innerItem := range item.objContents {
 					res = append(res, QLField{
 						Name: key,
-						Args: s.getObjectArgs(item),
-						Type: *wrapQLTypeInNonNull(s.objToQLType(item)),
+						Args: s.getObjectArgs(innerItem),
+						Type: *wrapQLTypeInNonNull(s.objToQLType(innerItem)),
 					})
 				}
 				sort.Slice(res, func(a int, b int) bool { return res[a].Name < res[b].Name })
@@ -217,8 +216,12 @@ func (s *Schema) objToQLType(item *Obj) (res *QLType, isNonNull bool) {
 		case reflect.String:
 			res = &ScalarString
 		default:
-			res = &QLType{Kind: "SCALAR", Name: h.StrPtr(""), Description: h.StrPtr("")}
+			res = &QLType{Kind: TypeKindScalar, Name: h.StrPtr(""), Description: h.StrPtr("")}
 		}
+	case valueTypeEnum:
+		isNonNull = true
+		enumType := enumToQlType(definedEnums[item.enumKey])
+		res = &enumType
 	case valueTypePtr:
 		// This basically sets the isNonNull to false
 		res, _ := s.objToQLType(item.innerContent)
@@ -231,4 +234,25 @@ func (s *Schema) objToQLType(item *Obj) (res *QLType, isNonNull bool) {
 	}
 
 	return
+}
+
+func enumToQlType(enum enum) QLType {
+	name := enum.contentType.Name()
+	return QLType{
+		Kind: TypeKindEnum,
+		Name: &name,
+		EnumValues: func(args IsDeprecatedArgs) []QLEnumValue {
+			res := []QLEnumValue{}
+			for key := range enum.keyValue {
+				res = append(res, QLEnumValue{
+					Name:              key,
+					Description:       h.StrPtr(""),
+					IsDeprecated:      false,
+					DeprecationReason: nil,
+				})
+			}
+			sort.Slice(res, func(a int, b int) bool { return res[a].Name < res[b].Name })
+			return res
+		},
+	}
 }

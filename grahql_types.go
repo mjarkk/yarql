@@ -19,21 +19,35 @@ type IsDeprecatedArgs struct {
 	IncludeDeprecated bool `json:"includeDeprecated"`
 }
 
+type __TypeKind uint8
+
+const (
+	TypeKindScalar __TypeKind = iota
+	TypeKindObject
+	TypeKindInterface
+	TypeKindUnion
+	TypeKindEnum
+	TypeKindInputObject
+	TypeKindList
+	TypeKindNonNull
+)
+
+var _ = RegisterEnum(map[string]__TypeKind{
+	"SCALAR":       TypeKindScalar,
+	"OBJECT":       TypeKindObject,
+	"INTERFACE":    TypeKindInterface,
+	"UNION":        TypeKindUnion,
+	"ENUM":         TypeKindEnum,
+	"INPUT_OBJECT": TypeKindInputObject,
+	"LIST":         TypeKindList,
+	"NON_NULL":     TypeKindNonNull,
+})
+
 var _ = TypeRename(QLType{}, "__Type")
 
 type QLType struct {
-	// TODO make this a enum of type __TypeKind
-	//
-	// Options:
-	// "SCALAR"
-	// "OBJECT"
-	// "INTERFACE"
-	// "UNION"
-	// "ENUM"
-	// "INPUT_OBJECT"
-	// "LIST"
-	// "NON_NULL"
-	Kind string `json:"kind"`
+	Kind     __TypeKind `json:"-"`
+	JSONKind string     `json:"kind" gqlignore:"true"`
 
 	Name        *string `json:"name"`
 	Description *string `json:"description"`
@@ -90,33 +104,56 @@ type QLInputValue struct {
 	DefaultValue *string `json:"defaultValue"`
 }
 
+type __DirectiveLocation uint8
+
+const (
+	DirectiveLocationQuery __DirectiveLocation = iota
+	DirectiveLocationMutation
+	DirectiveLocationSubscription
+	DirectiveLocationField
+	DirectiveLocationFragmentDefinition
+	DirectiveLocationFragmentSpread
+	DirectiveLocationInlineFragment
+	DirectiveLocationSchema
+	DirectiveLocationScalar
+	DirectiveLocationObject
+	DirectiveLocationFieldDefinition
+	DirectiveLocationArgumentDefinition
+	DirectiveLocationInterface
+	DirectiveLocationUnion
+	DirectiveLocationEnum
+	DirectiveLocationEnumValue
+	DirectiveLocationInputObject
+	DirectiveLocationInputFieldDefinition
+)
+
+var _ = RegisterEnum(map[string]__DirectiveLocation{
+	"QUERY":                  DirectiveLocationQuery,
+	"MUTATION":               DirectiveLocationMutation,
+	"SUBSCRIPTION":           DirectiveLocationSubscription,
+	"FIELD":                  DirectiveLocationField,
+	"FRAGMENT_DEFINITION":    DirectiveLocationFragmentDefinition,
+	"FRAGMENT_SPREAD":        DirectiveLocationFragmentSpread,
+	"INLINE_FRAGMENT":        DirectiveLocationInlineFragment,
+	"SCHEMA":                 DirectiveLocationSchema,
+	"SCALAR":                 DirectiveLocationScalar,
+	"OBJECT":                 DirectiveLocationObject,
+	"FIELD_DEFINITION":       DirectiveLocationFieldDefinition,
+	"ARGUMENT_DEFINITION":    DirectiveLocationArgumentDefinition,
+	"INTERFACE":              DirectiveLocationInterface,
+	"UNION":                  DirectiveLocationUnion,
+	"ENUM":                   DirectiveLocationEnum,
+	"ENUM_VALUE":             DirectiveLocationEnumValue,
+	"INPUT_OBJECT":           DirectiveLocationInputObject,
+	"INPUT_FIELD_DEFINITION": DirectiveLocationInputFieldDefinition,
+})
+
 var _ = TypeRename(QLDirective{}, "__Directive")
 
 type QLDirective struct {
-	Name        string  `json:"name"`
-	Description *string `json:"description"`
-
-	// TODO make this a enum of type __DirectiveLocation
-	//
-	// Options:
-	// "QUERY"
-	// "MUTATION"
-	// "SUBSCRIPTION"
-	// "FIELD"
-	// "FRAGMENT_DEFINITION"
-	// "FRAGMENT_SPREAD"
-	// "INLINE_FRAGMENT"
-	// "SCHEMA"
-	// "SCALAR"
-	// "OBJECT"
-	// "FIELD_DEFINITION"
-	// "ARGUMENT_DEFINITION"
-	// "INTERFACE"
-	// "UNION"
-	// "ENUM"
-	// "ENUM_VALUE"
-	// "INPUT_OBJECT"
-	// "INPUT_FIELD_DEFINITION"
-	Locations []string       `json:"locations"`
-	Args      []QLInputValue `json:"args"`
+	Name          string                `json:"name"`
+	Description   *string               `json:"description"`
+	Locations     []__DirectiveLocation `json:"-"`
+	JSONLocations []string              `json:"locations" gqlignore:"true"`
+	Args          []QLInputValue        `json:"args"`
 }

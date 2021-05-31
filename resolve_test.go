@@ -637,6 +637,28 @@ func TestExecStructTypeMethodWithStructArgNPlus1(t *testing.T) {
 	Equal(t, `{"bar":[]}`, out)
 }
 
+type TestExecInputAllKindsOfNumbersData struct{}
+
+type TestExecInputAllKindsOfNumbersDataIO struct {
+	A int8
+	B uint8
+	C float64
+	D float32
+}
+
+func (TestExecInputAllKindsOfNumbersData) ResolveFoo(args TestExecInputAllKindsOfNumbersDataIO) TestExecInputAllKindsOfNumbersDataIO {
+	return args
+}
+
+func TestExecInputAllKindsOfNumbers(t *testing.T) {
+	out, errs := parseAndTest(t, `{foo(a: 1, b: 2, c: 3, d: 1.1) {a b c d}}`, TestExecInputAllKindsOfNumbersData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":{"a":1,"b":2,"c":3,"d":1.1}}`, out)
+
+}
+
 func TestExecInlineFragment(t *testing.T) {
 	out, errs := parseAndTest(t, `{a...{b, c} d}`, TestExecSimpleQueryData{A: "foo", B: "bar", C: "baz", D: "foobar"}, M{})
 	for _, err := range errs {
@@ -800,29 +822,39 @@ func TestExecSchemaRequestSimple(t *testing.T) {
 
 	schema := res.Schema
 	types := schema.Types
-	Equal(t, 12, len(types))
+
+	totalTypes := 14
+	if testingRegisteredTestEnum {
+		totalTypes++
+	}
+	Equal(t, totalTypes, len(types))
 
 	idx := 0
 	is := func(kind, name string) {
 		item := types[idx]
-		Equalf(t, kind, item.Kind, "(KIND) Index: %d", idx)
+		Equalf(t, kind, item.JSONKind, "(KIND) Index: %d", idx)
 		NotNilf(t, item.Name, "(NAME) Index: %d", idx)
 		Equalf(t, name, *item.Name, "(NAME) Index: %d", idx)
 		idx++
 	}
 
-	is("OBJECT", "M")                               // 0
+	is("OBJECT", "M") // 0
+	if testingRegisteredTestEnum {
+		is("ENUM", "TestEnum2")
+	}
 	is("OBJECT", "TestExecSchemaRequestSimpleData") // 1
 	is("OBJECT", "__Directive")                     // 2
-	is("OBJECT", "__EnumValue")                     // 3
-	is("OBJECT", "__Field")                         // 4
-	is("OBJECT", "__InputValue")                    // 5
-	is("OBJECT", "__Schema")                        // 6
-	is("OBJECT", "__Type")                          // 7
-	is("SCALAR", "Boolean")                         // 8
-	is("SCALAR", "Int")                             // 9
-	is("SCALAR", "Float")                           // 10
-	is("SCALAR", "String")                          // 11
+	is("ENUM", "__DirectiveLocation")               // 3
+	is("OBJECT", "__EnumValue")                     // 4
+	is("OBJECT", "__Field")                         // 5
+	is("OBJECT", "__InputValue")                    // 6
+	is("OBJECT", "__Schema")                        // 7
+	is("OBJECT", "__Type")                          // 8
+	is("ENUM", "__TypeKind")                        // 9
+	is("SCALAR", "Boolean")                         // 10
+	is("SCALAR", "Int")                             // 11
+	is("SCALAR", "Float")                           // 12
+	is("SCALAR", "String")                          // 13
 }
 
 type TestExecSchemaRequestWithFieldsDataInnerStruct struct {
@@ -858,12 +890,17 @@ func TestExecSchemaRequestWithFields(t *testing.T) {
 
 	schema := res.Schema
 	types := schema.Types
-	Equal(t, 16, len(types))
+
+	totalTypes := 18
+	if testingRegisteredTestEnum {
+		totalTypes++
+	}
+	Equal(t, totalTypes, len(types))
 
 	idx := 0
 	is := func(kind, name string) {
 		item := types[idx]
-		Equalf(t, kind, item.Kind, "(KIND) Index: %d", idx)
+		Equalf(t, kind, item.JSONKind, "(KIND) Index: %d", idx)
 		NotNilf(t, item.Name, "(NAME) Index: %d", idx)
 		Equalf(t, name, *item.Name, "(NAME) Index: %d", idx)
 		idx++
@@ -871,22 +908,29 @@ func TestExecSchemaRequestWithFields(t *testing.T) {
 
 	is("OBJECT", "M") // 0
 	queryIdx := 1
+	inputIdx := 11
+	if testingRegisteredTestEnum {
+		queryIdx++
+		inputIdx++
+		is("ENUM", "TestEnum2")
+	}
 	is("OBJECT", "TestExecSchemaRequestWithFieldsData")            // 1
 	is("OBJECT", "TestExecSchemaRequestWithFieldsDataInnerStruct") // 2
 	is("OBJECT", "__Directive")                                    // 3
-	is("OBJECT", "__EnumValue")                                    // 4
-	is("OBJECT", "__Field")                                        // 5
-	is("OBJECT", "__InputValue")                                   // 6
-	is("OBJECT", "__Schema")                                       // 7
-	is("OBJECT", "__Type")                                         // 8
-	inputIdx := 9
-	is("INPUT_OBJECT", "__UnknownInput1") // 9
-	is("OBJECT", "__UnknownType1")        // 10
-	is("OBJECT", "__UnknownType2")        // 11
-	is("SCALAR", "Boolean")               // 12
-	is("SCALAR", "Int")                   // 13
-	is("SCALAR", "Float")                 // 14
-	is("SCALAR", "String")                // 15
+	is("ENUM", "__DirectiveLocation")                              // 4
+	is("OBJECT", "__EnumValue")                                    // 5
+	is("OBJECT", "__Field")                                        // 6
+	is("OBJECT", "__InputValue")                                   // 7
+	is("OBJECT", "__Schema")                                       // 8
+	is("OBJECT", "__Type")                                         // 9
+	is("ENUM", "__TypeKind")                                       // 10
+	is("INPUT_OBJECT", "__UnknownInput1")                          // 11
+	is("OBJECT", "__UnknownType1")                                 // 12
+	is("OBJECT", "__UnknownType2")                                 // 13
+	is("SCALAR", "Boolean")                                        // 14
+	is("SCALAR", "Int")                                            // 15
+	is("SCALAR", "Float")                                          // 16
+	is("SCALAR", "String")                                         // 17
 
 	fields := types[queryIdx].JSONFields
 	Equal(t, 5, len(fields))
@@ -895,8 +939,8 @@ func TestExecSchemaRequestWithFields(t *testing.T) {
 	isField := func(name string) {
 		field := fields[idx]
 		Equalf(t, name, field.Name, "(NAME) Index: %d", idx)
-		Equalf(t, "NON_NULL", field.Type.Kind, "(KIND) Index: %d", idx)
-		Equalf(t, "OBJECT", field.Type.OfType.Kind, "(OFTYPE KIND) Index: %d", idx)
+		Equalf(t, "NON_NULL", field.Type.JSONKind, "(KIND) Index: %d", idx)
+		Equalf(t, "OBJECT", field.Type.OfType.JSONKind, "(OFTYPE KIND) Index: %d", idx)
 		idx++
 	}
 

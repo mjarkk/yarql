@@ -50,6 +50,7 @@ const (
 	valueTypeData
 	valueTypePtr
 	valueTypeMethod
+	valueTypeEnum
 )
 
 type Obj struct {
@@ -72,6 +73,9 @@ type Obj struct {
 
 	// Value type == valueTypeMethod
 	method *ObjMethod
+
+	// Value type == valueTypeEnum
+	enumKey string
 }
 
 func (o *Obj) getRef() Obj {
@@ -107,7 +111,9 @@ type referToInput struct {
 }
 
 type Input struct {
-	kind reflect.Kind
+	kind    reflect.Kind
+	isEnum  bool
+	enumKey string
 
 	goFieldName string
 	gqFieldName string
@@ -289,8 +295,14 @@ func (c *parseCtx) check(t reflect.Type) (*Obj, error) {
 	case reflect.Func, reflect.Map, reflect.Chan, reflect.Invalid, reflect.Uintptr, reflect.Complex64, reflect.Complex128, reflect.Interface, reflect.UnsafePointer:
 		return nil, fmt.Errorf("unsupported value type %s", t.Kind().String())
 	default:
-		res.valueType = valueTypeData
-		res.dataValueType = t.Kind()
+		enum := getEnum(t)
+		if enum != nil {
+			res.valueType = valueTypeEnum
+			res.enumKey = enum.key
+		} else {
+			res.valueType = valueTypeData
+			res.dataValueType = t.Kind()
+		}
 	}
 
 	if res.valueType == valueTypeObj {
@@ -364,7 +376,11 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type) (Input, error) {
 
 	switch kind {
 	case reflect.String, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64:
-		// We don't have todo anything here just go to the next input
+		enum := getEnum(t)
+		if enum != nil {
+			res.isEnum = true
+			res.enumKey = enum.key
+		}
 	case reflect.Ptr, reflect.Array, reflect.Slice:
 		input, err := c.checkFunctionInput(t.Elem())
 		if err != nil {
