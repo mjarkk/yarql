@@ -970,3 +970,12 @@ func TestExecGraphqlTypenameByName(t *testing.T) {
 
 	Equal(t, `{"__type":{"kind":"OBJECT","name":"TestExecSchemaRequestWithFieldsDataInnerStruct"}}`, res)
 }
+
+func TestExecGraphqlTypename(t *testing.T) {
+	res, errs := parseAndTest(t, `{a {__typename}}`, TestExecSchemaRequestWithFieldsData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+
+	Equal(t, `{"a":{"__typename":"TestExecSchemaRequestWithFieldsDataInnerStruct"}}`, res)
+}

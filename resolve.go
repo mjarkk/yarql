@@ -162,6 +162,10 @@ func (ctx *Ctx) resolveField(query *Field, struct_ reflect.Value, codeStructure 
 		return fmt.Sprintf(`"%s":%s`, name, data)
 	}
 
+	if query.name == "__typename" {
+		return res(`"` + codeStructure.typeName + `"`), false
+	}
+
 	structItem, ok := codeStructure.objContents[query.name]
 	var value reflect.Value
 	if !ok {

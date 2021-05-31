@@ -37,9 +37,6 @@ func (s *Schema) injectQLTypes(ctx *parseCtx) {
 
 	functionObj.customObjValue = &typeResolverReflection
 	s.rootQuery.objContents["__type"] = functionObj
-
-	// TODO add:
-	// __typename
 }
 
 func (s *Schema) GetQLSchema() QLSchema {
