@@ -9,6 +9,7 @@ import (
 )
 
 func (s *Schema) injectQLTypes(ctx *parseCtx) {
+	// Inject __Schema
 	ref, err := ctx.check(reflect.TypeOf(QLSchema{}))
 	if err != nil {
 		log.Fatal(err)
@@ -16,11 +17,28 @@ func (s *Schema) injectQLTypes(ctx *parseCtx) {
 
 	contents := reflect.ValueOf(s.GetQLSchema())
 	ref.customObjValue = &contents
-
 	s.rootQuery.objContents["__schema"] = ref
 
+	// Inject __type(name: String!): __Type
+	typeResolver := func(ctx *Ctx, args struct{ Name string }) *QLType {
+		types := ctx.schema.GetAllQLTypes()
+		for _, type_ := range types {
+			if *type_.Name == args.Name {
+				return &type_
+			}
+		}
+		return nil
+	}
+	typeResolverReflection := reflect.ValueOf(typeResolver)
+	functionObj, err := ctx.checkStructFieldFunc("__type", typeResolverReflection.Type())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	functionObj.customObjValue = &typeResolverReflection
+	s.rootQuery.objContents["__type"] = functionObj
+
 	// TODO add:
-	// __type(name: String!): __Type
 	// __typename
 }
 

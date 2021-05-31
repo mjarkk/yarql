@@ -933,18 +933,23 @@ func TestExecSchemaRequestWithFields(t *testing.T) {
 	is("SCALAR", "String")                                         // 17
 
 	fields := types[queryIdx].JSONFields
-	Equal(t, 5, len(fields))
+	Equal(t, 6, len(fields))
 
 	idx = 0
 	isField := func(name string) {
 		field := fields[idx]
 		Equalf(t, name, field.Name, "(NAME) Index: %d", idx)
-		Equalf(t, "NON_NULL", field.Type.JSONKind, "(KIND) Index: %d", idx)
-		Equalf(t, "OBJECT", field.Type.OfType.JSONKind, "(OFTYPE KIND) Index: %d", idx)
+		if field.Name == "__type" {
+			Equalf(t, "OBJECT", field.Type.JSONKind, "(KIND) Index: %d", idx)
+		} else {
+			Equalf(t, "NON_NULL", field.Type.JSONKind, "(KIND) Index: %d", idx)
+			Equalf(t, "OBJECT", field.Type.OfType.JSONKind, "(OFTYPE KIND) Index: %d", idx)
+		}
 		idx++
 	}
 
 	isField("__schema")
+	isField("__type")
 	isField("a")
 	isField("b")
 	isField("c")
@@ -952,4 +957,16 @@ func TestExecSchemaRequestWithFields(t *testing.T) {
 
 	inFields := types[inputIdx].JSONInputFields
 	Equal(t, 1, len(inFields))
+}
+
+func TestExecGraphqlTypenameByName(t *testing.T) {
+	res, errs := parseAndTest(t, `{__type(name: "TestExecSchemaRequestWithFieldsDataInnerStruct") {
+		kind
+		name
+	}}`, TestExecSchemaRequestWithFieldsData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+
+	Equal(t, `{"__type":{"kind":"OBJECT","name":"TestExecSchemaRequestWithFieldsDataInnerStruct"}}`, res)
 }

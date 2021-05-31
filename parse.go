@@ -236,48 +236,18 @@ func (c *parseCtx) check(t reflect.Type) (*Obj, error) {
 		*c.types = typesInner
 
 		for i := 0; i < t.NumField(); i++ {
-			err := func(field reflect.StructField) error {
-				if field.Anonymous {
-					return nil
-				}
-
-				val, ok := field.Tag.Lookup("gqIgnore")
-				if ok && valueLooksTrue(val) {
-					return nil
-				}
-
+			field := t.Field(i)
+			obj, err := c.checkStructField(field)
+			if err != nil {
+				return nil, err
+			}
+			if obj != nil {
 				newName, hasNameRewrite := field.Tag.Lookup("gqName")
 				name := formatGoNameToQL(field.Name)
 				if hasNameRewrite {
 					name = newName
 				}
-
-				if field.Type.Kind() == reflect.Func {
-					methodObj, _, err := c.checkFunction(field.Name, field.Type, false)
-					if err != nil {
-						return err
-					} else if methodObj == nil {
-						return nil
-					}
-
-					res.objContents[name] = &Obj{
-						valueType:       valueTypeMethod,
-						pkgPath:         field.PkgPath,
-						structFieldName: field.Name,
-						method:          methodObj,
-					}
-				} else {
-					obj, err := c.check(field.Type)
-					if err != nil {
-						return err
-					}
-					obj.structFieldName = field.Name
-					res.objContents[name] = obj
-				}
-				return nil
-			}(t.Field(i))
-			if err != nil {
-				return nil, err
+				res.objContents[name] = obj
 			}
 		}
 	case reflect.Array, reflect.Slice, reflect.Ptr:
@@ -331,6 +301,43 @@ func (c *parseCtx) check(t reflect.Type) (*Obj, error) {
 	}
 
 	return &res, nil
+}
+
+func (c *parseCtx) checkStructField(field reflect.StructField) (*Obj, error) {
+	if field.Anonymous {
+		return nil, nil
+	}
+
+	val, ok := field.Tag.Lookup("gqIgnore")
+	if ok && valueLooksTrue(val) {
+		return nil, nil
+	}
+
+	var obj *Obj
+	if field.Type.Kind() == reflect.Func {
+		return c.checkStructFieldFunc(field.Name, field.Type)
+	}
+	var err error
+	obj, err = c.check(field.Type)
+	if err != nil {
+		return nil, err
+	}
+	obj.structFieldName = field.Name
+	return obj, nil
+}
+
+func (c *parseCtx) checkStructFieldFunc(fieldName string, type_ reflect.Type) (*Obj, error) {
+	methodObj, _, err := c.checkFunction(fieldName, type_, false)
+	if err != nil {
+		return nil, err
+	} else if methodObj == nil {
+		return nil, nil
+	}
+	return &Obj{
+		valueType:       valueTypeMethod,
+		method:          methodObj,
+		structFieldName: fieldName,
+	}, nil
 }
 
 var simpleCtx = reflect.TypeOf(Ctx{})
