@@ -61,6 +61,10 @@ func (ctx *Ctx) getVariable(name string, value *Value) error {
 		return errors.New("variable not defined in " + ctx.operator.operationType)
 	}
 
+	if definition.varType.list {
+
+	}
+
 	typeName := definition.varType.name
 	qlType := ctx.schema.getTypeByName(typeName, true, false)
 	if qlType == nil {
@@ -73,6 +77,7 @@ func (ctx *Ctx) getVariable(name string, value *Value) error {
 	}
 	jsonVariable := jsonVariables.Get(name)
 
+	defaultValue := definition.defaultValue
 	if qlType.Kind == TypeKindScalar {
 		switch *qlType.Name {
 		case "Boolean":
@@ -83,11 +88,11 @@ func (ctx *Ctx) getVariable(name string, value *Value) error {
 					return err
 				}
 				value.booleanValue = val
-			} else if definition.defaultValue != nil {
-				if definition.defaultValue.valType != reflect.Bool {
+			} else if defaultValue != nil {
+				if defaultValue.valType != reflect.Bool {
 					return fmt.Errorf("default value of %s doesn't match it's type", name)
 				}
-				value.booleanValue = definition.defaultValue.booleanValue
+				value.booleanValue = defaultValue.booleanValue
 			}
 			return nil
 		case "Int":
@@ -98,11 +103,11 @@ func (ctx *Ctx) getVariable(name string, value *Value) error {
 					return err
 				}
 				value.intValue = val
-			} else if definition.defaultValue != nil {
-				if definition.defaultValue.valType != reflect.Int {
+			} else if defaultValue != nil {
+				if defaultValue.valType != reflect.Int {
 					return fmt.Errorf("default value of %s doesn't match it's type", name)
 				}
-				value.intValue = definition.defaultValue.intValue
+				value.intValue = defaultValue.intValue
 			}
 		case "Float":
 			value.valType = reflect.Float64
@@ -112,11 +117,11 @@ func (ctx *Ctx) getVariable(name string, value *Value) error {
 					return err
 				}
 				value.floatValue = val
-			} else if definition.defaultValue != nil {
-				if definition.defaultValue.valType != reflect.Float64 {
+			} else if defaultValue != nil {
+				if defaultValue.valType != reflect.Float64 {
 					return fmt.Errorf("default value of %s doesn't match it's type", name)
 				}
-				value.floatValue = definition.defaultValue.floatValue
+				value.floatValue = defaultValue.floatValue
 			}
 		case "String":
 			value.valType = reflect.String
@@ -126,11 +131,11 @@ func (ctx *Ctx) getVariable(name string, value *Value) error {
 					return err
 				}
 				value.stringValue = string(val)
-			} else if definition.defaultValue != nil {
-				if definition.defaultValue.valType != reflect.String {
+			} else if defaultValue != nil {
+				if defaultValue.valType != reflect.String {
 					return fmt.Errorf("default value of %s doesn't match it's type", name)
 				}
-				value.stringValue = definition.defaultValue.stringValue
+				value.stringValue = defaultValue.stringValue
 			}
 		default:
 			return errors.New("Unexpected input type " + *qlType.Name)

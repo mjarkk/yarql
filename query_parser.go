@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
-	"reflect"
 	"strconv"
 	"strings"
 	"unicode"
@@ -78,28 +77,6 @@ type VariableDefinition struct {
 }
 
 type Arguments map[string]Value
-
-type Value struct {
-	// Check these before valType
-	isVar  bool
-	isNull bool
-	isEnum bool
-
-	// depending on this field the below is filled in
-	// Supported: Int, Float64, String, Bool, Array, Map
-	valType reflect.Kind
-
-	variable     string
-	intValue     int
-	floatValue   float64
-	stringValue  string
-	booleanValue bool
-	enumValue    string
-	listValue    []Value
-	objectValue  Arguments
-}
-
-type ValueData struct{}
 
 func ParseQuery(input string) ([]*Operator, error) {
 	res := []*Operator{}
@@ -310,7 +287,7 @@ func (i *Iter) parseVariableDefinition() (VariableDefinition, error) {
 		if err != nil {
 			return res, err
 		}
-		res.defaultValue = value
+		res.defaultValue = &value
 
 		_, err = i.mightIgnoreNextTokens()
 		if err != nil {
@@ -322,67 +299,41 @@ func (i *Iter) parseVariableDefinition() (VariableDefinition, error) {
 }
 
 // https://spec.graphql.org/June2018/#Value
-func (i *Iter) parseValue() (*Value, error) {
-	res := Value{}
-
+func (i *Iter) parseValue() (Value, error) {
 	switch i.currentC() {
 	case '$':
 		i.charNr++
 		varName, err := i.parseVariable(true)
-		if err != nil {
-			return nil, err
-		}
-		res.isVar = true
-		res.variable = varName
+		return makeVariableValue(varName), err
 	case '-', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0':
-		val, err := i.parseNumberValue()
-		if err != nil {
-			return nil, err
-		}
-		res = *val
+		return i.parseNumberValue()
 	case '"':
 		val, err := i.parseString()
-		if err != nil {
-			return nil, err
-		}
-		res.valType = reflect.String
-		res.stringValue = val
+		return makeStringValue(val), err
 	case '[':
 		i.charNr++
 		list, err := i.parseListValue()
-		if err != nil {
-			return nil, err
-		}
-		res.valType = reflect.Array
-		res.listValue = list
+		return makeArrayValue(list), err
 	case '{':
 		i.charNr++
 		values, err := i.parseArgumentsOrObjectValues('}')
-		if err != nil {
-			return nil, err
-		}
-		res.valType = reflect.Map
-		res.objectValue = values
+		return makeStructValue(values), err
 	default:
 		name, err := i.parseName()
 		if err != nil {
-			return nil, err
+			return Value{}, err
 		}
 		switch name {
 		case "null":
-			res.isNull = true
+			return makeNullValue(), nil
 		case "true", "false":
-			res.valType = reflect.Bool
-			res.booleanValue = name == "true"
+			return makeBooleanValue(name == "true"), nil
 		case "":
-			return nil, errors.New("invalid value")
+			return Value{}, errors.New("invalid value")
 		default:
-			res.isEnum = true
-			res.enumValue = name
+			return makeEnumValue(name), nil
 		}
 	}
-
-	return &res, nil
 }
 
 func (i *Iter) parseString() (string, error) {
@@ -539,7 +490,7 @@ func (i *Iter) parseListValue() ([]Value, error) {
 		if err != nil {
 			return nil, err
 		}
-		res = append(res, *val)
+		res = append(res, val)
 		firstLoop = false
 	}
 }
@@ -547,7 +498,7 @@ func (i *Iter) parseListValue() ([]Value, error) {
 // Returns FloatValue or IntValue
 // https://spec.graphql.org/June2018/#FloatValue
 // https://spec.graphql.org/June2018/#IntValue
-func (i *Iter) parseNumberValue() (*Value, error) {
+func (i *Iter) parseNumberValue() (Value, error) {
 	toMap := func(list string) map[rune]bool {
 		res := map[rune]bool{}
 		for _, char := range list {
@@ -558,28 +509,22 @@ func (i *Iter) parseNumberValue() (*Value, error) {
 	digit := toMap("0123456789")
 
 	resStr := ""
-	res := func(isFloat bool) (*Value, error) {
+	res := func(isFloat bool) (Value, error) {
 		if !isFloat {
 			// Value is int
 			i, err := strconv.Atoi(resStr)
 			if err != nil {
-				return nil, errors.New("unable to parse int")
+				return Value{}, errors.New("unable to parse int")
 			}
-			return &Value{
-				valType:  reflect.Int,
-				intValue: i,
-			}, nil
+			return makeIntValue(i), nil
 		}
 
 		f, err := strconv.ParseFloat(resStr, 64)
 		if err != nil {
-			return nil, errors.New("unable to parse float")
+			return Value{}, errors.New("unable to parse float")
 		}
 
-		return &Value{
-			valType:    reflect.Float64,
-			floatValue: f,
-		}, nil
+		return makeFloatValue(f), nil
 	}
 
 	c := i.currentC()
@@ -591,7 +536,7 @@ func (i *Iter) parseNumberValue() (*Value, error) {
 	// parse integer part
 	c, eof := i.checkC(i.charNr)
 	if eof {
-		return nil, ErrorUnexpectedEOF
+		return Value{}, ErrorUnexpectedEOF
 	}
 	if c == '0' {
 		resStr += string(c)
@@ -599,7 +544,7 @@ func (i *Iter) parseNumberValue() (*Value, error) {
 
 		c, eof = i.checkC(i.charNr)
 		if eof {
-			return nil, ErrorUnexpectedEOF
+			return Value{}, ErrorUnexpectedEOF
 		}
 		if c != '.' && c != 'e' && c != 'E' {
 			return res(false)
@@ -611,7 +556,7 @@ func (i *Iter) parseNumberValue() (*Value, error) {
 		for {
 			c, eof := i.checkC(i.charNr)
 			if eof {
-				return nil, ErrorUnexpectedEOF
+				return Value{}, ErrorUnexpectedEOF
 			}
 
 			if c == '.' || c == 'e' || c == 'E' {
@@ -627,13 +572,13 @@ func (i *Iter) parseNumberValue() (*Value, error) {
 			i.charNr++
 		}
 	} else {
-		return nil, errors.New("not a valid int or float")
+		return Value{}, errors.New("not a valid int or float")
 	}
 
 	// Parse optional float fractional part
 	c, eof = i.checkC(i.charNr)
 	if eof {
-		return nil, ErrorUnexpectedEOF
+		return Value{}, ErrorUnexpectedEOF
 	}
 	if c == '.' {
 		resStr += string(c)
@@ -642,12 +587,12 @@ func (i *Iter) parseNumberValue() (*Value, error) {
 		i.charNr++
 		c, eof = i.checkC(i.charNr)
 		if eof {
-			return nil, ErrorUnexpectedEOF
+			return Value{}, ErrorUnexpectedEOF
 		}
 
 		_, ok := digit[c]
 		if !ok {
-			return nil, errors.New("not a valid float")
+			return Value{}, errors.New("not a valid float")
 		}
 		resStr += string(c)
 
@@ -655,7 +600,7 @@ func (i *Iter) parseNumberValue() (*Value, error) {
 			i.charNr++
 			c, eof = i.checkC(i.charNr)
 			if eof {
-				return nil, ErrorUnexpectedEOF
+				return Value{}, ErrorUnexpectedEOF
 			}
 
 			if c == 'e' || c == 'E' {
@@ -674,7 +619,7 @@ func (i *Iter) parseNumberValue() (*Value, error) {
 	// Parse optional float exponent part
 	c, eof = i.checkC(i.charNr)
 	if eof {
-		return nil, ErrorUnexpectedEOF
+		return Value{}, ErrorUnexpectedEOF
 	}
 	if c != 'e' && c != 'E' {
 		// We can assume here the value is a float as the this code can only be reached if the value contains "." or "e" or "E"
@@ -685,7 +630,7 @@ func (i *Iter) parseNumberValue() (*Value, error) {
 	i.charNr++
 	c, eof = i.checkC(i.charNr)
 	if eof {
-		return nil, ErrorUnexpectedEOF
+		return Value{}, ErrorUnexpectedEOF
 	}
 	if c == '+' || c == '-' {
 		resStr += string(c)
@@ -693,13 +638,13 @@ func (i *Iter) parseNumberValue() (*Value, error) {
 		i.charNr++
 		c, eof = i.checkC(i.charNr)
 		if eof {
-			return nil, ErrorUnexpectedEOF
+			return Value{}, ErrorUnexpectedEOF
 		}
 	}
 
 	_, ok := digit[c]
 	if !ok {
-		return nil, errors.New("not a valid float")
+		return Value{}, errors.New("not a valid float")
 	}
 	resStr += string(c)
 
@@ -707,7 +652,7 @@ func (i *Iter) parseNumberValue() (*Value, error) {
 		i.charNr++
 		c, eof = i.checkC(i.charNr)
 		if eof {
-			return nil, ErrorUnexpectedEOF
+			return Value{}, ErrorUnexpectedEOF
 		}
 
 		_, ok := digit[c]
@@ -1057,7 +1002,7 @@ func (i *Iter) parseArgumentsOrObjectValues(closure rune) (Arguments, error) {
 		if err != nil {
 			return nil, err
 		}
-		res[name] = *value
+		res[name] = value
 
 		c, err = i.mightIgnoreNextTokens()
 		if err != nil {
