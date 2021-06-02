@@ -526,24 +526,6 @@ func TestExecStructTypeMethodWithArgs(t *testing.T) {
 	Equal(t, `{"bar":"foo"}`, out)
 }
 
-func TestExecStructTypeMethodWithDefaultVariableArgs(t *testing.T) {
-	variables := `{}`
-	out, errs := parseAndTestWithOptions(t, `query($baz: String = "foo") {bar(a: $baz)}`, TestExecStructTypeMethodWithArgsData{}, M{}, 255, "", variables)
-	for _, err := range errs {
-		panic(err)
-	}
-	Equal(t, `{"bar":"foo"}`, out)
-}
-
-func TestExecStructTypeMethodWithVariableArgs(t *testing.T) {
-	variables := `{"baz": "foo"}`
-	out, errs := parseAndTestWithOptions(t, `query($baz: String) {bar(a: $baz)}`, TestExecStructTypeMethodWithArgsData{}, M{}, 255, "", variables)
-	for _, err := range errs {
-		panic(err)
-	}
-	Equal(t, `{"bar":"foo"}`, out)
-}
-
 type TestExecStructTypeMethodWithListArgData struct{}
 
 func (TestExecStructTypeMethodWithListArgData) ResolveBar(args struct{ A []string }) []string {
