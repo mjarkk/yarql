@@ -1,5 +1,7 @@
 package graphql
 
+import h "github.com/mjarkk/go-graphql/helpers"
+
 //
 // Types represent:
 // https://spec.graphql.org/June2018/#sec-Schema-Introspection
@@ -42,6 +44,28 @@ var _ = RegisterEnum(map[string]__TypeKind{
 	"LIST":         TypeKindList,
 	"NON_NULL":     TypeKindNonNull,
 })
+
+func (kind __TypeKind) String() string {
+	switch kind {
+	case TypeKindScalar:
+		return "SCALAR"
+	case TypeKindObject:
+		return "OBJECT"
+	case TypeKindInterface:
+		return "INTERFACE"
+	case TypeKindUnion:
+		return "UNION"
+	case TypeKindEnum:
+		return "ENUM"
+	case TypeKindInputObject:
+		return "INPUT_OBJECT"
+	case TypeKindList:
+		return "LIST"
+	case TypeKindNonNull:
+		return "NON_NULL"
+	}
+	return ""
+}
 
 var _ = TypeRename(QLType{}, "__Type")
 
@@ -156,4 +180,12 @@ type QLDirective struct {
 	Locations     []__DirectiveLocation `json:"-"`
 	JSONLocations []string              `json:"locations" gqlignore:"true"`
 	Args          []QLInputValue        `json:"args"`
+}
+
+var scalars = map[string]QLType{
+	"Boolean": QLType{Kind: TypeKindScalar, Name: h.StrPtr("Boolean"), Description: h.StrPtr("The `Boolean` scalar type represents `true` or `false`.")},
+	"Int":     QLType{Kind: TypeKindScalar, Name: h.StrPtr("Int"), Description: h.StrPtr("The Int scalar type represents a signed 32‐bit numeric non‐fractional value.")},
+	"Float":   QLType{Kind: TypeKindScalar, Name: h.StrPtr("Float"), Description: h.StrPtr("The Float scalar type represents signed double‐precision fractional values as specified by IEEE 754.")},
+	"String":  QLType{Kind: TypeKindScalar, Name: h.StrPtr("String"), Description: h.StrPtr("The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.")},
+	// "ID": QLType{Kind: TypeKindScalar, Name: h.StrPtr("ID"), Description: h.StrPtr("The ID scalar type represents a unique identifier, often used to refetch an object or as the key for a cache")},
 }

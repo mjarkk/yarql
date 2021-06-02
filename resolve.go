@@ -24,7 +24,12 @@ func GenerateResponse(data string, errors []error) string {
 	return res + "}"
 }
 
-func (s *Schema) Resolve(query string, operatorTarget string) (string, []error) {
+type ResolveOptions struct {
+	OperatorTarget string
+	Variables      string // Expects JSON or empty string
+}
+
+func (s *Schema) Resolve(query string, options ResolveOptions) (string, []error) {
 	s.m.Lock()
 	defer s.m.Unlock()
 
@@ -34,66 +39,57 @@ func (s *Schema) Resolve(query string, operatorTarget string) (string, []error) 
 	}
 
 	ctx := &Ctx{
-		fragments:  fragments,
-		schema:     s,
-		Values:     map[string]interface{}{},
-		directvies: []Directives{},
-		errors:     []error{},
+		fragments:           fragments,
+		schema:              s,
+		Values:              map[string]interface{}{},
+		directvies:          []Directives{},
+		errors:              []error{},
+		jsonVariablesString: options.Variables,
 	}
 
 	switch len(operatorsMap) {
 	case 0:
 		return "{}", nil
 	case 1:
-		res := ""
 		for _, operator := range operatorsMap {
-			res = ctx.start(&operator)
+			ctx.operator = &operator
 		}
-		return res, ctx.errors
 	default:
-		if operatorTarget == "" {
-			return "{}", []error{errors.New("multiple operators without target")}
+		if options.OperatorTarget == "" {
+			return "{}", []error{errors.New("multiple operators defined without target")}
 		}
 
-		operator, ok := operatorsMap[operatorTarget]
-		if ok {
-			res := ctx.start(&operator)
-			return res, ctx.errors
-		} else {
+		operator, ok := operatorsMap[options.OperatorTarget]
+		if !ok {
 			operatorsList := []string{}
 			for k := range operatorsMap {
 				operatorsList = append(operatorsList, k)
 			}
-			return "{}", []error{fmt.Errorf("%s is not a valid operator, available operators: %s", operatorTarget, strings.Join(operatorsList, ", "))}
+			return "{}", []error{fmt.Errorf("%s is not a valid operator, available operators: %s", options.OperatorTarget, strings.Join(operatorsList, ", "))}
 		}
-	}
-}
-
-func (ctx *Ctx) addErr(err string) {
-	ctx.errors = append(ctx.errors, errors.New(err))
-}
-
-func (ctx *Ctx) addErrf(err string, args ...interface{}) {
-	ctx.errors = append(ctx.errors, fmt.Errorf(err, args...))
-}
-
-func (ctx *Ctx) start(operator *Operator) string {
-	// TODO add variables to exec ctx
-	if operator.directives != nil && len(operator.directives) > 0 {
-		ctx.directvies = append(ctx.directvies, operator.directives)
+		ctx.operator = &operator
 	}
 
-	switch operator.operationType {
+	res := ctx.start()
+	return res, ctx.errors
+}
+
+func (ctx *Ctx) start() string {
+	if ctx.operator.directives != nil && len(ctx.operator.directives) > 0 {
+		ctx.directvies = append(ctx.directvies, ctx.operator.directives)
+	}
+
+	switch ctx.operator.operationType {
 	case "query":
-		return ctx.resolveSelection(operator.selection, ctx.schema.rootQueryValue, ctx.schema.rootQuery, 0)
+		return ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootQueryValue, ctx.schema.rootQuery, 0)
 	case "mutation":
-		return ctx.resolveSelection(operator.selection, ctx.schema.rootQueryValue, ctx.schema.rootMethod, 0)
+		return ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootQueryValue, ctx.schema.rootMethod, 0)
 	case "subscription":
 		// TODO
 		ctx.addErr("subscription not suppored yet")
 		return "{}"
 	default:
-		ctx.addErrf("%s cannot be used as operator", operator.operationType)
+		ctx.addErrf("%s cannot be used as operator", ctx.operator.operationType)
 		return "{}"
 	}
 }
@@ -246,9 +242,13 @@ func (ctx *Ctx) matchInputValue(queryValue *Value, goField *reflect.Value, goAny
 	}
 
 	if queryValue.isVar {
-		// TODO support this
-		return errors.New("variable function arguments are currently unsupported")
-	} else if queryValue.isNull {
+		err := ctx.getVariable(queryValue.variable, queryValue)
+		if err != nil {
+			return err
+		}
+	}
+
+	if queryValue.isNull {
 		// Na mate just keep it at it's default
 		return nil
 	} else if queryValue.isEnum {

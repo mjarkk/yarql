@@ -69,7 +69,7 @@ type TypeReference struct {
 	listType *TypeReference
 }
 
-type VariableDefinitions map[string]VariableDefinition
+type VariableDefinitions map[string]VariableDefinition // Key is the variable name without the $
 
 type VariableDefinition struct {
 	name         string

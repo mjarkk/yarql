@@ -108,14 +108,14 @@ func TestValueToJson(t *testing.T) {
 }
 
 func parseAndTest(t *testing.T, query string, queries interface{}, methods interface{}) (string, []error) {
-	return parseAndTestMaxDeptAndOperatorTarget(t, query, queries, methods, 255, "")
+	return parseAndTestWithOptions(t, query, queries, methods, 255, "", "")
 }
 
-func parseAndTestMaxDeptAndOperatorTarget(t *testing.T, query string, queries interface{}, methods interface{}, maxDept uint8, operatorTarget string) (string, []error) {
+func parseAndTestWithOptions(t *testing.T, query string, queries interface{}, methods interface{}, maxDept uint8, operatorTarget, variables string) (string, []error) {
 	s, err := ParseSchema(queries, methods, nil)
 	NoError(t, err, query)
 	s.MaxDepth = maxDept
-	out, errs := s.Resolve(query, operatorTarget)
+	out, errs := s.Resolve(query, ResolveOptions{OperatorTarget: operatorTarget, Variables: variables})
 	if !json.Valid([]byte(out)) {
 		panic(fmt.Sprintf("query %s, returned invalid json: %s", query, out))
 	}
@@ -450,7 +450,7 @@ type TestExecMaxDeptData struct {
 }
 
 func TestExecMaxDept(t *testing.T) {
-	out, errs := parseAndTestMaxDeptAndOperatorTarget(t, `{foo{bar{baz{fooBar{barBaz{bazFoo}}}}}}`, TestExecMaxDeptData{}, M{}, 3, "")
+	out, errs := parseAndTestWithOptions(t, `{foo{bar{baz{fooBar{barBaz{bazFoo}}}}}}`, TestExecMaxDeptData{}, M{}, 3, "", "")
 	Greater(t, len(errs), 0)
 	Equal(t, `{"foo":{"bar":{"baz":null}}}`, out)
 }
@@ -520,6 +520,24 @@ func (TestExecStructTypeMethodWithArgsData) ResolveBar(c *Ctx, args struct{ A st
 
 func TestExecStructTypeMethodWithArgs(t *testing.T) {
 	out, errs := parseAndTest(t, `{bar(a: "foo")}`, TestExecStructTypeMethodWithArgsData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"bar":"foo"}`, out)
+}
+
+func TestExecStructTypeMethodWithDefaultVariableArgs(t *testing.T) {
+	variables := `{}`
+	out, errs := parseAndTestWithOptions(t, `query($baz: String = "foo") {bar(a: $baz)}`, TestExecStructTypeMethodWithArgsData{}, M{}, 255, "", variables)
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"bar":"foo"}`, out)
+}
+
+func TestExecStructTypeMethodWithVariableArgs(t *testing.T) {
+	variables := `{"baz": "foo"}`
+	out, errs := parseAndTestWithOptions(t, `query($baz: String) {bar(a: $baz)}`, TestExecStructTypeMethodWithArgsData{}, M{}, 255, "", variables)
 	for _, err := range errs {
 		panic(err)
 	}
@@ -686,17 +704,17 @@ func TestExecMultipleOperators(t *testing.T) {
 	query QueryA {a b}
 	query QueryB {c d}
 	`
-	out, errs := parseAndTestMaxDeptAndOperatorTarget(t, query, TestExecSimpleQueryData{}, M{}, 255, "")
+	out, errs := parseAndTestWithOptions(t, query, TestExecSimpleQueryData{}, M{}, 255, "", "")
 	Equal(t, 1, len(errs))
 	Equal(t, "{}", out)
 
-	out, errs = parseAndTestMaxDeptAndOperatorTarget(t, query, TestExecSimpleQueryData{}, M{}, 255, "QueryA")
+	out, errs = parseAndTestWithOptions(t, query, TestExecSimpleQueryData{}, M{}, 255, "QueryA", "")
 	for _, err := range errs {
 		panic(err)
 	}
 	Equal(t, `{"a":"","b":""}`, out)
 
-	out, errs = parseAndTestMaxDeptAndOperatorTarget(t, query, TestExecSimpleQueryData{}, M{}, 255, "QueryB")
+	out, errs = parseAndTestWithOptions(t, query, TestExecSimpleQueryData{}, M{}, 255, "QueryB", "")
 	for _, err := range errs {
 		panic(err)
 	}
@@ -838,23 +856,23 @@ func TestExecSchemaRequestSimple(t *testing.T) {
 		idx++
 	}
 
-	is("OBJECT", "M") // 0
+	is("SCALAR", "Boolean")
+	is("SCALAR", "Float")
+	is("SCALAR", "Int")
+	is("OBJECT", "M")
+	is("SCALAR", "String")
 	if testingRegisteredTestEnum {
 		is("ENUM", "TestEnum2")
 	}
-	is("OBJECT", "TestExecSchemaRequestSimpleData") // 1
-	is("OBJECT", "__Directive")                     // 2
-	is("ENUM", "__DirectiveLocation")               // 3
-	is("OBJECT", "__EnumValue")                     // 4
-	is("OBJECT", "__Field")                         // 5
-	is("OBJECT", "__InputValue")                    // 6
-	is("OBJECT", "__Schema")                        // 7
-	is("OBJECT", "__Type")                          // 8
-	is("ENUM", "__TypeKind")                        // 9
-	is("SCALAR", "Boolean")                         // 10
-	is("SCALAR", "Int")                             // 11
-	is("SCALAR", "Float")                           // 12
-	is("SCALAR", "String")                          // 13
+	is("OBJECT", "TestExecSchemaRequestSimpleData")
+	is("OBJECT", "__Directive")
+	is("ENUM", "__DirectiveLocation")
+	is("OBJECT", "__EnumValue")
+	is("OBJECT", "__Field")
+	is("OBJECT", "__InputValue")
+	is("OBJECT", "__Schema")
+	is("OBJECT", "__Type")
+	is("ENUM", "__TypeKind")
 }
 
 type TestExecSchemaRequestWithFieldsDataInnerStruct struct {
@@ -898,39 +916,36 @@ func TestExecSchemaRequestWithFields(t *testing.T) {
 	Equal(t, totalTypes, len(types))
 
 	idx := 0
-	is := func(kind, name string) {
+	is := func(kind, name string) int {
 		item := types[idx]
 		Equalf(t, kind, item.JSONKind, "(KIND) Index: %d", idx)
 		NotNilf(t, item.Name, "(NAME) Index: %d", idx)
 		Equalf(t, name, *item.Name, "(NAME) Index: %d", idx)
 		idx++
+		return idx - 1
 	}
 
-	is("OBJECT", "M") // 0
-	queryIdx := 1
-	inputIdx := 11
+	is("SCALAR", "Boolean")
+	is("SCALAR", "Float")
+	is("SCALAR", "Int")
+	is("OBJECT", "M")
+	is("SCALAR", "String")
 	if testingRegisteredTestEnum {
-		queryIdx++
-		inputIdx++
 		is("ENUM", "TestEnum2")
 	}
-	is("OBJECT", "TestExecSchemaRequestWithFieldsData")            // 1
-	is("OBJECT", "TestExecSchemaRequestWithFieldsDataInnerStruct") // 2
-	is("OBJECT", "__Directive")                                    // 3
-	is("ENUM", "__DirectiveLocation")                              // 4
-	is("OBJECT", "__EnumValue")                                    // 5
-	is("OBJECT", "__Field")                                        // 6
-	is("OBJECT", "__InputValue")                                   // 7
-	is("OBJECT", "__Schema")                                       // 8
-	is("OBJECT", "__Type")                                         // 9
-	is("ENUM", "__TypeKind")                                       // 10
-	is("INPUT_OBJECT", "__UnknownInput1")                          // 11
-	is("OBJECT", "__UnknownType1")                                 // 12
-	is("OBJECT", "__UnknownType2")                                 // 13
-	is("SCALAR", "Boolean")                                        // 14
-	is("SCALAR", "Int")                                            // 15
-	is("SCALAR", "Float")                                          // 16
-	is("SCALAR", "String")                                         // 17
+	queryIdx := is("OBJECT", "TestExecSchemaRequestWithFieldsData")
+	is("OBJECT", "TestExecSchemaRequestWithFieldsDataInnerStruct")
+	is("OBJECT", "__Directive")
+	is("ENUM", "__DirectiveLocation")
+	is("OBJECT", "__EnumValue")
+	is("OBJECT", "__Field")
+	is("OBJECT", "__InputValue")
+	is("OBJECT", "__Schema")
+	is("OBJECT", "__Type")
+	is("ENUM", "__TypeKind")
+	inputIdx := is("INPUT_OBJECT", "__UnknownInput1")
+	is("OBJECT", "__UnknownType1")
+	is("OBJECT", "__UnknownType2")
 
 	fields := types[queryIdx].JSONFields
 	Equal(t, 6, len(fields))

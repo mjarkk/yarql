@@ -15,19 +15,13 @@ func (s *Schema) injectQLTypes(ctx *parseCtx) {
 		log.Fatal(err)
 	}
 
-	contents := reflect.ValueOf(s.GetQLSchema())
+	contents := reflect.ValueOf(s.getQLSchema())
 	ref.customObjValue = &contents
 	s.rootQuery.objContents["__schema"] = ref
 
 	// Inject __type(name: String!): __Type
 	typeResolver := func(ctx *Ctx, args struct{ Name string }) *QLType {
-		types := ctx.schema.GetAllQLTypes()
-		for _, type_ := range types {
-			if *type_.Name == args.Name {
-				return &type_
-			}
-		}
-		return nil
+		return ctx.schema.getTypeByName(args.Name, true, true)
 	}
 	typeResolverReflection := reflect.ValueOf(typeResolver)
 	functionObj, err := ctx.checkStructFieldFunc("__type", typeResolverReflection.Type())
@@ -39,9 +33,9 @@ func (s *Schema) injectQLTypes(ctx *parseCtx) {
 	s.rootQuery.objContents["__type"] = functionObj
 }
 
-func (s *Schema) GetQLSchema() QLSchema {
+func (s *Schema) getQLSchema() QLSchema {
 	res := QLSchema{
-		Types:      s.GetAllQLTypes(),
+		Types:      s.getAllQLTypes(),
 		Directives: []QLDirective{},
 		QueryType: &QLType{
 			Kind:        TypeKindObject,
@@ -73,7 +67,7 @@ func (s *Schema) GetQLSchema() QLSchema {
 	return res
 }
 
-func (s *Schema) GetAllQLTypes() []QLType {
+func (s *Schema) getAllQLTypes() []QLType {
 	res := []QLType{}
 
 	for _, type_ := range s.types {
@@ -87,15 +81,45 @@ func (s *Schema) GetAllQLTypes() []QLType {
 	for _, enum := range definedEnums {
 		res = append(res, enumToQlType(enum))
 	}
+	for _, scalar := range scalars {
+		res = append(res, scalar)
+	}
 	sort.Slice(res, func(a int, b int) bool { return *res[a].Name < *res[b].Name })
 
-	return append(res,
-		ScalarBoolean,
-		ScalarInt,
-		ScalarFloat,
-		ScalarString,
-		// ScalarID,
-	)
+	return res
+}
+
+func (s *Schema) getTypeByName(name string, includeInputTypes, includeOutputTypes bool) *QLType {
+	// FIXME: Make one gigantic map on schema creation with all the types below
+	scalars, ok := scalars[name]
+	if ok {
+		return &scalars
+	}
+
+	enum, ok := definedEnums[name]
+	if ok {
+		res := enumToQlType(enum)
+		return &res
+	}
+
+	if includeOutputTypes {
+		type_, ok := s.types[name]
+		if ok {
+			res, _ := s.objToQLType(type_)
+			return res
+		}
+	}
+	if includeInputTypes {
+		inType, ok := s.inTypes[name]
+		if !ok {
+			inType, ok = s.inTypes[name+"Input"]
+		}
+		if ok {
+			obj, _ := s.inputToQLType(inType)
+			return obj
+		}
+	}
+	return nil
 }
 
 func wrapQLTypeInNonNull(type_ *QLType, isNonNull bool) *QLType {
@@ -107,14 +131,6 @@ func wrapQLTypeInNonNull(type_ *QLType, isNonNull bool) *QLType {
 		OfType: type_,
 	}
 }
-
-var (
-	ScalarBoolean = QLType{Kind: TypeKindScalar, Name: h.StrPtr("Boolean"), Description: h.StrPtr("The `Boolean` scalar type represents `true` or `false`.")}
-	ScalarInt     = QLType{Kind: TypeKindScalar, Name: h.StrPtr("Int"), Description: h.StrPtr("The Int scalar type represents a signed 32‐bit numeric non‐fractional value.")}
-	ScalarFloat   = QLType{Kind: TypeKindScalar, Name: h.StrPtr("Float"), Description: h.StrPtr("The Float scalar type represents signed double‐precision fractional values as specified by IEEE 754.")}
-	ScalarString  = QLType{Kind: TypeKindScalar, Name: h.StrPtr("String"), Description: h.StrPtr("The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.")}
-	// ScalarID      = QLType{Kind: TypeKindScalar, Name: h.StrPtr("ID"), Description: h.StrPtr("The ID scalar type represents a unique identifier, often used to refetch an object or as the key for a cache")}
-)
 
 func (s *Schema) inputToQLType(in *Input) (res *QLType, isNonNull bool) {
 	switch in.kind {
@@ -155,16 +171,20 @@ func (s *Schema) inputToQLType(in *Input) (res *QLType, isNonNull bool) {
 		res, _ = s.inputToQLType(in.elem)
 	case reflect.Bool:
 		isNonNull = true
-		res = &ScalarBoolean
+		rawRes := scalars["Boolean"]
+		res = &rawRes
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.UnsafePointer, reflect.Complex64, reflect.Complex128:
 		isNonNull = true
-		res = &ScalarInt
+		rawRes := scalars["Int"]
+		res = &rawRes
 	case reflect.Float32, reflect.Float64:
 		isNonNull = true
-		res = &ScalarFloat
+		rawRes := scalars["Float"]
+		res = &rawRes
 	case reflect.String:
 		isNonNull = true
-		res = &ScalarString
+		rawRes := scalars["String"]
+		res = &rawRes
 	default:
 		isNonNull = true
 		res = &QLType{Kind: TypeKindScalar, Name: h.StrPtr(""), Description: h.StrPtr("")}
@@ -221,18 +241,20 @@ func (s *Schema) objToQLType(item *Obj) (res *QLType, isNonNull bool) {
 		}
 	case valueTypeData:
 		isNonNull = true
+		var rawRes QLType
 		switch item.dataValueType {
 		case reflect.Bool:
-			res = &ScalarBoolean
+			rawRes = scalars["Boolean"]
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.UnsafePointer, reflect.Complex64, reflect.Complex128:
-			res = &ScalarInt
+			rawRes = scalars["Int"]
 		case reflect.Float32, reflect.Float64:
-			res = &ScalarFloat
+			rawRes = scalars["Float"]
 		case reflect.String:
-			res = &ScalarString
+			rawRes = scalars["String"]
 		default:
-			res = &QLType{Kind: TypeKindScalar, Name: h.StrPtr(""), Description: h.StrPtr("")}
+			rawRes = QLType{Kind: TypeKindScalar, Name: h.StrPtr(""), Description: h.StrPtr("")}
 		}
+		res = &rawRes
 	case valueTypeEnum:
 		isNonNull = true
 		enumType := enumToQlType(definedEnums[item.enumKey])
