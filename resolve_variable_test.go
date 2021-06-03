@@ -81,3 +81,27 @@ func TestResolveOtherSimpleVariable(t *testing.T) {
 	}
 
 }
+
+type TestResolveArrayVariableData struct{}
+
+func (TestResolveArrayVariableData) ResolveBar(c *Ctx, args struct{ A []int }) []int {
+	return args.A
+}
+
+func TestResolveArrayVariable(t *testing.T) {
+	// Normal variable
+	variables := `{"baz": [2,3]}`
+	out, errs := parseAndTestWithOptions(t, `query($baz: [Int]) {bar(a: $baz)}`, TestResolveArrayVariableData{}, M{}, 255, "", variables)
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"bar":[2,3]}`, out)
+
+	// Default variable
+	variables = `{}`
+	out, errs = parseAndTestWithOptions(t, `query($baz: [Int] = [2,3]) {bar(a: $baz)}`, TestResolveArrayVariableData{}, M{}, 255, "", variables)
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"bar":[2,3]}`, out)
+}
