@@ -61,90 +61,112 @@ func (ctx *Ctx) getVariable(name string, value *Value) error {
 		return errors.New("variable not defined in " + ctx.operator.operationType)
 	}
 
-	if definition.varType.list {
-
-	}
-
-	typeName := definition.varType.name
-	qlType := ctx.schema.getTypeByName(typeName, true, false)
-	if qlType == nil {
-		return fmt.Errorf("unknown variable %s type %s", name, typeName)
-	}
-
 	jsonVariables, err := ctx.getJSONVariables()
 	if err != nil {
 		return err
 	}
 	jsonVariable := jsonVariables.Get(name)
 
-	defaultValue := definition.defaultValue
-	if qlType.Kind == TypeKindScalar {
-		switch *qlType.Name {
-		case "Boolean":
-			value.valType = reflect.Bool
-			if jsonVariable != nil {
-				val, err := jsonVariable.Bool()
-				if err != nil {
-					return err
-				}
-				value.booleanValue = val
-			} else if defaultValue != nil {
-				if defaultValue.valType != reflect.Bool {
-					return fmt.Errorf("default value of %s doesn't match it's type", name)
-				}
-				value.booleanValue = defaultValue.booleanValue
-			}
-			return nil
-		case "Int":
-			value.valType = reflect.Int
-			if jsonVariable != nil {
-				val, err := jsonVariable.Int()
-				if err != nil {
-					return err
-				}
-				value.intValue = val
-			} else if defaultValue != nil {
-				if defaultValue.valType != reflect.Int {
-					return fmt.Errorf("default value of %s doesn't match it's type", name)
-				}
-				value.intValue = defaultValue.intValue
-			}
-		case "Float":
-			value.valType = reflect.Float64
-			if jsonVariable != nil {
-				val, err := jsonVariable.Float64()
-				if err != nil {
-					return err
-				}
-				value.floatValue = val
-			} else if defaultValue != nil {
-				if defaultValue.valType != reflect.Float64 {
-					return fmt.Errorf("default value of %s doesn't match it's type", name)
-				}
-				value.floatValue = defaultValue.floatValue
-			}
-		case "String":
-			value.valType = reflect.String
-			if jsonVariable != nil {
-				val, err := jsonVariable.StringBytes()
-				if err != nil {
-					return err
-				}
-				value.stringValue = string(val)
-			} else if defaultValue != nil {
-				if defaultValue.valType != reflect.String {
-					return fmt.Errorf("default value of %s doesn't match it's type", name)
-				}
-				value.stringValue = defaultValue.stringValue
-			}
-		default:
-			return errors.New("Unexpected input type " + *qlType.Name)
+	if jsonVariable != nil {
+		// Resolve from json
+		return ctx.resolveVariableFromJson(jsonVariable, &definition.varType, value)
+	}
+
+	if definition.defaultValue != nil {
+		// Resolve from default value
+		return ctx.resolveVariableFromDefault(*definition.defaultValue, &definition.varType, value)
+	}
+
+	// Return null value if no value is provided, depending on the input will cause an error but thats expected
+	value.isNull = true
+	return nil
+}
+
+func (ctx *Ctx) resolveVariableFromJson(jsonValue *fastjson.Value, expectedValueType *TypeReference, value *Value) error {
+	if expectedValueType.list {
+		arrContents, err := jsonValue.Array()
+		if err != nil {
+			return err
 		}
+		newArray := []Value{}
+		for _, item := range arrContents {
+			if item == nil {
+				continue
+			}
+
+			itemValue := Value{}
+			err = ctx.resolveVariableFromJson(item, expectedValueType.listType, &itemValue)
+			if err != nil {
+				return err
+			}
+			newArray = append(newArray, itemValue)
+		}
+		value.valType = reflect.Array
+		value.listValue = newArray
 		return nil
 	}
 
-	// TODO: Support more kinds
-	return fmt.Errorf("variable %s of kind %s is currently unsupported", name, qlType.Kind.String())
+	// TODO support struct, ID and enum values
+
+	var err error
+	switch expectedValueType.name {
+	case "Boolean":
+		value.valType = reflect.Bool
+		value.booleanValue, err = jsonValue.Bool()
+	case "Int":
+		value.valType = reflect.Int
+		value.intValue, err = jsonValue.Int()
+	case "Float":
+		value.valType = reflect.Float64
+		value.floatValue, err = jsonValue.Float64()
+	case "String":
+		value.valType = reflect.String
+		val, err := jsonValue.StringBytes()
+		if err != nil {
+			return err
+		}
+		value.stringValue = string(val)
+	default:
+		return errors.New("Unknown input type " + expectedValueType.name)
+	}
+	return err
+}
+
+func (ctx *Ctx) resolveVariableFromDefault(defaultValue Value, expectedValueType *TypeReference, value *Value) error {
+	if expectedValueType.list {
+		if defaultValue.valType != reflect.Array {
+			return errors.New("exected list")
+		}
+		newArray := []Value{}
+		for _, listItem := range defaultValue.listValue {
+			itemValue := Value{}
+			err := ctx.resolveVariableFromDefault(listItem, expectedValueType.listType, &itemValue)
+			if err != nil {
+				return err
+			}
+			newArray = append(newArray, itemValue)
+		}
+		value.valType = reflect.Array
+		value.listValue = newArray
+		return nil
+	}
+
+	// TODO support struct, ID and enum values
+
+	var reflValType reflect.Kind
+	switch expectedValueType.name {
+	case "Boolean":
+		reflValType = reflect.Bool
+	case "Int":
+		reflValType = reflect.Int
+	case "Float":
+		reflValType = reflect.Float64
+	case "String":
+		reflValType = reflect.String
+	default:
+		return errors.New("Unknown input type " + expectedValueType.name)
+	}
+	return value.SetToValueOfAndExpect(defaultValue, reflValType)
 }
 
 func (ctx *Ctx) getJSONVariables() (*fastjson.Value, error) {

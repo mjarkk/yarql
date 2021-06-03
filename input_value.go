@@ -1,6 +1,9 @@
 package graphql
 
-import "reflect"
+import (
+	"errors"
+	"reflect"
+)
 
 type Value struct {
 	// Check these before valType
@@ -20,6 +23,32 @@ type Value struct {
 	enumValue    string
 	listValue    []Value
 	objectValue  Arguments
+}
+
+func (v *Value) SetToValueOfAndExpect(other Value, expect reflect.Kind) error {
+	if other.valType != expect {
+		return errors.New("Value expected to be of type " + expect.String())
+	}
+	v.SetToValueOf(other)
+	return nil
+}
+
+func (v *Value) SetToValueOf(other Value) {
+	v.valType = other.valType
+	switch other.valType {
+	case reflect.String:
+		v.stringValue = other.stringValue
+	case reflect.Int:
+		v.intValue = other.intValue
+	case reflect.Float64:
+		v.floatValue = other.floatValue
+	case reflect.Bool:
+		v.booleanValue = other.booleanValue
+	case reflect.Array:
+		v.listValue = other.listValue
+	case reflect.Map:
+		v.objectValue = other.objectValue
+	}
 }
 
 func makeStringValue(val string) Value {
