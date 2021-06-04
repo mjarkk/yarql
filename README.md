@@ -1,4 +1,4 @@
-# WIP Graphql library for GoLang
+# Graphql library for GoLang
 
 Just a different approach to making graphql servers in Go
 
