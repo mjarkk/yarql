@@ -3,6 +3,7 @@ package main
 import (
 	"io/ioutil"
 	"log"
+	"mime/multipart"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mjarkk/go-graphql"
@@ -17,19 +18,30 @@ func main() {
 	}
 
 	r.Any("/graphql", func(c *gin.Context) {
-		requestBody, err := ioutil.ReadAll(c.Request.Body)
-		errors := []error{}
-		body := "{}"
-		if err != nil {
-			errors = append(errors, err)
-		} else {
-			body, errors = graphqlSchema.HandleRequest(
-				c.Request.Method,
-				c.Query,
-				requestBody,
-				c.ContentType(),
-			)
-		}
+		var form *multipart.Form
+
+		body, errors := graphqlSchema.HandleRequest(
+			c.Request.Method,
+			c.Query,
+			func(key string) (string, error) {
+				if form != nil {
+					return form.Value[key][0], nil
+				}
+
+				var err error
+				form, err = c.MultipartForm()
+				if err != nil {
+					return "", err
+				}
+
+				return form.Value[key][0], nil
+			},
+			func() []byte {
+				requestBody, _ := ioutil.ReadAll(c.Request.Body)
+				return requestBody
+			},
+			c.ContentType(),
+		)
 		res := graphql.GenerateResponse(body, errors)
 
 		c.Header("Content-Type", "application/json")

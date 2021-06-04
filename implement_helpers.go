@@ -37,7 +37,8 @@ func GenerateResponse(data string, errors []error) string {
 func (s *Schema) HandleRequest(
 	method string, // GET, POST, etc..
 	getQuery func(key string) string, // URL value (needs to be un-escaped before returning)
-	body []byte, // request body, can be nil if method == "GET"
+	getFormField func(key string) (string, error), // get form field, only used if content type == form data
+	getBody func() []byte, // get the request body
 	contentType string, // body content type, can be an empty string if method == "GET"
 ) (string, []error) {
 	method = strings.ToUpper(method)
@@ -50,9 +51,20 @@ func (s *Schema) HandleRequest(
 		return "{}", []error{errors.New(errorMsg)}
 	}
 
-	if contentType == "application/json" || (contentType == "text/plain" && method != "GET") {
+	if contentType == "application/json" || ((contentType == "text/plain" || contentType == "multipart/form-data") && method != "GET") {
+		var body []byte
+		if contentType == "multipart/form-data" {
+			// TODO support the full https://github.com/jaydenseric/graphql-multipart-request-spec
+			value, err := getFormField("operations")
+			if err != nil {
+				return "{}", []error{err}
+			}
+			body = []byte(value)
+		} else {
+			body = getBody()
+		}
 		if len(body) == 0 {
-			return errRes("no body defined")
+			return errRes("empty body")
 		}
 
 		var p fastjson.Parser
@@ -89,27 +101,9 @@ func (s *Schema) HandleRequest(
 			variables = jsonVariables.String()
 		}
 	} else {
-		switch method {
-		case "GET":
-			query = getQuery("query")
-			variables = getQuery("variables")
-			operationName = getQuery("operationName")
-		default:
-			if len(body) == 0 {
-				return errRes("no body defined")
-			}
-
-			switch contentType {
-			case "multipart/form-data":
-				// TODO support this one
-				fallthrough
-			case "application/graphql":
-				// TODO support this one
-				fallthrough
-			default:
-				return errRes("invalid content type " + contentType)
-			}
-		}
+		query = getQuery("query")
+		variables = getQuery("variables")
+		operationName = getQuery("operationName")
 	}
 
 	return s.Resolve(query, ResolveOptions{

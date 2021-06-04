@@ -19,7 +19,8 @@ func main() {
 		body, errors := graphqlSchema.HandleRequest(
 			c.Method(),
 			func(key string) string { return c.Query(key) },
-			c.Body(),
+			func(key string) (string, error) { return c.FormValue(key), nil },
+			func() []byte { return c.Body() },
 			string(c.Request().Header.ContentType()),
 		)
 		res := graphql.GenerateResponse(body, errors)
