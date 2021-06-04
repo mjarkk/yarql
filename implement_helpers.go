@@ -20,11 +20,13 @@ func GenerateResponse(data string, errors []error) string {
 			// https://spec.graphql.org/June2018/#sec-Errors
 
 			ctx := ""
-			errWCtx, isErrWCtx := err.(ErrorWCtx)
-			if isErrWCtx {
-				if len(errWCtx.path) > 0 {
-					ctx = fmt.Sprintf(`,"path":[%s]`, strings.Join(errWCtx.path, ","))
-				}
+			errWPath, isErrWPath := err.(ErrorWPath)
+			if isErrWPath && len(errWPath.path) > 0 {
+				ctx = fmt.Sprintf(`,"path":[%s]`, strings.Join(errWPath.path, ","))
+			}
+			errWLocation, isErrWLocation := err.(ErrorWLocation)
+			if isErrWLocation {
+				ctx = fmt.Sprintf(`,"locations":[{"line":%d,"column":%d}]`, errWLocation.line, errWLocation.column)
 			}
 
 			res += fmt.Sprintf(`{"message":%q%s}`, err.Error(), ctx)

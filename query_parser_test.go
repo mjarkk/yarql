@@ -9,6 +9,15 @@ import (
 	. "github.com/stretchr/testify/assert"
 )
 
+func checkErrorHaveLocation(err *ErrorWLocation) {
+	if err.column == 0 {
+		panic("error columns should not be 0")
+	}
+	if err.err == nil {
+		panic("error should have an error within")
+	}
+}
+
 func TestQueryParserEmptyQuery(t *testing.T) {
 	res, err := ParseQuery(``)
 	Equal(t, 0, len(res))
@@ -272,6 +281,7 @@ func TestQueryParserInvalidQuery(t *testing.T) {
 	for _, option := range options {
 		_, err := ParseQuery(option)
 		NotNil(t, err, option)
+		checkErrorHaveLocation(err)
 	}
 }
 
@@ -449,6 +459,7 @@ func TestQueryParserFieldInvalidDirective(t *testing.T) {
 		}
 	}`)
 	NotNil(t, err)
+	checkErrorHaveLocation(err)
 }
 
 func TestQueryParserFieldMultipleDirective(t *testing.T) {

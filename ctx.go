@@ -47,7 +47,7 @@ func (ctx *Ctx) Errors() []error {
 
 // AddError add an error to the query
 func (ctx *Ctx) AddError(err error) {
-	ctx.errors = append(ctx.errors, ErrorWCtx{
+	ctx.errors = append(ctx.errors, ErrorWPath{
 		err:  err,
 		path: copyPath(ctx.Path()),
 	})
@@ -58,14 +58,14 @@ func (ctx *Ctx) AddError(err error) {
 //
 
 func (ctx *Ctx) addErr(path []string, err string) {
-	ctx.errors = append(ctx.errors, ErrorWCtx{
+	ctx.errors = append(ctx.errors, ErrorWPath{
 		err:  errors.New(err),
 		path: copyPath(path),
 	})
 }
 
 func (ctx *Ctx) addErrf(path []string, err string, args ...interface{}) {
-	ctx.errors = append(ctx.errors, ErrorWCtx{
+	ctx.errors = append(ctx.errors, ErrorWPath{
 		err:  fmt.Errorf(err, args...),
 		path: copyPath(path),
 	})
@@ -308,11 +308,11 @@ func copyPath(p []string) []string {
 	return res
 }
 
-type ErrorWCtx struct {
+type ErrorWPath struct {
 	err  error
 	path []string
 }
 
-func (e ErrorWCtx) Error() string {
+func (e ErrorWPath) Error() string {
 	return e.err.Error()
 }
