@@ -62,7 +62,8 @@ func (s *Schema) getQLSchema() qlSchema {
 		},
 	}
 
-	res.SubscriptionType = nil // TODO: We currently don't support subscriptions
+	// TODO: We currently don't support subscriptions
+	res.SubscriptionType = nil
 
 	return res
 }

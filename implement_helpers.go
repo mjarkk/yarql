@@ -16,8 +16,6 @@ func GenerateResponse(data string, errors []error) string {
 			if i > 0 {
 				res += ","
 			}
-			// TODO support locations
-			// https://spec.graphql.org/June2018/#sec-Errors
 
 			ctx := ""
 			errWPath, isErrWPath := err.(ErrorWPath)
@@ -42,6 +40,8 @@ func (s *Schema) HandleRequest(
 	body []byte, // request body, can be nil if method == "GET"
 	contentType string, // body content type, can be an empty string if method == "GET"
 ) (string, []error) {
+	method = strings.ToUpper(method)
+
 	query := ""
 	variables := ""
 	operationName := ""
@@ -50,7 +50,7 @@ func (s *Schema) HandleRequest(
 		return "{}", []error{errors.New(errorMsg)}
 	}
 
-	if contentType == "application/json" {
+	if contentType == "application/json" || (contentType == "text/plain" && method != "GET") {
 		if len(body) == 0 {
 			return errRes("no body defined")
 		}
@@ -90,7 +90,7 @@ func (s *Schema) HandleRequest(
 		}
 	} else {
 		switch method {
-		case "get", "Get", "GET":
+		case "GET":
 			query = getQuery("query")
 			variables = getQuery("variables")
 			operationName = getQuery("operationName")

@@ -124,7 +124,7 @@ func (ctx *Ctx) resolveVariableFromJson(jsonValue *fastjson.Value, expectedValue
 		return nil
 	}
 
-	// TODO support struct and ID values
+	// TODO support ID values
 
 	val.qlTypeName = &expectedValueType.name
 	var err error
@@ -206,7 +206,7 @@ func (ctx *Ctx) resolveVariableFromDefault(defaultValue value, expectedValueType
 		return nil
 	}
 
-	// TODO support struct and ID values
+	// TODO support ID values
 
 	val.qlTypeName = &expectedValueType.name
 	switch expectedValueType.name {

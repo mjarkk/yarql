@@ -297,7 +297,7 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAny
 			}
 		case reflect.Array:
 			if goFieldKind == reflect.Array {
-				// TODO
+				// TODO support this
 				return errors.New("fixed length arrays not supported")
 			} else if goFieldKind == reflect.Slice {
 				arr := reflect.MakeSlice(goField.Type(), len(queryValue.listValue), len(queryValue.listValue))

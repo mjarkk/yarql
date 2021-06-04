@@ -413,7 +413,8 @@ func (i *iter) parseString() (string, *ErrorWLocation) {
 
 				if c3 == '"' {
 					i.charNr++
-					// TODO: this is trim space is wrong, only the leading and trailing empty lines should be removed not all the space chars before the first char
+					// TODO: this trim space is wrong, only the leading and trailing empty lines should be removed not all the spaces chars before the first char
+					//       for more info see: https://spec.graphql.org/June2018/#BlockStringCharacter
 					return string(bytes.TrimSpace(res)), nil
 				}
 				res = append(res, '"')
