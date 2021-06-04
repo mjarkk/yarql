@@ -11,6 +11,8 @@ Just a different approach to making graphql servers in Go
 
 ## Example
 
+See the examples folder for more examples
+
 ```go
 package main
 
