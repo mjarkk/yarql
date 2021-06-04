@@ -18,7 +18,7 @@ func main() {
 	app.All("/graphql", func(c *fiber.Ctx) error {
 		body, errors := graphqlSchema.HandleRequest(
 			c.Method(),
-			func(key string) string { return c.Query("query") },
+			func(key string) string { return c.Query(key) },
 			c.Body(),
 			string(c.Request().Header.ContentType()),
 		)
