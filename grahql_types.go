@@ -71,7 +71,7 @@ var _ = TypeRename(QLType{}, "__Type")
 
 type QLType struct {
 	Kind     __TypeKind `json:"-"`
-	JSONKind string     `json:"kind" gqlignore:"true"`
+	JSONKind string     `json:"kind" gqIgnore:"true"`
 
 	Name        *string `json:"name"`
 	Description *string `json:"description"`
@@ -79,7 +79,7 @@ type QLType struct {
 	// OBJECT and INTERFACE only
 	Fields func(IsDeprecatedArgs) []QLField `json:"-"`
 	// For testing perposes mainly
-	JSONFields []QLField `json:"fields" gqlignore:"true"`
+	JSONFields []QLField `json:"fields" gqIgnore:"true"`
 
 	// OBJECT only
 	Interfaces []QLType `json:"interfaces"`
@@ -93,7 +93,7 @@ type QLType struct {
 	// INPUT_OBJECT only
 	InputFields func() []QLInputValue `json:"-"`
 	// For testing perposes mainly
-	JSONInputFields []QLField `json:"inputFields" gqlignore:"true"`
+	JSONInputFields []QLField `json:"inputFields" gqIgnore:"true"`
 
 	// NON_NULL and LIST only
 	OfType *QLType `json:"ofType"`
@@ -178,7 +178,7 @@ type QLDirective struct {
 	Name          string                `json:"name"`
 	Description   *string               `json:"description"`
 	Locations     []__DirectiveLocation `json:"-"`
-	JSONLocations []string              `json:"locations" gqlignore:"true"`
+	JSONLocations []string              `json:"locations" gqIgnore:"true"`
 	Args          []QLInputValue        `json:"args"`
 }
 
