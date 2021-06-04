@@ -160,7 +160,7 @@ func TestExecSimpleQuery(t *testing.T) {
 	False(t, ok)
 }
 
-func TestGenerateResponse(t *testing.T) {
+func TestExecGenerateResponse(t *testing.T) {
 	out, errs := parseAndTest(t, `{
 		a
 		b
