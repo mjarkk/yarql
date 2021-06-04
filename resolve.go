@@ -7,23 +7,6 @@ import (
 	"strings"
 )
 
-func GenerateResponse(data string, errors []error) string {
-	res := `{"data":` + data
-	if len(errors) > 0 {
-		res += `"errors":[`
-		for i, err := range errors {
-			if i > 0 {
-				res += ","
-			}
-			// TODO support locations and path
-			// https://spec.graphql.org/June2018/#sec-Errors
-			res += fmt.Sprintf(`{"message":%q}`, err.Error())
-		}
-		res += "]"
-	}
-	return res + "}"
-}
-
 type ResolveOptions struct {
 	OperatorTarget string
 	Variables      string // Expects JSON or empty string
