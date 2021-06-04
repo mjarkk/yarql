@@ -1,7 +1,6 @@
 package graphql
 
 import (
-	"errors"
 	"fmt"
 )
 
@@ -53,10 +52,6 @@ func ParseQueryAndCheckNames(input string) (fragments, operatorsMap map[string]O
 
 			operatorsMap[item.name] = *item
 		}
-	}
-
-	if len(operatorsMap) == 0 {
-		resErrors = append(resErrors, errors.New("no operator defined in query"))
 	}
 
 	return

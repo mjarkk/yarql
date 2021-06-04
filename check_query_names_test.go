@@ -26,7 +26,7 @@ func TestParseQueryAndCheckNamesWithFragment(t *testing.T) {
 			friends {
 				name
 			}
-		} 
+		}
 	`)
 	Equal(t, 0, len(errs))
 	Equal(t, 1, len(operators))
@@ -73,17 +73,11 @@ func TestParseQueryAndCheckNamesReportErrors(t *testing.T) {
 	Equal(t, 0, len(operators))
 	Equal(t, 0, len(fragments))
 
-	// No operator defined in query
-	fragments, operators, errs = ParseQueryAndCheckNames(``)
-	Equal(t, 1, len(errs))
-	Equal(t, 0, len(operators))
-	Equal(t, 0, len(fragments))
-
 	// Multiple items with same name
 	fragments, operators, errs = ParseQueryAndCheckNames(`
 		query foo {}
 		query foo {}
-		
+
 		mutation bar {}
 		subscription bar {}
 
