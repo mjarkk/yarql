@@ -64,6 +64,111 @@ func main() {
 }
 ```
 
+## Docs
+
+### Defining a field
+
+All fields names are by default changed to graphql names, for example `VeryNice` changes to `veryNice`. There is one exception to the rule when the second letter is also upper case like `FOO` will stay `FOO`
+
+In a struct:
+
+```go
+struct {
+	A string
+}
+```
+
+A resolver function inside the a struct:
+
+```go
+struct {
+	A func() string
+}
+```
+
+A resolver attached to the struct.
+
+Name Must start with `Resolver` then at least one uppercase letter
+
+```go
+type A struct {}
+func (A) ResolveA() string {return "Ahh yea"}
+```
+
+### Supported input and output value types
+
+These go data kinds should be globally accepted:
+
+- bool
+- int, int(8 | 16 | 32 | 64)
+- uint, uint(8 | 16 | 32 | 64)
+- float(32 | 64)
+- array
+- ptr
+- string
+- struct
+
+### ignore fields
+
+```go
+struct {
+	// internal fields are ignored
+	bar string
+
+	// ignore public fields
+	Bar string `gqIgnore:"true"`
+}
+```
+
+### custom field name
+
+```go
+struct {
+	// Change the graphql field name to "bar"
+	Foo string `gqName:"bar"`
+}
+```
+
+### Methods and field arguments
+
+Add a struct to the arguments of a resolver or func field to define arguments
+
+```go
+func (A) ResolveUserID(args struct{ Id int }) int {
+	return args.Id
+}
+```
+
+### Resolver error response
+
+You can add an error response argument to send back potential errors.
+
+These errors will appear in the errors array of the response.
+
+```go
+func (A) ResolveMe() (*User, error) {
+	me, err := fetchMe()
+	return me, err
+}
+```
+
+### Context
+
+You can add `*graphql.Ctx` to every resolver of func field to get more information about the request or user set properties
+
+```go
+func (A) ResolveMe(ctx *graphql.Ctx) User {
+	return ctx.Values["me"].(User)
+}
+```
+
+### Optional fields
+
+All types that might be `nil` will be optional fields, by default these fields are:
+
+- Pointers
+- Arrays
+
 ## Alternatives
 
 - [graph-gophers/graphql-go](https://github.com/graph-gophers/graphql-go)
