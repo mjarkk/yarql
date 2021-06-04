@@ -126,3 +126,29 @@ func TestResolveEnumVariable(t *testing.T) {
 	}
 	Equal(t, `{"bar":"UNION"}`, out)
 }
+
+type TestResolveStructVariableData struct {
+	A string
+	B int
+}
+
+func (TestResolveStructVariableData) ResolveBar(c *Ctx, args struct{ A TestResolveStructVariableData }) TestResolveStructVariableData {
+	return args.A
+}
+
+func TestResolveStructVariable(t *testing.T) {
+	// Normal variables
+	variables := `{"baz": {"a": "foo", "b": 3}}`
+	out, errs := parseAndTestWithOptions(t, `query($baz: TestResolveStructVariableData) {bar(a: $baz) {a b}}`, TestResolveStructVariableData{}, M{}, 255, "", variables)
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"bar":{"a":"foo","b":3}}`, out)
+
+	// Default variable
+	out, errs = parseAndTestWithOptions(t, `query($baz: TestResolveStructVariableData = {a: "foo", b: 3}) {bar(a: $baz) {a b}}`, TestResolveStructVariableData{}, M{}, 255, "", "")
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"bar":{"a":"foo","b":3}}`, out)
+}

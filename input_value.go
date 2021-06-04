@@ -13,6 +13,7 @@ type Value struct {
 
 	// depending on this field the below is filled in
 	// Supported: Int, Float64, String, Bool, Array, Map
+	// Maybe we should rename Map to Struct everywhere
 	valType reflect.Kind
 
 	variable     string
@@ -23,6 +24,10 @@ type Value struct {
 	enumValue    string
 	listValue    []Value
 	objectValue  Arguments
+
+	// Set this value if the value might be used on multiple places and the graphql typename is known
+	// When using this struct to set data and this field is defined you should check it
+	qlTypeName *string
 }
 
 func (v *Value) SetToValueOfAndExpect(other Value, expect reflect.Kind) error {

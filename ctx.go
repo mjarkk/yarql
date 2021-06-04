@@ -108,6 +108,7 @@ func (ctx *Ctx) resolveVariableFromJson(jsonValue *fastjson.Value, expectedValue
 
 	// TODO support struct and ID values
 
+	value.qlTypeName = &expectedValueType.name
 	var err error
 	switch expectedValueType.name {
 	case "Boolean":
@@ -143,10 +144,32 @@ func (ctx *Ctx) resolveVariableFromJson(jsonValue *fastjson.Value, expectedValue
 		return nil
 	}
 
+	_, ok = ctx.schema.inTypes[expectedValueType.name]
+	if ok {
+		jsonObject, err := jsonValue.Object()
+		if err != nil {
+			return errors.New("exected default value to be of kind object")
+		}
+
+		objectContent := Arguments{}
+		jsonObject.Visit(func(key []byte, v *fastjson.Value) {
+			if v != nil {
+				keyStr := string(key)
+				objectContent[keyStr] = jsonValueToValue(v)
+			}
+		})
+
+		value.valType = reflect.Map
+		value.objectValue = objectContent
+		return nil
+	}
+
 	return errors.New("Unknown input type " + expectedValueType.name)
 }
 
 func (ctx *Ctx) resolveVariableFromDefault(defaultValue Value, expectedValueType *TypeReference, value *Value) error {
+	// TODO: CRITICAL BUG: You can create a invite loop by refering to a variable from withinn the default data
+
 	if expectedValueType.list {
 		if defaultValue.valType != reflect.Array {
 			return errors.New("exected list")
@@ -167,6 +190,7 @@ func (ctx *Ctx) resolveVariableFromDefault(defaultValue Value, expectedValueType
 
 	// TODO support struct and ID values
 
+	value.qlTypeName = &expectedValueType.name
 	switch expectedValueType.name {
 	case "Boolean":
 		return value.SetToValueOfAndExpect(defaultValue, reflect.Bool)
@@ -185,6 +209,16 @@ func (ctx *Ctx) resolveVariableFromDefault(defaultValue Value, expectedValueType
 		}
 		value.isEnum = true
 		value.enumValue = defaultValue.enumValue
+		return nil
+	}
+
+	_, ok = ctx.schema.inTypes[expectedValueType.name]
+	if ok {
+		if defaultValue.valType != reflect.Map {
+			return errors.New("exected default value to be of kind object")
+		}
+		value.valType = reflect.Map
+		value.objectValue = defaultValue.objectValue
 		return nil
 	}
 
@@ -211,4 +245,38 @@ func (ctx *Ctx) getJSONVariables() (*fastjson.Value, error) {
 
 	ctx.jsonVariables = v
 	return ctx.jsonVariables, nil
+}
+
+func jsonValueToValue(jsonValue *fastjson.Value) Value {
+	switch jsonValue.Type() {
+	case fastjson.TypeNull:
+		return makeNullValue()
+	case fastjson.TypeObject:
+		objectContent := Arguments{}
+		jsonValue.GetObject().Visit(func(key []byte, v *fastjson.Value) {
+			keyStr := string(key)
+			objectContent[keyStr] = jsonValueToValue(v)
+		})
+		return makeStructValue(objectContent)
+	case fastjson.TypeArray:
+		list := []Value{}
+		for _, item := range jsonValue.GetArray() {
+			if item == nil {
+				continue
+			}
+			list = append(list, jsonValueToValue(item))
+		}
+		return makeArrayValue(list)
+	case fastjson.TypeString:
+		return makeStringValue(string(jsonValue.GetStringBytes()))
+	case fastjson.TypeNumber:
+		intVal, err := jsonValue.Int()
+		if err != nil {
+			return makeFloatValue(jsonValue.GetFloat64())
+		}
+		return makeIntValue(intVal)
+	case fastjson.TypeTrue, fastjson.TypeFalse:
+		return makeBooleanValue(jsonValue.GetBool())
+	}
+	return makeNullValue()
 }

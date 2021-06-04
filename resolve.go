@@ -258,6 +258,10 @@ func (ctx *Ctx) matchInputValue(queryValue *Value, goField *reflect.Value, goAny
 			return mismatchError()
 		}
 
+		if queryValue.qlTypeName != nil && *queryValue.qlTypeName != goAnylizedData.enumTypeName {
+			return fmt.Errorf("expected type %s but got %s", goAnylizedData.enumTypeName, *queryValue.qlTypeName)
+		}
+
 		enum := definedEnums[goAnylizedData.enumTypeName]
 		value, ok := enum.keyValue[queryValue.enumValue]
 		if !ok {
@@ -274,7 +278,6 @@ func (ctx *Ctx) matchInputValue(queryValue *Value, goField *reflect.Value, goAny
 		default:
 			return errors.New("internal error, type missmatch on enum")
 		}
-
 	} else {
 		switch queryValue.valType {
 		case reflect.Int:
@@ -327,25 +330,29 @@ func (ctx *Ctx) matchInputValue(queryValue *Value, goField *reflect.Value, goAny
 				return mismatchError()
 			}
 		case reflect.Map:
-			if goFieldKind == reflect.Struct {
-				if goAnylizedData.isStructPointers {
-					goAnylizedData = ctx.schema.inTypes[goAnylizedData.structName]
-				}
-
-				for queryKey, arg := range queryValue.objectValue {
-					structItemMeta, ok := goAnylizedData.structContent[queryKey]
-					if !ok {
-						return fmt.Errorf("undefined property %s", queryKey)
-					}
-
-					field := goField.FieldByName(structItemMeta.goFieldName)
-					err := ctx.matchInputValue(&arg, &field, &structItemMeta)
-					if err != nil {
-						return fmt.Errorf("%s, property: %s", err.Error(), queryKey)
-					}
-				}
-			} else {
+			if goFieldKind != reflect.Struct {
 				return mismatchError()
+			}
+
+			if queryValue.qlTypeName != nil && *queryValue.qlTypeName != goAnylizedData.structName {
+				return fmt.Errorf("expected type %s but got %s", goAnylizedData.structName, *queryValue.qlTypeName)
+			}
+
+			if goAnylizedData.isStructPointers {
+				goAnylizedData = ctx.schema.inTypes[goAnylizedData.structName]
+			}
+
+			for queryKey, arg := range queryValue.objectValue {
+				structItemMeta, ok := goAnylizedData.structContent[queryKey]
+				if !ok {
+					return fmt.Errorf("undefined property %s", queryKey)
+				}
+
+				field := goField.FieldByName(structItemMeta.goFieldName)
+				err := ctx.matchInputValue(&arg, &field, &structItemMeta)
+				if err != nil {
+					return fmt.Errorf("%s, property: %s", err.Error(), queryKey)
+				}
 			}
 		default:
 			return errors.New("undefined function input type")

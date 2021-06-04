@@ -111,9 +111,6 @@ func (s *Schema) getTypeByName(name string, includeInputTypes, includeOutputType
 	}
 	if includeInputTypes {
 		inType, ok := s.inTypes[name]
-		if !ok {
-			inType, ok = s.inTypes[name+"Input"]
-		}
 		if ok {
 			obj, _ := s.inputToQLType(inType)
 			return obj
@@ -137,15 +134,9 @@ func (s *Schema) inputToQLType(in *Input) (res *QLType, isNonNull bool) {
 	case reflect.Struct:
 		isNonNull = true
 
-		name := in.structName
-		_, ok := s.types[name]
-		if ok {
-			name += "Input"
-		}
-
 		res = &QLType{
 			Kind:        TypeKindInputObject,
-			Name:        h.StrPtr(name),
+			Name:        h.StrPtr(in.structName),
 			Description: h.StrPtr(""),
 			InputFields: func() []QLInputValue {
 				res := []QLInputValue{}
