@@ -3,6 +3,7 @@ package graphql
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/valyala/fastjson"
 )
@@ -15,9 +16,18 @@ func GenerateResponse(data string, errors []error) string {
 			if i > 0 {
 				res += ","
 			}
-			// TODO support locations and path
+			// TODO support locations
 			// https://spec.graphql.org/June2018/#sec-Errors
-			res += fmt.Sprintf(`{"message":%q}`, err.Error())
+
+			ctx := ""
+			errWCtx, isErrWCtx := err.(ErrorWCtx)
+			if isErrWCtx {
+				if len(errWCtx.path) > 0 {
+					ctx = fmt.Sprintf(`,"path":[%s]`, strings.Join(errWCtx.path, ","))
+				}
+			}
+
+			res += fmt.Sprintf(`{"message":%q%s}`, err.Error(), ctx)
 		}
 		res += "]"
 	}

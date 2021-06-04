@@ -19,11 +19,20 @@ type Ctx struct {
 	operator            *Operator              // Part of query to execute
 	jsonVariablesString string                 // Raw query variables
 	jsonVariables       *fastjson.Value        // Parsed query variables
+	path                *[]string              // Property ment to be used within custom resolvers and field methods (value also only set when executing one of those)
 }
 
 //
 // External
 //
+
+// Path to the current method, path elements are encoded in json format
+func (ctx *Ctx) Path() []string {
+	if ctx.path != nil {
+		return *ctx.path
+	}
+	return nil
+}
 
 // HasErrors checks if the query has errors till this current point of execution
 // Note that due to maps beeing read randomly this might be diffrent when executing a equal query
@@ -38,19 +47,28 @@ func (ctx *Ctx) Errors() []error {
 
 // AddError add an error to the query
 func (ctx *Ctx) AddError(err error) {
-	ctx.errors = append(ctx.errors, err)
+	ctx.errors = append(ctx.errors, ErrorWCtx{
+		err:  err,
+		path: copyPath(ctx.Path()),
+	})
 }
 
 //
 // Internal
 //
 
-func (ctx *Ctx) addErr(err string) {
-	ctx.errors = append(ctx.errors, errors.New(err))
+func (ctx *Ctx) addErr(path []string, err string) {
+	ctx.errors = append(ctx.errors, ErrorWCtx{
+		err:  errors.New(err),
+		path: copyPath(path),
+	})
 }
 
-func (ctx *Ctx) addErrf(err string, args ...interface{}) {
-	ctx.errors = append(ctx.errors, fmt.Errorf(err, args...))
+func (ctx *Ctx) addErrf(path []string, err string, args ...interface{}) {
+	ctx.errors = append(ctx.errors, ErrorWCtx{
+		err:  fmt.Errorf(err, args...),
+		path: copyPath(path),
+	})
 }
 
 // getVariable tries to resolve a variable and places it inside the value argument
@@ -279,4 +297,22 @@ func jsonValueToValue(jsonValue *fastjson.Value) Value {
 		return makeBooleanValue(jsonValue.GetBool())
 	}
 	return makeNullValue()
+}
+
+func copyPath(p []string) []string {
+	if p == nil {
+		return nil
+	}
+	res := make([]string, len(p))
+	copy(res, p)
+	return res
+}
+
+type ErrorWCtx struct {
+	err  error
+	path []string
+}
+
+func (e ErrorWCtx) Error() string {
+	return e.err.Error()
 }

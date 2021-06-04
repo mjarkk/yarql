@@ -64,35 +64,35 @@ func (ctx *Ctx) start() string {
 
 	switch ctx.operator.operationType {
 	case "query":
-		return ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootQueryValue, ctx.schema.rootQuery, 0)
+		return ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootQueryValue, ctx.schema.rootQuery, 0, []string{})
 	case "mutation":
-		return ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootQueryValue, ctx.schema.rootMethod, 0)
+		return ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootQueryValue, ctx.schema.rootMethod, 0, []string{})
 	case "subscription":
 		// TODO
-		ctx.addErr("subscription not suppored yet")
+		ctx.addErr(nil, "subscription not suppored yet")
 		return "{}"
 	default:
-		ctx.addErrf("%s cannot be used as operator", ctx.operator.operationType)
+		ctx.addErrf(nil, "%s cannot be used as operator", ctx.operator.operationType)
 		return "{}"
 	}
 }
 
-func (ctx *Ctx) resolveSelection(selectionSet SelectionSet, struct_ reflect.Value, structType *Obj, dept uint8) string {
+func (ctx *Ctx) resolveSelection(selectionSet SelectionSet, struct_ reflect.Value, structType *Obj, dept uint8, path []string) string {
 	if dept >= ctx.schema.MaxDepth {
-		ctx.addErr("reached max dept")
+		ctx.addErr(path, "reached max dept")
 		return "null"
 	}
 	dept = dept + 1
-	return "{" + ctx.resolveSelectionContent(selectionSet, struct_, structType, dept) + "}"
+	return "{" + ctx.resolveSelectionContent(selectionSet, struct_, structType, dept, path) + "}"
 }
 
-func (ctx *Ctx) resolveSelectionContent(selectionSet SelectionSet, struct_ reflect.Value, structType *Obj, dept uint8) string {
+func (ctx *Ctx) resolveSelectionContent(selectionSet SelectionSet, struct_ reflect.Value, structType *Obj, dept uint8, path []string) string {
 	res := ""
 	writtenToRes := false
 	for _, selection := range selectionSet {
 		switch selection.selectionType {
 		case "Field":
-			value, hasError := ctx.resolveField(selection.field, struct_, structType, dept)
+			value, hasError := ctx.resolveField(selection.field, struct_, structType, dept, path)
 			if !hasError {
 				if writtenToRes {
 					res += ","
@@ -104,11 +104,11 @@ func (ctx *Ctx) resolveSelectionContent(selectionSet SelectionSet, struct_ refle
 		case "FragmentSpread":
 			operator, ok := ctx.fragments[selection.fragmentSpread.name]
 			if !ok {
-				ctx.addErrf("unknown fragment %s", selection.fragmentSpread.name)
+				ctx.addErrf(path, "unknown fragment %s", selection.fragmentSpread.name)
 				continue
 			}
 
-			value := ctx.resolveSelectionContent(operator.fragment.selection, struct_, structType, dept)
+			value := ctx.resolveSelectionContent(operator.fragment.selection, struct_, structType, dept, path)
 			if len(value) > 0 {
 				if writtenToRes {
 					res += ","
@@ -118,7 +118,7 @@ func (ctx *Ctx) resolveSelectionContent(selectionSet SelectionSet, struct_ refle
 				res += value
 			}
 		case "InlineFragment":
-			value := ctx.resolveSelectionContent(selection.inlineFragment.selection, struct_, structType, dept)
+			value := ctx.resolveSelectionContent(selection.inlineFragment.selection, struct_, structType, dept, path)
 			if len(value) > 0 {
 				if writtenToRes {
 					res += ","
@@ -132,12 +132,14 @@ func (ctx *Ctx) resolveSelectionContent(selectionSet SelectionSet, struct_ refle
 	return res
 }
 
-func (ctx *Ctx) resolveField(query *Field, struct_ reflect.Value, codeStructure *Obj, dept uint8) (fieldValue string, returnedOnError bool) {
+func (ctx *Ctx) resolveField(query *Field, struct_ reflect.Value, codeStructure *Obj, dept uint8, path []string) (fieldValue string, returnedOnError bool) {
+	name := query.name
+	if len(query.alias) > 0 {
+		name = query.alias
+	}
+	jsonName := fmt.Sprintf("%q", name)
+
 	res := func(data string) string {
-		name := query.name
-		if len(query.alias) > 0 {
-			name = query.alias
-		}
 		return fmt.Sprintf(`"%s":%s`, name, data)
 	}
 
@@ -148,7 +150,7 @@ func (ctx *Ctx) resolveField(query *Field, struct_ reflect.Value, codeStructure 
 	structItem, ok := codeStructure.objContents[query.name]
 	var value reflect.Value
 	if !ok {
-		ctx.addErrf("field %s does not exists on %s", query.name, codeStructure.typeName)
+		ctx.addErrf(append(path, jsonName), "%s does not exists on %s", query.name, codeStructure.typeName)
 		return res("null"), true
 	}
 
@@ -160,7 +162,7 @@ func (ctx *Ctx) resolveField(query *Field, struct_ reflect.Value, codeStructure 
 		value = struct_.FieldByName(structItem.structFieldName)
 	}
 
-	fieldValue, returnedOnError = ctx.resolveFieldDataValue(query, value, structItem, dept)
+	fieldValue, returnedOnError = ctx.resolveFieldDataValue(query, value, structItem, dept, append(path, jsonName))
 	return res(fieldValue), returnedOnError
 }
 
@@ -221,7 +223,7 @@ func (ctx *Ctx) matchInputValue(queryValue *Value, goField *reflect.Value, goAny
 		for t.Kind() == reflect.Ptr {
 			t = t.Elem()
 		}
-		return fmt.Errorf("function arguments type missmatch expected %s", m[t.Kind()])
+		return fmt.Errorf("arguments type missmatch expected %s", m[t.Kind()])
 	}
 
 	if queryValue.isVar {
@@ -345,7 +347,7 @@ func (ctx *Ctx) matchInputValue(queryValue *Value, goField *reflect.Value, goAny
 	return nil
 }
 
-func (ctx *Ctx) resolveFieldDataValue(query *Field, value reflect.Value, codeStructure *Obj, dept uint8) (fieldValue string, returnedOnError bool) {
+func (ctx *Ctx) resolveFieldDataValue(query *Field, value reflect.Value, codeStructure *Obj, dept uint8, path []string) (fieldValue string, returnedOnError bool) {
 	switch codeStructure.valueType {
 	case valueTypeMethod:
 		if value.IsNil() {
@@ -357,6 +359,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *Field, value reflect.Value, codeStr
 		inputs := []reflect.Value{}
 		for _, in := range method.ins {
 			if in.isCtx {
+				ctx.path = &path
 				inputs = append(inputs, reflect.ValueOf(ctx))
 			} else {
 				inputs = append(inputs, reflect.New(*in.type_).Elem())
@@ -366,14 +369,14 @@ func (ctx *Ctx) resolveFieldDataValue(query *Field, value reflect.Value, codeStr
 		for queryKey, queryValue := range query.arguments {
 			inField, ok := method.inFields[queryKey]
 			if !ok {
-				ctx.addErrf("undefined function %s input: %s", query.name, queryKey)
+				ctx.addErrf(path, "undefined input: %s", queryKey)
 				continue
 			}
 			goField := inputs[inField.inputIdx].FieldByName(inField.input.goFieldName)
 
 			err := ctx.matchInputValue(&queryValue, &goField, &inField.input)
 			if err != nil {
-				ctx.addErrf("%s, function: %s, property: %s", err.Error(), query.name, queryKey)
+				ctx.addErrf(path, "%s, property: %s", err.Error(), queryKey)
 				return "null", true
 			}
 		}
@@ -385,35 +388,35 @@ func (ctx *Ctx) resolveFieldDataValue(query *Field, value reflect.Value, codeStr
 			if !errOut.IsNil() {
 				err, ok := errOut.Interface().(error)
 				if !ok {
-					ctx.addErrf("field %s returned a invalid kind of error", query.name)
+					ctx.addErr(path, "returned a invalid kind of error")
 					return "null", true
 				} else if err != nil {
-					ctx.addErr(err.Error())
+					ctx.addErr(path, err.Error())
 				}
 			}
 		}
 
-		return ctx.resolveFieldDataValue(query, outs[method.outNr], &method.outType, dept)
+		return ctx.resolveFieldDataValue(query, outs[method.outNr], &method.outType, dept, path)
 	case valueTypeArray:
 		if (value.Kind() != reflect.Array && value.Kind() != reflect.Slice) || value.IsNil() {
 			return "null", false
 		}
 
 		if codeStructure.innerContent == nil {
-			ctx.addErrf("field %s does not have an internal type of an array", query.name)
+			ctx.addErr(path, "does not have an internal type of an array")
 			return "null", true
 		}
 		codeStructure = codeStructure.innerContent
 
 		list := []string{}
 		for i := 0; i < value.Len(); i++ {
-			res, _ := ctx.resolveFieldDataValue(query, value.Index(i), codeStructure, dept)
+			res, _ := ctx.resolveFieldDataValue(query, value.Index(i), codeStructure, dept, append(path, fmt.Sprintf("%d", i)))
 			list = append(list, res)
 		}
 		return fmt.Sprintf("[%s]", strings.Join(list, ",")), false
 	case valueTypeObj, valueTypeObjRef:
 		if len(query.selection) == 0 {
-			ctx.addErrf("field %s must have a selection", query.name)
+			ctx.addErr(path, "must have a selection")
 			return "null", true
 		}
 
@@ -421,16 +424,16 @@ func (ctx *Ctx) resolveFieldDataValue(query *Field, value reflect.Value, codeStr
 		if codeStructure.valueType == valueTypeObjRef {
 			codeStructure, ok = ctx.schema.types[codeStructure.typeName]
 			if !ok {
-				ctx.addErrf("field %s cannot have a selection", query.name)
+				ctx.addErr(path, "cannot have a selection")
 				return "null", true
 			}
 		}
 
-		val := ctx.resolveSelection(query.selection, value, codeStructure, dept)
+		val := ctx.resolveSelection(query.selection, value, codeStructure, dept, path)
 		return val, false
 	case valueTypeData:
 		if len(query.selection) > 0 {
-			ctx.addErrf("field %s cannot have a selection", query.name)
+			ctx.addErr(path, "cannot have a selection")
 			return "null", true
 		}
 		val, _ := valueToJson(value.Interface())
@@ -440,7 +443,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *Field, value reflect.Value, codeStr
 			return "null", false
 		}
 
-		return ctx.resolveFieldDataValue(query, value.Elem(), codeStructure.innerContent, dept)
+		return ctx.resolveFieldDataValue(query, value.Elem(), codeStructure.innerContent, dept, path)
 	case valueTypeEnum:
 		enum := definedEnums[codeStructure.enumTypeName]
 
@@ -450,7 +453,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *Field, value reflect.Value, codeStr
 		}
 		return `"` + key.Interface().(string) + `"`, false
 	default:
-		ctx.addErrf("field %s has invalid data type", query.name)
+		ctx.addErr(path, "has invalid data type")
 		return "null", true
 	}
 }
