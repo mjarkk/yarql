@@ -7,6 +7,7 @@ Just a different approach to making graphql servers in Go
 - Easy to use and not much code required
 - Build on top of the graphql spec 2018
 - No code generators
+- Schema is generated so no duplicated code
 - Only 1 dependency
 
 ## Example
