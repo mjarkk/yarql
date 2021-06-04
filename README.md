@@ -9,10 +9,11 @@ Just a different approach to making graphql servers in Go
 - No code generators
 - Schema is generated so no duplicated code
 - Only 1 dependency
+- Easy to implement, see the [gin](https://github.com/mjarkk/go-graphql/blob/main/examples/gin/main.go) and [viber](https://github.com/mjarkk/go-graphql/blob/main/examples/viber/main.go) examples
 
 ## Example
 
-See the examples folder for more examples
+See the [/examples](https://github.com/mjarkk/go-graphql/tree/main/examples) folder for more examples
 
 ```go
 package main
