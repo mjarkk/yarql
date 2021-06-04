@@ -80,7 +80,7 @@ type Arguments map[string]Value
 
 func ParseQuery(input string) ([]*Operator, *ErrorWLocation) {
 	res := []*Operator{}
-	iter := &Iter{
+	iter := &iter{
 		data: input,
 	}
 
@@ -96,7 +96,7 @@ func ParseQuery(input string) ([]*Operator, *ErrorWLocation) {
 	}
 }
 
-type Iter struct {
+type iter struct {
 	data   string
 	charNr uint64
 }
@@ -111,7 +111,7 @@ func (e ErrorWLocation) Error() string {
 	return e.err.Error()
 }
 
-func (i *Iter) err(err string) *ErrorWLocation {
+func (i *iter) err(err string) *ErrorWLocation {
 	line := uint(1)
 	column := uint(0)
 	for idx, char := range i.data {
@@ -142,33 +142,33 @@ func (i *Iter) err(err string) *ErrorWLocation {
 	}
 }
 
-func (i *Iter) unexpectedEOF() *ErrorWLocation {
+func (i *iter) unexpectedEOF() *ErrorWLocation {
 	return i.err(ErrorUnexpectedEOF.Error())
 }
 
-func (i *Iter) checkC(nr uint64) (res rune, end bool) {
+func (i *iter) checkC(nr uint64) (res rune, end bool) {
 	if i.eof(nr) {
 		return 0, true
 	}
 	return i.c(nr), false
 }
 
-func (i *Iter) c(nr uint64) rune {
+func (i *iter) c(nr uint64) rune {
 	return rune(i.data[nr])
 }
 
-func (i *Iter) eof(nr uint64) bool {
+func (i *iter) eof(nr uint64) bool {
 	return nr >= uint64(len(i.data))
 }
 
-func (i *Iter) currentC() rune {
+func (i *iter) currentC() rune {
 	return i.c(i.charNr)
 }
 
 // Parses one of the following:
 // - https://spec.graphql.org/June2018/#sec-Language.Operations
 // - https://spec.graphql.org/June2018/#FragmentDefinition
-func (i *Iter) parseOperatorOrFragment() (*Operator, *ErrorWLocation) {
+func (i *iter) parseOperatorOrFragment() (*Operator, *ErrorWLocation) {
 	res := Operator{
 		operationType:       "query",
 		name:                "",
@@ -262,7 +262,7 @@ func (i *Iter) parseOperatorOrFragment() (*Operator, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#VariableDefinitions
-func (i *Iter) parseVariableDefinitions() (VariableDefinitions, *ErrorWLocation) {
+func (i *iter) parseVariableDefinitions() (VariableDefinitions, *ErrorWLocation) {
 	res := VariableDefinitions{}
 	for {
 		c, err := i.mightIgnoreNextTokens()
@@ -285,7 +285,7 @@ func (i *Iter) parseVariableDefinitions() (VariableDefinitions, *ErrorWLocation)
 }
 
 // https://spec.graphql.org/June2018/#VariableDefinition
-func (i *Iter) parseVariableDefinition() (VariableDefinition, *ErrorWLocation) {
+func (i *iter) parseVariableDefinition() (VariableDefinition, *ErrorWLocation) {
 	res := VariableDefinition{}
 
 	// Parse var name
@@ -344,7 +344,7 @@ func (i *Iter) parseVariableDefinition() (VariableDefinition, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#Value
-func (i *Iter) parseValue() (Value, *ErrorWLocation) {
+func (i *iter) parseValue() (Value, *ErrorWLocation) {
 	switch i.currentC() {
 	case '$':
 		i.charNr++
@@ -381,7 +381,7 @@ func (i *Iter) parseValue() (Value, *ErrorWLocation) {
 	}
 }
 
-func (i *Iter) parseString() (string, *ErrorWLocation) {
+func (i *iter) parseString() (string, *ErrorWLocation) {
 	res := []byte{}
 	isBlock := false
 	if i.matches(`"""`) == `"""` {
@@ -504,7 +504,7 @@ func (i *Iter) parseString() (string, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#ListValue
-func (i *Iter) parseListValue() ([]Value, *ErrorWLocation) {
+func (i *iter) parseListValue() ([]Value, *ErrorWLocation) {
 	res := []Value{}
 
 	firstLoop := true
@@ -543,7 +543,7 @@ func (i *Iter) parseListValue() ([]Value, *ErrorWLocation) {
 // Returns FloatValue or IntValue
 // https://spec.graphql.org/June2018/#FloatValue
 // https://spec.graphql.org/June2018/#IntValue
-func (i *Iter) parseNumberValue() (Value, *ErrorWLocation) {
+func (i *iter) parseNumberValue() (Value, *ErrorWLocation) {
 	toMap := func(list string) map[rune]bool {
 		res := map[rune]bool{}
 		for _, char := range list {
@@ -709,7 +709,7 @@ func (i *Iter) parseNumberValue() (Value, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#Type
-func (i *Iter) parseType() (*TypeReference, *ErrorWLocation) {
+func (i *iter) parseType() (*TypeReference, *ErrorWLocation) {
 	res := TypeReference{}
 
 	if i.currentC() == '[' {
@@ -757,7 +757,7 @@ func (i *Iter) parseType() (*TypeReference, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#Variable
-func (i *Iter) parseVariable(alreadyParsedIdentifier bool) (string, *ErrorWLocation) {
+func (i *iter) parseVariable(alreadyParsedIdentifier bool) (string, *ErrorWLocation) {
 	if !alreadyParsedIdentifier {
 		i.mightIgnoreNextTokens()
 		if i.currentC() != '$' {
@@ -781,7 +781,7 @@ func (i *Iter) parseVariable(alreadyParsedIdentifier bool) (string, *ErrorWLocat
 }
 
 // https://spec.graphql.org/June2018/#sec-Selection-Sets
-func (i *Iter) parseSelectionSets() (SelectionSet, *ErrorWLocation) {
+func (i *iter) parseSelectionSets() (SelectionSet, *ErrorWLocation) {
 	res := SelectionSet{}
 
 	for {
@@ -817,7 +817,7 @@ func (i *Iter) parseSelectionSets() (SelectionSet, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#Selection
-func (i *Iter) parseSelection() (Selection, *ErrorWLocation) {
+func (i *iter) parseSelection() (Selection, *ErrorWLocation) {
 	res := Selection{}
 
 	if len(i.matches("...")) > 0 {
@@ -859,7 +859,7 @@ func (i *Iter) parseSelection() (Selection, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#InlineFragment
-func (i *Iter) parseInlineFragment(hasTypeCondition bool) (*InlineFragment, *ErrorWLocation) {
+func (i *iter) parseInlineFragment(hasTypeCondition bool) (*InlineFragment, *ErrorWLocation) {
 	res := InlineFragment{}
 	if hasTypeCondition {
 		_, err := i.mightIgnoreNextTokens()
@@ -903,7 +903,7 @@ func (i *Iter) parseInlineFragment(hasTypeCondition bool) (*InlineFragment, *Err
 }
 
 // https://spec.graphql.org/June2018/#FragmentSpread
-func (i *Iter) parseFragmentSpread(name string) (*FragmentSpread, *ErrorWLocation) {
+func (i *iter) parseFragmentSpread(name string) (*FragmentSpread, *ErrorWLocation) {
 	res := FragmentSpread{name: name}
 
 	// parse optional directives
@@ -922,7 +922,7 @@ func (i *Iter) parseFragmentSpread(name string) (*FragmentSpread, *ErrorWLocatio
 }
 
 // https://spec.graphql.org/June2018/#Field
-func (i *Iter) parseField() (*Field, *ErrorWLocation) {
+func (i *iter) parseField() (*Field, *ErrorWLocation) {
 	res := Field{}
 
 	// Parse name (and alias if pressent)
@@ -1006,7 +1006,7 @@ func (i *Iter) parseField() (*Field, *ErrorWLocation) {
 // Parses object values and arguments as the only diffrents seems to be the wrappers around it
 // ObjectValues > https://spec.graphql.org/June2018/#ObjectValue
 // Arguments > https://spec.graphql.org/June2018/#Arguments
-func (i *Iter) parseArgumentsOrObjectValues(closure rune) (Arguments, *ErrorWLocation) {
+func (i *iter) parseArgumentsOrObjectValues(closure rune) (Arguments, *ErrorWLocation) {
 	res := Arguments{}
 
 	c, err := i.mightIgnoreNextTokens()
@@ -1071,7 +1071,7 @@ func (i *Iter) parseArgumentsOrObjectValues(closure rune) (Arguments, *ErrorWLoc
 }
 
 // https://spec.graphql.org/June2018/#Directives
-func (i *Iter) parseDirectives() (Directives, *ErrorWLocation) {
+func (i *iter) parseDirectives() (Directives, *ErrorWLocation) {
 	res := Directives{}
 	for {
 		c, err := i.mightIgnoreNextTokens()
@@ -1093,7 +1093,7 @@ func (i *Iter) parseDirectives() (Directives, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#Directive
-func (i *Iter) parseDirective() (*Directive, *ErrorWLocation) {
+func (i *iter) parseDirective() (*Directive, *ErrorWLocation) {
 	name, err := i.parseName()
 	if err != nil {
 		return nil, err
@@ -1121,7 +1121,7 @@ func (i *Iter) parseDirective() (*Directive, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#Name
-func (i *Iter) parseName() (string, *ErrorWLocation) {
+func (i *iter) parseName() (string, *ErrorWLocation) {
 	allowedChars := map[rune]bool{}
 
 	letters := "abcdefghijklmnopqrstuvwxyz"
@@ -1158,11 +1158,11 @@ func (i *Iter) parseName() (string, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#sec-Source-Text.Ignored-Tokens
-func (i *Iter) isIgnoredToken(c rune) bool {
+func (i *iter) isIgnoredToken(c rune) bool {
 	return isUnicodeBom(c) || isWhiteSpace(c) || i.isLineTerminator() || i.isComment(true)
 }
 
-func (i *Iter) mightIgnoreNextTokens() (rune, *ErrorWLocation) {
+func (i *iter) mightIgnoreNextTokens() (rune, *ErrorWLocation) {
 	for {
 		c, eof := i.checkC(i.charNr)
 		if eof {
@@ -1189,7 +1189,7 @@ func isWhiteSpace(input rune) bool {
 }
 
 // https://spec.graphql.org/June2018/#LineTerminator
-func (i *Iter) isLineTerminator() bool {
+func (i *iter) isLineTerminator() bool {
 	c := i.currentC()
 	if c == '\n' {
 		return true
@@ -1205,7 +1205,7 @@ func (i *Iter) isLineTerminator() bool {
 }
 
 // https://spec.graphql.org/June2018/#Comment
-func (i *Iter) isComment(parseComment bool) bool {
+func (i *iter) isComment(parseComment bool) bool {
 	if i.currentC() == '#' {
 		if parseComment {
 			i.parseComment()
@@ -1215,7 +1215,7 @@ func (i *Iter) isComment(parseComment bool) bool {
 	return false
 }
 
-func (i *Iter) parseComment() {
+func (i *iter) parseComment() {
 	for {
 		if i.eof(i.charNr) {
 			return
@@ -1227,7 +1227,7 @@ func (i *Iter) parseComment() {
 	}
 }
 
-func (i *Iter) matches(oneOf ...string) string {
+func (i *iter) matches(oneOf ...string) string {
 	startIdx := i.charNr
 
 	oneOfMap := map[string]bool{}
