@@ -7,69 +7,69 @@ import h "github.com/mjarkk/go-graphql/helpers"
 // https://spec.graphql.org/June2018/#sec-Schema-Introspection
 //
 
-var _ = TypeRename(QLSchema{}, "__Schema")
+var _ = TypeRename(qlSchema{}, "__Schema")
 
-type QLSchema struct {
-	Types            []QLType      `json:"types"`
-	QueryType        *QLType       `json:"queryType"`
-	MutationType     *QLType       `json:"mutationType"`
-	SubscriptionType *QLType       `json:"subscriptionType"`
-	Directives       []QLDirective `json:"directives"`
+type qlSchema struct {
+	Types            []qlType      `json:"types"`
+	QueryType        *qlType       `json:"queryType"`
+	MutationType     *qlType       `json:"mutationType"`
+	SubscriptionType *qlType       `json:"subscriptionType"`
+	Directives       []qlDirective `json:"directives"`
 }
 
-type IsDeprecatedArgs struct {
+type isDeprecatedArgs struct {
 	IncludeDeprecated bool `json:"includeDeprecated"`
 }
 
 type __TypeKind uint8
 
 const (
-	TypeKindScalar __TypeKind = iota
-	TypeKindObject
-	TypeKindInterface
-	TypeKindUnion
-	TypeKindEnum
-	TypeKindInputObject
-	TypeKindList
-	TypeKindNonNull
+	typeKindScalar __TypeKind = iota
+	typeKindObject
+	typeKindInterface
+	typeKindUnion
+	typeKindEnum
+	typeKindInputObject
+	typeKindList
+	typeKindNonNull
 )
 
 var _ = RegisterEnum(map[string]__TypeKind{
-	"SCALAR":       TypeKindScalar,
-	"OBJECT":       TypeKindObject,
-	"INTERFACE":    TypeKindInterface,
-	"UNION":        TypeKindUnion,
-	"ENUM":         TypeKindEnum,
-	"INPUT_OBJECT": TypeKindInputObject,
-	"LIST":         TypeKindList,
-	"NON_NULL":     TypeKindNonNull,
+	"SCALAR":       typeKindScalar,
+	"OBJECT":       typeKindObject,
+	"INTERFACE":    typeKindInterface,
+	"UNION":        typeKindUnion,
+	"ENUM":         typeKindEnum,
+	"INPUT_OBJECT": typeKindInputObject,
+	"LIST":         typeKindList,
+	"NON_NULL":     typeKindNonNull,
 })
 
 func (kind __TypeKind) String() string {
 	switch kind {
-	case TypeKindScalar:
+	case typeKindScalar:
 		return "SCALAR"
-	case TypeKindObject:
+	case typeKindObject:
 		return "OBJECT"
-	case TypeKindInterface:
+	case typeKindInterface:
 		return "INTERFACE"
-	case TypeKindUnion:
+	case typeKindUnion:
 		return "UNION"
-	case TypeKindEnum:
+	case typeKindEnum:
 		return "ENUM"
-	case TypeKindInputObject:
+	case typeKindInputObject:
 		return "INPUT_OBJECT"
-	case TypeKindList:
+	case typeKindList:
 		return "LIST"
-	case TypeKindNonNull:
+	case typeKindNonNull:
 		return "NON_NULL"
 	}
 	return ""
 }
 
-var _ = TypeRename(QLType{}, "__Type")
+var _ = TypeRename(qlType{}, "__Type")
 
-type QLType struct {
+type qlType struct {
 	Kind     __TypeKind `json:"-"`
 	JSONKind string     `json:"kind" gqIgnore:"true"`
 
@@ -77,115 +77,115 @@ type QLType struct {
 	Description *string `json:"description"`
 
 	// OBJECT and INTERFACE only
-	Fields func(IsDeprecatedArgs) []QLField `json:"-"`
+	Fields func(isDeprecatedArgs) []qlField `json:"-"`
 	// For testing perposes mainly
-	JSONFields []QLField `json:"fields" gqIgnore:"true"`
+	JSONFields []qlField `json:"fields" gqIgnore:"true"`
 
 	// OBJECT only
-	Interfaces []QLType `json:"interfaces"`
+	Interfaces []qlType `json:"interfaces"`
 
 	// INTERFACE and UNION only
-	PossibleTypes []QLType `json:"possibleTypes"`
+	PossibleTypes []qlType `json:"possibleTypes"`
 
 	// ENUM only
-	EnumValues func(IsDeprecatedArgs) []QLEnumValue `json:"-"`
+	EnumValues func(isDeprecatedArgs) []qlEnumValue `json:"-"`
 
 	// INPUT_OBJECT only
-	InputFields func() []QLInputValue `json:"-"`
+	InputFields func() []qlInputValue `json:"-"`
 	// For testing perposes mainly
-	JSONInputFields []QLField `json:"inputFields" gqIgnore:"true"`
+	JSONInputFields []qlField `json:"inputFields" gqIgnore:"true"`
 
 	// NON_NULL and LIST only
-	OfType *QLType `json:"ofType"`
+	OfType *qlType `json:"ofType"`
 }
 
-var _ = TypeRename(QLField{}, "__Field")
+var _ = TypeRename(qlField{}, "__Field")
 
-type QLField struct {
+type qlField struct {
 	Name              string         `json:"name"`
 	Description       *string        `json:"description"`
-	Args              []QLInputValue `json:"args"`
-	Type              QLType         `json:"type"`
+	Args              []qlInputValue `json:"args"`
+	Type              qlType         `json:"type"`
 	IsDeprecated      bool           `json:"isDeprecated"`
 	DeprecationReason *string        `json:"deprecationReason"`
 }
 
-var _ = TypeRename(QLEnumValue{}, "__EnumValue")
+var _ = TypeRename(qlEnumValue{}, "__EnumValue")
 
-type QLEnumValue struct {
+type qlEnumValue struct {
 	Name              string  `json:"name"`
 	Description       *string `json:"description"`
 	IsDeprecated      bool    `json:"isDeprecated"`
 	DeprecationReason *string `json:"deprecationReason"`
 }
 
-var _ = TypeRename(QLInputValue{}, "__InputValue")
+var _ = TypeRename(qlInputValue{}, "__InputValue")
 
-type QLInputValue struct {
+type qlInputValue struct {
 	Name         string  `json:"name"`
 	Description  *string `json:"description"`
-	Type         QLType  `json:"type"`
+	Type         qlType  `json:"type"`
 	DefaultValue *string `json:"defaultValue"`
 }
 
 type __DirectiveLocation uint8
 
 const (
-	DirectiveLocationQuery __DirectiveLocation = iota
-	DirectiveLocationMutation
-	DirectiveLocationSubscription
-	DirectiveLocationField
-	DirectiveLocationFragmentDefinition
-	DirectiveLocationFragmentSpread
-	DirectiveLocationInlineFragment
-	DirectiveLocationSchema
-	DirectiveLocationScalar
-	DirectiveLocationObject
-	DirectiveLocationFieldDefinition
-	DirectiveLocationArgumentDefinition
-	DirectiveLocationInterface
-	DirectiveLocationUnion
-	DirectiveLocationEnum
-	DirectiveLocationEnumValue
-	DirectiveLocationInputObject
-	DirectiveLocationInputFieldDefinition
+	directiveLocationQuery __DirectiveLocation = iota
+	directiveLocationMutation
+	directiveLocationSubscription
+	directiveLocationField
+	directiveLocationFragmentDefinition
+	directiveLocationFragmentSpread
+	directiveLocationInlineFragment
+	directiveLocationSchema
+	directiveLocationScalar
+	directiveLocationObject
+	directiveLocationFieldDefinition
+	directiveLocationArgumentDefinition
+	directiveLocationInterface
+	directiveLocationUnion
+	directiveLocationEnum
+	directiveLocationEnumValue
+	directiveLocationInputObject
+	directiveLocationInputFieldDefinition
 )
 
 var _ = RegisterEnum(map[string]__DirectiveLocation{
-	"QUERY":                  DirectiveLocationQuery,
-	"MUTATION":               DirectiveLocationMutation,
-	"SUBSCRIPTION":           DirectiveLocationSubscription,
-	"FIELD":                  DirectiveLocationField,
-	"FRAGMENT_DEFINITION":    DirectiveLocationFragmentDefinition,
-	"FRAGMENT_SPREAD":        DirectiveLocationFragmentSpread,
-	"INLINE_FRAGMENT":        DirectiveLocationInlineFragment,
-	"SCHEMA":                 DirectiveLocationSchema,
-	"SCALAR":                 DirectiveLocationScalar,
-	"OBJECT":                 DirectiveLocationObject,
-	"FIELD_DEFINITION":       DirectiveLocationFieldDefinition,
-	"ARGUMENT_DEFINITION":    DirectiveLocationArgumentDefinition,
-	"INTERFACE":              DirectiveLocationInterface,
-	"UNION":                  DirectiveLocationUnion,
-	"ENUM":                   DirectiveLocationEnum,
-	"ENUM_VALUE":             DirectiveLocationEnumValue,
-	"INPUT_OBJECT":           DirectiveLocationInputObject,
-	"INPUT_FIELD_DEFINITION": DirectiveLocationInputFieldDefinition,
+	"QUERY":                  directiveLocationQuery,
+	"MUTATION":               directiveLocationMutation,
+	"SUBSCRIPTION":           directiveLocationSubscription,
+	"FIELD":                  directiveLocationField,
+	"FRAGMENT_DEFINITION":    directiveLocationFragmentDefinition,
+	"FRAGMENT_SPREAD":        directiveLocationFragmentSpread,
+	"INLINE_FRAGMENT":        directiveLocationInlineFragment,
+	"SCHEMA":                 directiveLocationSchema,
+	"SCALAR":                 directiveLocationScalar,
+	"OBJECT":                 directiveLocationObject,
+	"FIELD_DEFINITION":       directiveLocationFieldDefinition,
+	"ARGUMENT_DEFINITION":    directiveLocationArgumentDefinition,
+	"INTERFACE":              directiveLocationInterface,
+	"UNION":                  directiveLocationUnion,
+	"ENUM":                   directiveLocationEnum,
+	"ENUM_VALUE":             directiveLocationEnumValue,
+	"INPUT_OBJECT":           directiveLocationInputObject,
+	"INPUT_FIELD_DEFINITION": directiveLocationInputFieldDefinition,
 })
 
-var _ = TypeRename(QLDirective{}, "__Directive")
+var _ = TypeRename(qlDirective{}, "__Directive")
 
-type QLDirective struct {
+type qlDirective struct {
 	Name          string                `json:"name"`
 	Description   *string               `json:"description"`
 	Locations     []__DirectiveLocation `json:"-"`
 	JSONLocations []string              `json:"locations" gqIgnore:"true"`
-	Args          []QLInputValue        `json:"args"`
+	Args          []qlInputValue        `json:"args"`
 }
 
-var scalars = map[string]QLType{
-	"Boolean": {Kind: TypeKindScalar, Name: h.StrPtr("Boolean"), Description: h.StrPtr("The `Boolean` scalar type represents `true` or `false`.")},
-	"Int":     {Kind: TypeKindScalar, Name: h.StrPtr("Int"), Description: h.StrPtr("The Int scalar type represents a signed 32‐bit numeric non‐fractional value.")},
-	"Float":   {Kind: TypeKindScalar, Name: h.StrPtr("Float"), Description: h.StrPtr("The Float scalar type represents signed double‐precision fractional values as specified by IEEE 754.")},
-	"String":  {Kind: TypeKindScalar, Name: h.StrPtr("String"), Description: h.StrPtr("The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.")},
+var scalars = map[string]qlType{
+	"Boolean": {Kind: typeKindScalar, Name: h.StrPtr("Boolean"), Description: h.StrPtr("The `Boolean` scalar type represents `true` or `false`.")},
+	"Int":     {Kind: typeKindScalar, Name: h.StrPtr("Int"), Description: h.StrPtr("The Int scalar type represents a signed 32‐bit numeric non‐fractional value.")},
+	"Float":   {Kind: typeKindScalar, Name: h.StrPtr("Float"), Description: h.StrPtr("The Float scalar type represents signed double‐precision fractional values as specified by IEEE 754.")},
+	"String":  {Kind: typeKindScalar, Name: h.StrPtr("String"), Description: h.StrPtr("The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.")},
 	// "ID": {Kind: TypeKindScalar, Name: h.StrPtr("ID"), Description: h.StrPtr("The ID scalar type represents a unique identifier, often used to refetch an object or as the key for a cache")},
 }

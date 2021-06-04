@@ -9,7 +9,7 @@ func ParseQueryAndCheckNames(input string) (fragments, operatorsMap map[string]o
 	fragments = map[string]operator{}
 	operatorsMap = map[string]operator{}
 
-	operators, err := ParseQuery(input)
+	operators, err := parseQuery(input)
 	if err != nil {
 		resErrors = append(resErrors, err)
 		return

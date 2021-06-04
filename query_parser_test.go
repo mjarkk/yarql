@@ -19,11 +19,11 @@ func checkErrorHaveLocation(err *ErrorWLocation) {
 }
 
 func TestQueryParserEmptyQuery(t *testing.T) {
-	res, err := ParseQuery(``)
+	res, err := parseQuery(``)
 	Equal(t, 0, len(res))
 	Nil(t, err)
 
-	res, err = ParseQuery(`  `)
+	res, err = parseQuery(`  `)
 	Equal(t, 0, len(res))
 	Nil(t, err)
 }
@@ -52,7 +52,7 @@ func TestQueryParserEmptyBracesQuery(t *testing.T) {
 	}
 
 	for _, option := range options {
-		res, err := ParseQuery(option.query)
+		res, err := parseQuery(option.query)
 		if option.shouldFail {
 			NotNil(t, err, option.query)
 		} else {
@@ -75,7 +75,7 @@ func TestQueryParserEmptyBracesQueryWithName(t *testing.T) {
 	}
 
 	for _, option := range options {
-		res, err := ParseQuery(option.query)
+		res, err := parseQuery(option.query)
 		Equal(t, 1, len(res), option.query)
 		Nil(t, err, option.query)
 		Equal(t, option.expectedOperationType, res[0].operationType, option.query)
@@ -84,17 +84,17 @@ func TestQueryParserEmptyBracesQueryWithName(t *testing.T) {
 }
 
 func TestQueryParsingQueryDirectives(t *testing.T) {
-	res, err := ParseQuery(`query foo @bar {}`)
+	res, err := parseQuery(`query foo @bar {}`)
 	Equal(t, 1, len(res))
 	Nil(t, err)
 
-	res, err = ParseQuery(`query @bar {}`)
+	res, err = parseQuery(`query @bar {}`)
 	Equal(t, 1, len(res))
 	Nil(t, err)
 }
 
 func TestQueryParserMultipleQueries(t *testing.T) {
-	res, err := ParseQuery(`
+	res, err := parseQuery(`
 		query a {}
 		query b {}
 		query c {}
@@ -118,12 +118,12 @@ func TestQueryParsingTypes(t *testing.T) {
 	}
 
 	for _, item := range toTest {
-		res, err := ParseQuery(item)
+		res, err := parseQuery(item)
 		Equal(t, 1, len(res), item)
 		Nil(t, err, item)
 	}
 
-	res, err := ParseQuery(`query query_name( $a : String $b:Boolean) {}`)
+	res, err := parseQuery(`query query_name( $a : String $b:Boolean) {}`)
 	Equal(t, 1, len(res))
 	Nil(t, err)
 	Equal(t, 2, len(res[0].variableDefinitions))
@@ -165,7 +165,7 @@ func TestQueryParserNumbers(t *testing.T) {
 		}
 
 		query := `query ($b: ` + name + ` = ` + option.input + `) {}`
-		res, err := ParseQuery(query)
+		res, err := parseQuery(query)
 		Equal(t, 1, len(res), option.input)
 		Nil(t, err, option.input)
 
@@ -210,7 +210,7 @@ func TestQueryParserStrings(t *testing.T) {
 
 	for _, option := range options {
 		query := `query ($b: String = ` + option.input + `) {}`
-		res, err := ParseQuery(query)
+		res, err := parseQuery(query)
 		Equal(t, 1, len(res), option.input)
 		Nil(t, err, option.input)
 
@@ -224,7 +224,7 @@ func TestQueryParserStrings(t *testing.T) {
 }
 
 func TestQueryParserSimpleInvalid(t *testing.T) {
-	_, err := ParseQuery(`This should not get parsed`)
+	_, err := parseQuery(`This should not get parsed`)
 	NotNil(t, err)
 }
 
@@ -246,7 +246,7 @@ func TestQueryParserSimpleQuery(t *testing.T) {
 	}
 
 	for _, option := range options {
-		res, err := ParseQuery(option)
+		res, err := parseQuery(option)
 		Equal(t, 1, len(res), option)
 		Nil(t, err, option)
 
@@ -279,14 +279,14 @@ func TestQueryParserInvalidQuery(t *testing.T) {
 	}
 
 	for _, option := range options {
-		_, err := ParseQuery(option)
+		_, err := parseQuery(option)
 		NotNil(t, err, option)
 		checkErrorHaveLocation(err)
 	}
 }
 
 func TestQueryParserSelectionInSelection(t *testing.T) {
-	res, err := ParseQuery(`{
+	res, err := parseQuery(`{
 		baz {
 			foo
 			bar
@@ -315,7 +315,7 @@ func TestQueryParserSelectionInSelection(t *testing.T) {
 }
 
 func TestQueryParserFragmentSpread(t *testing.T) {
-	res, err := ParseQuery(`{
+	res, err := parseQuery(`{
 		baz {
 			foo
 			...fooBar
@@ -343,7 +343,7 @@ func TestQueryParserFragmentSpread(t *testing.T) {
 }
 
 func TestQueryParserFragmentSpreadDirectives(t *testing.T) {
-	res, err := ParseQuery(`{
+	res, err := parseQuery(`{
 		baz {
 			foo
 			...fooBar@a@b
@@ -364,7 +364,7 @@ func TestQueryParserFragmentSpreadDirectives(t *testing.T) {
 }
 
 func TestQueryParserInlineFragment(t *testing.T) {
-	res, err := ParseQuery(`{
+	res, err := parseQuery(`{
 		baz {
 			foo
 
@@ -404,7 +404,7 @@ func TestQueryParserInlineFragment(t *testing.T) {
 }
 
 func TestQueryParserInlineFragmentWithDirectives(t *testing.T) {
-	res, err := ParseQuery(`{
+	res, err := parseQuery(`{
 		baz {
 			...@some_directive@a{
 
@@ -430,7 +430,7 @@ func TestQueryParserInlineFragmentWithDirectives(t *testing.T) {
 }
 
 func TestQueryParserFieldDirective(t *testing.T) {
-	res, err := ParseQuery(`{
+	res, err := parseQuery(`{
 		client {
 			foo
 			bar @this_is_a_directive
@@ -450,7 +450,7 @@ func TestQueryParserFieldDirective(t *testing.T) {
 }
 
 func TestQueryParserFieldInvalidDirective(t *testing.T) {
-	_, err := ParseQuery(`{
+	_, err := parseQuery(`{
 		client {
 			foo
 			bar @
@@ -463,7 +463,7 @@ func TestQueryParserFieldInvalidDirective(t *testing.T) {
 }
 
 func TestQueryParserFieldMultipleDirective(t *testing.T) {
-	res, err := ParseQuery(`{
+	res, err := parseQuery(`{
 		client {
 			foo
 			bar @a @b@c
@@ -486,7 +486,7 @@ func TestQueryParserFieldMultipleDirective(t *testing.T) {
 }
 
 func TestQueryParserFieldWithArguments(t *testing.T) {
-	res, err := ParseQuery(`{
+	res, err := parseQuery(`{
 		client {
 			foo
 			bar(a: 1,b:true c : false , d: [1,2 3 , 4,], e: $foo_bar, f: null, g: SomeEnumValue, h: {a: 1, b: true})
@@ -527,7 +527,7 @@ func TestQueryParserFieldWithArguments(t *testing.T) {
 }
 
 func TestQueryParserFieldDirectiveWithArguments(t *testing.T) {
-	res, err := ParseQuery(`{
+	res, err := parseQuery(`{
 		client {
 			foo
 			bar @a(a: 1,b:true c : false) @b(a: 1,b:true c : false)@c(a: 1,b:true c : false)
@@ -587,18 +587,18 @@ func injectCodeSurviveTest(baseQuery string, extraChars ...string) {
 				tilIndex := baseQuery[:i]
 				formIndex := baseQuery[i:]
 
-				ParseQuery(formIndex)
+				parseQuery(formIndex)
 
 				for _, toInject := range charsToInject {
 					// Inject extra text
-					ParseQuery(tilIndex + toInject + formIndex)
+					parseQuery(tilIndex + toInject + formIndex)
 
 					// Replace char
-					ParseQuery(tilIndex + toInject + baseQuery[i+1:])
+					parseQuery(tilIndex + toInject + baseQuery[i+1:])
 				}
 
 				for _, toInject := range charsToInject {
-					ParseQuery(tilIndex + toInject)
+					parseQuery(tilIndex + toInject)
 				}
 			}
 			wg.Done()
@@ -631,14 +631,14 @@ func TestQueryParserCodeInjection(t *testing.T) {
 }
 
 func TestQueryParserFragment(t *testing.T) {
-	res, err := ParseQuery(`fragment a on User {}`)
+	res, err := parseQuery(`fragment a on User {}`)
 	Nil(t, err)
 	Equal(t, 1, len(res))
 	NotNil(t, res[0].fragment)
 	Equal(t, "a", res[0].name)
 	Equal(t, "User", res[0].fragment.onTypeConditionName)
 
-	res, err = ParseQuery(`fragment a on User {
+	res, err = parseQuery(`fragment a on User {
 		a
 		b
 	}`)

@@ -9,9 +9,9 @@ import (
 	"sync"
 )
 
-type Types map[string]*Obj
+type types map[string]*obj
 
-func (t *Types) Add(obj Obj) Obj {
+func (t *types) Add(obj obj) obj {
 	if obj.valueType != valueTypeObj {
 		panic("Can only add struct types to list")
 	}
@@ -23,18 +23,18 @@ func (t *Types) Add(obj Obj) Obj {
 	return obj.getRef()
 }
 
-func (t *Types) Get(key string) (*Obj, bool) {
+func (t *types) Get(key string) (*obj, bool) {
 	val, ok := (*t)[key]
 	return val, ok
 }
 
 // Schema defines the graphql schema
 type Schema struct {
-	types           Types
-	inTypes         InputMap
-	rootQuery       *Obj
+	types           types
+	inTypes         inputMap
+	rootQuery       *obj
 	rootQueryValue  reflect.Value
-	rootMethod      *Obj
+	rootMethod      *obj
 	rootMethodValue reflect.Value
 	m               sync.Mutex
 	MaxDepth        uint8 // Default 255
@@ -53,43 +53,43 @@ const (
 	valueTypeEnum
 )
 
-type Obj struct {
+type obj struct {
 	valueType valueType
 	typeName  string
 	pkgPath   string
 
 	// Value type == valueTypeObj
-	objContents    map[string]*Obj
+	objContents    map[string]*obj
 	customObjValue *reflect.Value // Mainly Graphql internal values like __schema
 
 	// Value is inside struct
 	structFieldName string
 
 	// Value type == valueTypeArray || type == valueTypePtr
-	innerContent *Obj
+	innerContent *obj
 
 	// Value type == valueTypeData
 	dataValueType reflect.Kind
 
 	// Value type == valueTypeMethod
-	method *ObjMethod
+	method *objMethod
 
 	// Value type == valueTypeEnum
 	enumTypeName string
 }
 
-func (o *Obj) getRef() Obj {
+func (o *obj) getRef() obj {
 	if o.valueType != valueTypeObj {
 		panic("getRef can only be used on objects")
 	}
 
-	return Obj{
+	return obj{
 		valueType: valueTypeObjRef,
 		typeName:  o.typeName,
 	}
 }
 
-type ObjMethod struct {
+type objMethod struct {
 	// Is this a function field inside this object or a method attached to the struct
 	// true = func (*someStruct) ResolveFooBar() string {}
 	// false = ResolveFooBar func() string
@@ -99,18 +99,18 @@ type ObjMethod struct {
 	inFields map[string]referToInput // Contains all the fields of all the ins
 
 	outNr      int
-	outType    Obj
+	outType    obj
 	errorOutNr *int
 }
 
-type InputMap map[string]*Input
+type inputMap map[string]*input
 
 type referToInput struct {
 	inputIdx int
-	input    Input
+	input    input
 }
 
-type Input struct {
+type input struct {
 	kind         reflect.Kind
 	isEnum       bool
 	enumTypeName string
@@ -119,12 +119,12 @@ type Input struct {
 	gqFieldName string
 
 	// kind == Slice, Array or Ptr
-	elem *Input
+	elem *input
 
 	// kind == struct
 	isStructPointers bool
 	structName       string
-	structContent    map[string]Input
+	structContent    map[string]input
 }
 
 type baseInput struct {
@@ -139,23 +139,23 @@ type SchemaOptions struct {
 
 type parseCtx struct {
 	// TODO: Maybe change this to objects as the types defined here are always objects
-	types              *Types
-	inTypes            *InputMap
+	types              *types
+	inTypes            *inputMap
 	unknownTypesCount  int
 	unkonwnInputsCount int
 }
 
 func newParseCtx() *parseCtx {
 	return &parseCtx{
-		types:   &Types{},
-		inTypes: &InputMap{},
+		types:   &types{},
+		inTypes: &inputMap{},
 	}
 }
 
 func ParseSchema(queries interface{}, methods interface{}, options *SchemaOptions) (*Schema, error) {
 	res := Schema{
-		types:           Types{},
-		inTypes:         InputMap{},
+		types:           types{},
+		inTypes:         inputMap{},
 		rootQueryValue:  reflect.ValueOf(queries),
 		rootMethodValue: reflect.ValueOf(methods),
 		MaxDepth:        255,
@@ -171,7 +171,7 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 		return nil, err
 	}
 	if obj.valueType != valueTypeObjRef {
-		return nil, errors.New("Input queries must be a struct")
+		return nil, errors.New("input queries must be a struct")
 	}
 	res.rootQuery = res.types[obj.typeName]
 
@@ -180,7 +180,7 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 		return nil, err
 	}
 	if obj.valueType != valueTypeObjRef {
-		return nil, errors.New("Input methods must be a struct")
+		return nil, errors.New("input methods must be a struct")
 	}
 	res.rootMethod = res.types[obj.typeName]
 
@@ -199,8 +199,8 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 	return &res, nil
 }
 
-func (c *parseCtx) check(t reflect.Type) (*Obj, error) {
-	res := Obj{
+func (c *parseCtx) check(t reflect.Type) (*obj, error) {
+	res := obj{
 		typeName: t.Name(),
 		pkgPath:  t.PkgPath(),
 	}
@@ -229,7 +229,7 @@ func (c *parseCtx) check(t reflect.Type) (*Obj, error) {
 			res.typeName = fmt.Sprintf("__UnknownType%d", c.unknownTypesCount)
 		}
 
-		res.objContents = map[string]*Obj{}
+		res.objContents = map[string]*obj{}
 
 		typesInner := *c.types
 		typesInner[res.typeName] = &res
@@ -286,7 +286,7 @@ func (c *parseCtx) check(t reflect.Type) (*Obj, error) {
 				continue
 			}
 
-			res.objContents[name] = &Obj{
+			res.objContents[name] = &obj{
 				valueType:       valueTypeMethod,
 				pkgPath:         method.PkgPath,
 				structFieldName: methodName,
@@ -303,7 +303,7 @@ func (c *parseCtx) check(t reflect.Type) (*Obj, error) {
 	return &res, nil
 }
 
-func (c *parseCtx) checkStructField(field reflect.StructField) (*Obj, error) {
+func (c *parseCtx) checkStructField(field reflect.StructField) (*obj, error) {
 	if field.Anonymous {
 		return nil, nil
 	}
@@ -313,7 +313,7 @@ func (c *parseCtx) checkStructField(field reflect.StructField) (*Obj, error) {
 		return nil, nil
 	}
 
-	var obj *Obj
+	var obj *obj
 	if field.Type.Kind() == reflect.Func {
 		return c.checkStructFieldFunc(field.Name, field.Type)
 	}
@@ -326,14 +326,14 @@ func (c *parseCtx) checkStructField(field reflect.StructField) (*Obj, error) {
 	return obj, nil
 }
 
-func (c *parseCtx) checkStructFieldFunc(fieldName string, type_ reflect.Type) (*Obj, error) {
+func (c *parseCtx) checkStructFieldFunc(fieldName string, type_ reflect.Type) (*obj, error) {
 	methodObj, _, err := c.checkFunction(fieldName, type_, false)
 	if err != nil {
 		return nil, err
 	} else if methodObj == nil {
 		return nil, nil
 	}
-	return &Obj{
+	return &obj{
 		valueType:       valueTypeMethod,
 		method:          methodObj,
 		structFieldName: fieldName,
@@ -346,7 +346,7 @@ func isCtx(t reflect.Type) bool {
 	return t.Kind() == reflect.Struct && simpleCtx.Name() == t.Name() && simpleCtx.PkgPath() == t.PkgPath()
 }
 
-func (c *parseCtx) checkFunctionInputStruct(field *reflect.StructField) (res Input, skipThisField bool, err error) {
+func (c *parseCtx) checkFunctionInputStruct(field *reflect.StructField) (res input, skipThisField bool, err error) {
 	if field.Anonymous {
 		// skip field
 		return res, true, nil
@@ -366,7 +366,7 @@ func (c *parseCtx) checkFunctionInputStruct(field *reflect.StructField) (res Inp
 
 	res, err = c.checkFunctionInput(field.Type)
 	if err != nil {
-		return Input{}, false, fmt.Errorf("%s, struct field: %s", err.Error(), field.Name)
+		return input{}, false, fmt.Errorf("%s, struct field: %s", err.Error(), field.Name)
 	}
 
 	res.goFieldName = field.Name
@@ -375,9 +375,9 @@ func (c *parseCtx) checkFunctionInputStruct(field *reflect.StructField) (res Inp
 	return
 }
 
-func (c *parseCtx) checkFunctionInput(t reflect.Type) (Input, error) {
+func (c *parseCtx) checkFunctionInput(t reflect.Type) (input, error) {
 	kind := t.Kind()
-	res := Input{
+	res := input{
 		kind: kind,
 	}
 
@@ -412,7 +412,7 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type) (Input, error) {
 			(*c.inTypes)[structName] = &res
 
 			res.structName = structName
-			res.structContent = map[string]Input{}
+			res.structContent = map[string]input{}
 			for i := 0; i < t.NumField(); i++ {
 				field := t.Field(i)
 				input, skip, err := c.checkFunctionInputStruct(&field)
@@ -426,7 +426,7 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type) (Input, error) {
 			}
 		}
 
-		return Input{
+		return input{
 			kind:             kind,
 			structName:       structName,
 			isStructPointers: true,
@@ -441,7 +441,7 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type) (Input, error) {
 	return res, nil
 }
 
-func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool) (*ObjMethod, string, error) {
+func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool) (*objMethod, string, error) {
 	trimmedName := name
 
 	if strings.HasPrefix(name, "Resolve") {
@@ -515,7 +515,7 @@ func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool)
 	}
 
 	var outNr *int
-	var outTypeObj *Obj
+	var outTypeObj *obj
 	var hasErrorOut *int
 
 	errInterface := reflect.TypeOf((*error)(nil)).Elem()
@@ -555,7 +555,7 @@ func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool)
 		return nil, "", fmt.Errorf("%s does not return usable data", name)
 	}
 
-	return &ObjMethod{
+	return &objMethod{
 		isTypeMethod: isTypeMethod,
 		ins:          ins,
 		inFields:     inFields,

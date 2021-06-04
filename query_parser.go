@@ -69,12 +69,12 @@ type variableDefinitions map[string]variableDefinition // Key is the variable na
 type variableDefinition struct {
 	name         string
 	varType      typeReference
-	defaultValue *Value
+	defaultValue *value
 }
 
-type arguments map[string]Value
+type arguments map[string]value
 
-func ParseQuery(input string) ([]*operator, *ErrorWLocation) {
+func parseQuery(input string) ([]*operator, *ErrorWLocation) {
 	res := []*operator{}
 	iter := &iter{
 		data: input,
@@ -340,7 +340,7 @@ func (i *iter) parseVariableDefinition() (variableDefinition, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#Value
-func (i *iter) parseValue() (Value, *ErrorWLocation) {
+func (i *iter) parseValue() (value, *ErrorWLocation) {
 	switch i.currentC() {
 	case '$':
 		i.charNr++
@@ -362,7 +362,7 @@ func (i *iter) parseValue() (Value, *ErrorWLocation) {
 	default:
 		name, err := i.parseName()
 		if err != nil {
-			return Value{}, err
+			return value{}, err
 		}
 		switch name {
 		case "null":
@@ -370,7 +370,7 @@ func (i *iter) parseValue() (Value, *ErrorWLocation) {
 		case "true", "false":
 			return makeBooleanValue(name == "true"), nil
 		case "":
-			return Value{}, i.err("invalid value")
+			return value{}, i.err("invalid value")
 		default:
 			return makeEnumValue(name), nil
 		}
@@ -500,8 +500,8 @@ func (i *iter) parseString() (string, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#ListValue
-func (i *iter) parseListValue() ([]Value, *ErrorWLocation) {
-	res := []Value{}
+func (i *iter) parseListValue() ([]value, *ErrorWLocation) {
+	res := []value{}
 
 	firstLoop := true
 	for {
@@ -539,7 +539,7 @@ func (i *iter) parseListValue() ([]Value, *ErrorWLocation) {
 // Returns FloatValue or IntValue
 // https://spec.graphql.org/June2018/#FloatValue
 // https://spec.graphql.org/June2018/#IntValue
-func (i *iter) parseNumberValue() (Value, *ErrorWLocation) {
+func (i *iter) parseNumberValue() (value, *ErrorWLocation) {
 	toMap := func(list string) map[rune]bool {
 		res := map[rune]bool{}
 		for _, char := range list {
@@ -550,19 +550,19 @@ func (i *iter) parseNumberValue() (Value, *ErrorWLocation) {
 	digit := toMap("0123456789")
 
 	resStr := ""
-	res := func(isFloat bool) (Value, *ErrorWLocation) {
+	res := func(isFloat bool) (value, *ErrorWLocation) {
 		if !isFloat {
 			// Value is int
 			intValue, err := strconv.Atoi(resStr)
 			if err != nil {
-				return Value{}, i.err("unable to parse int")
+				return value{}, i.err("unable to parse int")
 			}
 			return makeIntValue(intValue), nil
 		}
 
 		floatValue, err := strconv.ParseFloat(resStr, 64)
 		if err != nil {
-			return Value{}, i.err("unable to parse float")
+			return value{}, i.err("unable to parse float")
 		}
 
 		return makeFloatValue(floatValue), nil
@@ -577,7 +577,7 @@ func (i *iter) parseNumberValue() (Value, *ErrorWLocation) {
 	// parse integer part
 	c, eof := i.checkC(i.charNr)
 	if eof {
-		return Value{}, i.unexpectedEOF()
+		return value{}, i.unexpectedEOF()
 	}
 	if c == '0' {
 		resStr += string(c)
@@ -585,7 +585,7 @@ func (i *iter) parseNumberValue() (Value, *ErrorWLocation) {
 
 		c, eof = i.checkC(i.charNr)
 		if eof {
-			return Value{}, i.unexpectedEOF()
+			return value{}, i.unexpectedEOF()
 		}
 		if c != '.' && c != 'e' && c != 'E' {
 			return res(false)
@@ -597,7 +597,7 @@ func (i *iter) parseNumberValue() (Value, *ErrorWLocation) {
 		for {
 			c, eof := i.checkC(i.charNr)
 			if eof {
-				return Value{}, i.unexpectedEOF()
+				return value{}, i.unexpectedEOF()
 			}
 
 			if c == '.' || c == 'e' || c == 'E' {
@@ -613,13 +613,13 @@ func (i *iter) parseNumberValue() (Value, *ErrorWLocation) {
 			i.charNr++
 		}
 	} else {
-		return Value{}, i.err("not a valid int or float")
+		return value{}, i.err("not a valid int or float")
 	}
 
 	// Parse optional float fractional part
 	c, eof = i.checkC(i.charNr)
 	if eof {
-		return Value{}, i.unexpectedEOF()
+		return value{}, i.unexpectedEOF()
 	}
 	if c == '.' {
 		resStr += string(c)
@@ -628,12 +628,12 @@ func (i *iter) parseNumberValue() (Value, *ErrorWLocation) {
 		i.charNr++
 		c, eof = i.checkC(i.charNr)
 		if eof {
-			return Value{}, i.unexpectedEOF()
+			return value{}, i.unexpectedEOF()
 		}
 
 		_, ok := digit[c]
 		if !ok {
-			return Value{}, i.err("not a valid float")
+			return value{}, i.err("not a valid float")
 		}
 		resStr += string(c)
 
@@ -641,7 +641,7 @@ func (i *iter) parseNumberValue() (Value, *ErrorWLocation) {
 			i.charNr++
 			c, eof = i.checkC(i.charNr)
 			if eof {
-				return Value{}, i.unexpectedEOF()
+				return value{}, i.unexpectedEOF()
 			}
 
 			if c == 'e' || c == 'E' {
@@ -660,7 +660,7 @@ func (i *iter) parseNumberValue() (Value, *ErrorWLocation) {
 	// Parse optional float exponent part
 	c, eof = i.checkC(i.charNr)
 	if eof {
-		return Value{}, i.unexpectedEOF()
+		return value{}, i.unexpectedEOF()
 	}
 	if c != 'e' && c != 'E' {
 		// We can assume here the value is a float as the this code can only be reached if the value contains "." or "e" or "E"
@@ -671,7 +671,7 @@ func (i *iter) parseNumberValue() (Value, *ErrorWLocation) {
 	i.charNr++
 	c, eof = i.checkC(i.charNr)
 	if eof {
-		return Value{}, i.unexpectedEOF()
+		return value{}, i.unexpectedEOF()
 	}
 	if c == '+' || c == '-' {
 		resStr += string(c)
@@ -679,13 +679,13 @@ func (i *iter) parseNumberValue() (Value, *ErrorWLocation) {
 		i.charNr++
 		c, eof = i.checkC(i.charNr)
 		if eof {
-			return Value{}, i.unexpectedEOF()
+			return value{}, i.unexpectedEOF()
 		}
 	}
 
 	_, ok := digit[c]
 	if !ok {
-		return Value{}, i.err("not a valid float")
+		return value{}, i.err("not a valid float")
 	}
 	resStr += string(c)
 
@@ -693,7 +693,7 @@ func (i *iter) parseNumberValue() (Value, *ErrorWLocation) {
 		i.charNr++
 		c, eof = i.checkC(i.charNr)
 		if eof {
-			return Value{}, i.unexpectedEOF()
+			return value{}, i.unexpectedEOF()
 		}
 
 		_, ok := digit[c]

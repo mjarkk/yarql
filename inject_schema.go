@@ -10,7 +10,7 @@ import (
 
 func (s *Schema) injectQLTypes(ctx *parseCtx) {
 	// Inject __Schema
-	ref, err := ctx.check(reflect.TypeOf(QLSchema{}))
+	ref, err := ctx.check(reflect.TypeOf(qlSchema{}))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -20,7 +20,7 @@ func (s *Schema) injectQLTypes(ctx *parseCtx) {
 	s.rootQuery.objContents["__schema"] = ref
 
 	// Inject __type(name: String!): __Type
-	typeResolver := func(ctx *Ctx, args struct{ Name string }) *QLType {
+	typeResolver := func(ctx *Ctx, args struct{ Name string }) *qlType {
 		return ctx.schema.getTypeByName(args.Name, true, true)
 	}
 	typeResolverReflection := reflect.ValueOf(typeResolver)
@@ -33,18 +33,18 @@ func (s *Schema) injectQLTypes(ctx *parseCtx) {
 	s.rootQuery.objContents["__type"] = functionObj
 }
 
-func (s *Schema) getQLSchema() QLSchema {
-	res := QLSchema{
+func (s *Schema) getQLSchema() qlSchema {
+	res := qlSchema{
 		Types:      s.getAllQLTypes(),
-		Directives: []QLDirective{},
-		QueryType: &QLType{
-			Kind:        TypeKindObject,
+		Directives: []qlDirective{},
+		QueryType: &qlType{
+			Kind:        typeKindObject,
 			Name:        h.StrPtr(s.rootQuery.typeName),
 			Description: h.StrPtr(""),
-			Fields: func(args IsDeprecatedArgs) []QLField {
-				res := []QLField{}
+			Fields: func(args isDeprecatedArgs) []qlField {
+				res := []qlField{}
 				for key, item := range s.rootQuery.objContents {
-					res = append(res, QLField{
+					res = append(res, qlField{
 						Name: key,
 						Args: s.getObjectArgs(item),
 						Type: *wrapQLTypeInNonNull(s.objToQLType(item)),
@@ -53,10 +53,10 @@ func (s *Schema) getQLSchema() QLSchema {
 				sort.Slice(res, func(a int, b int) bool { return res[a].Name < res[b].Name })
 				return res
 			},
-			Interfaces: []QLType{},
+			Interfaces: []qlType{},
 		},
-		MutationType: &QLType{
-			Kind:        TypeKindObject,
+		MutationType: &qlType{
+			Kind:        typeKindObject,
 			Name:        h.StrPtr(s.rootMethod.typeName),
 			Description: h.StrPtr(""),
 		},
@@ -67,8 +67,8 @@ func (s *Schema) getQLSchema() QLSchema {
 	return res
 }
 
-func (s *Schema) getAllQLTypes() []QLType {
-	res := []QLType{}
+func (s *Schema) getAllQLTypes() []qlType {
+	res := []qlType{}
 
 	for _, type_ := range s.types {
 		obj, _ := s.objToQLType(type_)
@@ -89,7 +89,7 @@ func (s *Schema) getAllQLTypes() []QLType {
 	return res
 }
 
-func (s *Schema) getTypeByName(name string, includeInputTypes, includeOutputTypes bool) *QLType {
+func (s *Schema) getTypeByName(name string, includeInputTypes, includeOutputTypes bool) *qlType {
 	// FIXME: Make one gigantic map on schema creation with all the types below
 	scalars, ok := scalars[name]
 	if ok {
@@ -119,29 +119,29 @@ func (s *Schema) getTypeByName(name string, includeInputTypes, includeOutputType
 	return nil
 }
 
-func wrapQLTypeInNonNull(type_ *QLType, isNonNull bool) *QLType {
+func wrapQLTypeInNonNull(type_ *qlType, isNonNull bool) *qlType {
 	if !isNonNull {
 		return type_
 	}
-	return &QLType{
-		Kind:   TypeKindNonNull,
+	return &qlType{
+		Kind:   typeKindNonNull,
 		OfType: type_,
 	}
 }
 
-func (s *Schema) inputToQLType(in *Input) (res *QLType, isNonNull bool) {
+func (s *Schema) inputToQLType(in *input) (res *qlType, isNonNull bool) {
 	switch in.kind {
 	case reflect.Struct:
 		isNonNull = true
 
-		res = &QLType{
-			Kind:        TypeKindInputObject,
+		res = &qlType{
+			Kind:        typeKindInputObject,
 			Name:        h.StrPtr(in.structName),
 			Description: h.StrPtr(""),
-			InputFields: func() []QLInputValue {
-				res := []QLInputValue{}
+			InputFields: func() []qlInputValue {
+				res := []qlInputValue{}
 				for key, item := range in.structContent {
-					res = append(res, QLInputValue{
+					res = append(res, qlInputValue{
 						Name:         key,
 						Description:  h.StrPtr(""),
 						Type:         *wrapQLTypeInNonNull(s.inputToQLType(&item)),
@@ -153,8 +153,8 @@ func (s *Schema) inputToQLType(in *Input) (res *QLType, isNonNull bool) {
 			},
 		}
 	case reflect.Array, reflect.Slice:
-		res = &QLType{
-			Kind:   TypeKindList,
+		res = &qlType{
+			Kind:   typeKindList,
 			OfType: wrapQLTypeInNonNull(s.inputToQLType(in.elem)),
 		}
 	case reflect.Ptr:
@@ -178,16 +178,16 @@ func (s *Schema) inputToQLType(in *Input) (res *QLType, isNonNull bool) {
 		res = &rawRes
 	default:
 		isNonNull = true
-		res = &QLType{Kind: TypeKindScalar, Name: h.StrPtr(""), Description: h.StrPtr("")}
+		res = &qlType{Kind: typeKindScalar, Name: h.StrPtr(""), Description: h.StrPtr("")}
 	}
 	return
 }
 
-func (s *Schema) getObjectArgs(item *Obj) []QLInputValue {
-	res := []QLInputValue{}
+func (s *Schema) getObjectArgs(item *obj) []qlInputValue {
+	res := []qlInputValue{}
 	if item.valueType == valueTypeMethod {
 		for key, value := range item.method.inFields {
-			res = append(res, QLInputValue{
+			res = append(res, qlInputValue{
 				Name:         key,
 				Description:  h.StrPtr(""),
 				Type:         *wrapQLTypeInNonNull(s.inputToQLType(&value.input)),
@@ -199,28 +199,28 @@ func (s *Schema) getObjectArgs(item *Obj) []QLInputValue {
 	return res
 }
 
-func (s *Schema) objToQLType(item *Obj) (res *QLType, isNonNull bool) {
+func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 	switch item.valueType {
 	case valueTypeUndefined:
 		// WUT??, we'll just look away and continue as if nothing happend
 		// FIXME: maybe we should return an error here
 	case valueTypeArray:
-		res = &QLType{
-			Kind:   TypeKindList,
+		res = &qlType{
+			Kind:   typeKindList,
 			OfType: wrapQLTypeInNonNull(s.objToQLType(item.innerContent)),
 		}
 	case valueTypeObjRef:
 		return s.objToQLType(s.types[item.typeName])
 	case valueTypeObj:
 		isNonNull = true
-		res = &QLType{
-			Kind:        TypeKindObject,
+		res = &qlType{
+			Kind:        typeKindObject,
 			Name:        h.StrPtr(item.typeName),
 			Description: h.StrPtr(""),
-			Fields: func(args IsDeprecatedArgs) []QLField {
-				res := []QLField{}
+			Fields: func(args isDeprecatedArgs) []qlField {
+				res := []qlField{}
 				for key, innerItem := range item.objContents {
-					res = append(res, QLField{
+					res = append(res, qlField{
 						Name: key,
 						Args: s.getObjectArgs(innerItem),
 						Type: *wrapQLTypeInNonNull(s.objToQLType(innerItem)),
@@ -232,7 +232,7 @@ func (s *Schema) objToQLType(item *Obj) (res *QLType, isNonNull bool) {
 		}
 	case valueTypeData:
 		isNonNull = true
-		var rawRes QLType
+		var rawRes qlType
 		switch item.dataValueType {
 		case reflect.Bool:
 			rawRes = scalars["Boolean"]
@@ -243,7 +243,7 @@ func (s *Schema) objToQLType(item *Obj) (res *QLType, isNonNull bool) {
 		case reflect.String:
 			rawRes = scalars["String"]
 		default:
-			rawRes = QLType{Kind: TypeKindScalar, Name: h.StrPtr(""), Description: h.StrPtr("")}
+			rawRes = qlType{Kind: typeKindScalar, Name: h.StrPtr(""), Description: h.StrPtr("")}
 		}
 		res = &rawRes
 	case valueTypeEnum:
@@ -264,15 +264,15 @@ func (s *Schema) objToQLType(item *Obj) (res *QLType, isNonNull bool) {
 	return
 }
 
-func enumToQlType(enum enum) QLType {
+func enumToQlType(enum enum) qlType {
 	name := enum.contentType.Name()
-	return QLType{
-		Kind: TypeKindEnum,
+	return qlType{
+		Kind: typeKindEnum,
 		Name: &name,
-		EnumValues: func(args IsDeprecatedArgs) []QLEnumValue {
-			res := []QLEnumValue{}
+		EnumValues: func(args isDeprecatedArgs) []qlEnumValue {
+			res := []qlEnumValue{}
 			for key := range enum.keyValue {
-				res = append(res, QLEnumValue{
+				res = append(res, qlEnumValue{
 					Name:              key,
 					Description:       h.StrPtr(""),
 					IsDeprecated:      false,

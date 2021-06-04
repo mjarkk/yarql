@@ -818,7 +818,7 @@ func TestExecSchemaRequestSimple(t *testing.T) {
 	}
 
 	res := struct {
-		Schema QLSchema `json:"__schema"`
+		Schema qlSchema `json:"__schema"`
 	}{}
 	err := json.Unmarshal([]byte(resString), &res)
 	NoError(t, err)
@@ -886,7 +886,7 @@ func TestExecSchemaRequestWithFields(t *testing.T) {
 	}
 
 	res := struct {
-		Schema QLSchema `json:"__schema"`
+		Schema qlSchema `json:"__schema"`
 	}{}
 	err := json.Unmarshal([]byte(resString), &res)
 	NoError(t, err)

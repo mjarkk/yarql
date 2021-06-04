@@ -73,7 +73,7 @@ func (ctx *Ctx) addErrf(path []string, err string, args ...interface{}) {
 
 // getVariable tries to resolve a variable and places it inside the value argument
 // Variable must be defined inside the operator
-func (ctx *Ctx) getVariable(name string, value *Value) error {
+func (ctx *Ctx) getVariable(name string, value *value) error {
 	definition, ok := ctx.operator.variableDefinitions[name]
 	if !ok {
 		return errors.New("variable not defined in " + ctx.operator.operationType)
@@ -100,65 +100,65 @@ func (ctx *Ctx) getVariable(name string, value *Value) error {
 	return nil
 }
 
-func (ctx *Ctx) resolveVariableFromJson(jsonValue *fastjson.Value, expectedValueType *typeReference, value *Value) error {
+func (ctx *Ctx) resolveVariableFromJson(jsonValue *fastjson.Value, expectedValueType *typeReference, val *value) error {
 	if expectedValueType.list {
 		arrContents, err := jsonValue.Array()
 		if err != nil {
 			return err
 		}
-		newArray := []Value{}
+		newArray := []value{}
 		for _, item := range arrContents {
 			if item == nil {
 				continue
 			}
 
-			itemValue := Value{}
+			itemValue := value{}
 			err = ctx.resolveVariableFromJson(item, expectedValueType.listType, &itemValue)
 			if err != nil {
 				return err
 			}
 			newArray = append(newArray, itemValue)
 		}
-		value.valType = reflect.Array
-		value.listValue = newArray
+		val.valType = reflect.Array
+		val.listValue = newArray
 		return nil
 	}
 
 	// TODO support struct and ID values
 
-	value.qlTypeName = &expectedValueType.name
+	val.qlTypeName = &expectedValueType.name
 	var err error
 	switch expectedValueType.name {
 	case "Boolean":
-		value.valType = reflect.Bool
-		value.booleanValue, err = jsonValue.Bool()
+		val.valType = reflect.Bool
+		val.booleanValue, err = jsonValue.Bool()
 		return err
 	case "Int":
-		value.valType = reflect.Int
-		value.intValue, err = jsonValue.Int()
+		val.valType = reflect.Int
+		val.intValue, err = jsonValue.Int()
 		return err
 	case "Float":
-		value.valType = reflect.Float64
-		value.floatValue, err = jsonValue.Float64()
+		val.valType = reflect.Float64
+		val.floatValue, err = jsonValue.Float64()
 		return err
 	case "String":
-		value.valType = reflect.String
-		val, err := jsonValue.StringBytes()
+		val.valType = reflect.String
+		strVal, err := jsonValue.StringBytes()
 		if err != nil {
 			return err
 		}
-		value.stringValue = string(val)
+		val.stringValue = string(strVal)
 		return nil
 	}
 
 	_, ok := definedEnums[expectedValueType.name]
 	if ok {
-		value.isEnum = true
-		val, err := jsonValue.StringBytes()
+		val.isEnum = true
+		strVal, err := jsonValue.StringBytes()
 		if err != nil {
 			return errors.New("expected enum value as string but got " + jsonValue.Type().String())
 		}
-		value.enumValue = string(val)
+		val.enumValue = string(strVal)
 		return nil
 	}
 
@@ -177,47 +177,47 @@ func (ctx *Ctx) resolveVariableFromJson(jsonValue *fastjson.Value, expectedValue
 			}
 		})
 
-		value.valType = reflect.Map
-		value.objectValue = objectContent
+		val.valType = reflect.Map
+		val.objectValue = objectContent
 		return nil
 	}
 
 	return errors.New("Unknown input type " + expectedValueType.name)
 }
 
-func (ctx *Ctx) resolveVariableFromDefault(defaultValue Value, expectedValueType *typeReference, value *Value) error {
+func (ctx *Ctx) resolveVariableFromDefault(defaultValue value, expectedValueType *typeReference, val *value) error {
 	// TODO: CRITICAL BUG: You can create a invite loop by refering to a variable from withinn the default data
 
 	if expectedValueType.list {
 		if defaultValue.valType != reflect.Array {
 			return errors.New("exected list")
 		}
-		newArray := []Value{}
+		newArray := []value{}
 		for _, listItem := range defaultValue.listValue {
-			itemValue := Value{}
+			itemValue := value{}
 			err := ctx.resolveVariableFromDefault(listItem, expectedValueType.listType, &itemValue)
 			if err != nil {
 				return err
 			}
 			newArray = append(newArray, itemValue)
 		}
-		value.valType = reflect.Array
-		value.listValue = newArray
+		val.valType = reflect.Array
+		val.listValue = newArray
 		return nil
 	}
 
 	// TODO support struct and ID values
 
-	value.qlTypeName = &expectedValueType.name
+	val.qlTypeName = &expectedValueType.name
 	switch expectedValueType.name {
 	case "Boolean":
-		return value.SetToValueOfAndExpect(defaultValue, reflect.Bool)
+		return val.setToValueOfAndExpect(defaultValue, reflect.Bool)
 	case "Int":
-		return value.SetToValueOfAndExpect(defaultValue, reflect.Int)
+		return val.setToValueOfAndExpect(defaultValue, reflect.Int)
 	case "Float":
-		return value.SetToValueOfAndExpect(defaultValue, reflect.Float64)
+		return val.setToValueOfAndExpect(defaultValue, reflect.Float64)
 	case "String":
-		return value.SetToValueOfAndExpect(defaultValue, reflect.String)
+		return val.setToValueOfAndExpect(defaultValue, reflect.String)
 	}
 
 	_, ok := definedEnums[expectedValueType.name]
@@ -225,8 +225,8 @@ func (ctx *Ctx) resolveVariableFromDefault(defaultValue Value, expectedValueType
 		if !defaultValue.isEnum {
 			return errors.New("exected default value to be of kind enum")
 		}
-		value.isEnum = true
-		value.enumValue = defaultValue.enumValue
+		val.isEnum = true
+		val.enumValue = defaultValue.enumValue
 		return nil
 	}
 
@@ -235,8 +235,8 @@ func (ctx *Ctx) resolveVariableFromDefault(defaultValue Value, expectedValueType
 		if defaultValue.valType != reflect.Map {
 			return errors.New("exected default value to be of kind object")
 		}
-		value.valType = reflect.Map
-		value.objectValue = defaultValue.objectValue
+		val.valType = reflect.Map
+		val.objectValue = defaultValue.objectValue
 		return nil
 	}
 
@@ -265,7 +265,7 @@ func (ctx *Ctx) getJSONVariables() (*fastjson.Value, error) {
 	return ctx.jsonVariables, nil
 }
 
-func jsonValueToValue(jsonValue *fastjson.Value) Value {
+func jsonValueToValue(jsonValue *fastjson.Value) value {
 	switch jsonValue.Type() {
 	case fastjson.TypeNull:
 		return makeNullValue()
@@ -277,7 +277,7 @@ func jsonValueToValue(jsonValue *fastjson.Value) Value {
 		})
 		return makeStructValue(objectContent)
 	case fastjson.TypeArray:
-		list := []Value{}
+		list := []value{}
 		for _, item := range jsonValue.GetArray() {
 			if item == nil {
 				continue

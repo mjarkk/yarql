@@ -5,7 +5,7 @@ import (
 	"reflect"
 )
 
-type Value struct {
+type value struct {
 	// Check these before valType
 	isVar  bool
 	isNull bool
@@ -22,7 +22,7 @@ type Value struct {
 	stringValue  string
 	booleanValue bool
 	enumValue    string
-	listValue    []Value
+	listValue    []value
 	objectValue  arguments
 
 	// Set this value if the value might be used on multiple places and the graphql typename is known
@@ -30,15 +30,15 @@ type Value struct {
 	qlTypeName *string
 }
 
-func (v *Value) SetToValueOfAndExpect(other Value, expect reflect.Kind) error {
+func (v *value) setToValueOfAndExpect(other value, expect reflect.Kind) error {
 	if other.valType != expect {
 		return errors.New("Value expected to be of type " + expect.String())
 	}
-	v.SetToValueOf(other)
+	v.setToValueOf(other)
 	return nil
 }
 
-func (v *Value) SetToValueOf(other Value) {
+func (v *value) setToValueOf(other value) {
 	v.valType = other.valType
 	switch other.valType {
 	case reflect.String:
@@ -56,69 +56,69 @@ func (v *Value) SetToValueOf(other Value) {
 	}
 }
 
-func makeStringValue(val string) Value {
-	return Value{
+func makeStringValue(val string) value {
+	return value{
 		valType:     reflect.String,
 		stringValue: val,
 	}
 }
 
-func makeBooleanValue(val bool) Value {
-	return Value{
+func makeBooleanValue(val bool) value {
+	return value{
 		valType:      reflect.Bool,
 		booleanValue: val,
 	}
 }
 
-func makeIntValue(val int) Value {
-	return Value{
+func makeIntValue(val int) value {
+	return value{
 		valType:  reflect.Int,
 		intValue: val,
 	}
 }
 
-func makeFloatValue(val float64) Value {
-	return Value{
+func makeFloatValue(val float64) value {
+	return value{
 		valType:    reflect.Float64,
 		floatValue: val,
 	}
 }
 
-func makeEnumValue(val string) Value {
-	return Value{
+func makeEnumValue(val string) value {
+	return value{
 		isEnum:    true,
 		enumValue: val,
 	}
 }
 
-func makeNullValue() Value {
-	return Value{
+func makeNullValue() value {
+	return value{
 		isNull: true,
 	}
 }
 
-func makeArrayValue(list []Value) Value {
+func makeArrayValue(list []value) value {
 	if list == nil {
-		list = []Value{}
+		list = []value{}
 	}
-	return Value{
+	return value{
 		valType:   reflect.Array,
 		listValue: list,
 	}
 }
 
-func makeStructValue(keyValues arguments) Value {
+func makeStructValue(keyValues arguments) value {
 	if keyValues == nil {
 		keyValues = arguments{}
 	}
-	return Value{
+	return value{
 		valType:     reflect.Map,
 		objectValue: keyValues,
 	}
 }
 
-func makeVariableValue(varName string) Value {
-	return Value{
+func makeVariableValue(varName string) value {
+	return value{
 		variable: varName,
 		isVar:    true,
 	}
