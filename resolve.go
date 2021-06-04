@@ -25,7 +25,7 @@ func (s *Schema) Resolve(query string, options ResolveOptions) (string, []error)
 		fragments:           fragments,
 		schema:              s,
 		Values:              map[string]interface{}{},
-		directvies:          []Directives{},
+		directvies:          []directives{},
 		errors:              []error{},
 		jsonVariablesString: options.Variables,
 	}
@@ -77,7 +77,7 @@ func (ctx *Ctx) start() string {
 	}
 }
 
-func (ctx *Ctx) resolveSelection(selectionSet SelectionSet, struct_ reflect.Value, structType *Obj, dept uint8, path []string) string {
+func (ctx *Ctx) resolveSelection(selectionSet selectionSet, struct_ reflect.Value, structType *Obj, dept uint8, path []string) string {
 	if dept >= ctx.schema.MaxDepth {
 		ctx.addErr(path, "reached max dept")
 		return "null"
@@ -86,7 +86,7 @@ func (ctx *Ctx) resolveSelection(selectionSet SelectionSet, struct_ reflect.Valu
 	return "{" + ctx.resolveSelectionContent(selectionSet, struct_, structType, dept, path) + "}"
 }
 
-func (ctx *Ctx) resolveSelectionContent(selectionSet SelectionSet, struct_ reflect.Value, structType *Obj, dept uint8, path []string) string {
+func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, struct_ reflect.Value, structType *Obj, dept uint8, path []string) string {
 	res := ""
 	writtenToRes := false
 	for _, selection := range selectionSet {
@@ -132,7 +132,7 @@ func (ctx *Ctx) resolveSelectionContent(selectionSet SelectionSet, struct_ refle
 	return res
 }
 
-func (ctx *Ctx) resolveField(query *Field, struct_ reflect.Value, codeStructure *Obj, dept uint8, path []string) (fieldValue string, returnedOnError bool) {
+func (ctx *Ctx) resolveField(query *field, struct_ reflect.Value, codeStructure *Obj, dept uint8, path []string) (fieldValue string, returnedOnError bool) {
 	name := query.name
 	if len(query.alias) > 0 {
 		name = query.alias
@@ -347,7 +347,7 @@ func (ctx *Ctx) matchInputValue(queryValue *Value, goField *reflect.Value, goAny
 	return nil
 }
 
-func (ctx *Ctx) resolveFieldDataValue(query *Field, value reflect.Value, codeStructure *Obj, dept uint8, path []string) (fieldValue string, returnedOnError bool) {
+func (ctx *Ctx) resolveFieldDataValue(query *field, value reflect.Value, codeStructure *Obj, dept uint8, path []string) (fieldValue string, returnedOnError bool) {
 	switch codeStructure.valueType {
 	case valueTypeMethod:
 		if value.IsNil() {

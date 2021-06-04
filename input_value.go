@@ -23,7 +23,7 @@ type Value struct {
 	booleanValue bool
 	enumValue    string
 	listValue    []Value
-	objectValue  Arguments
+	objectValue  arguments
 
 	// Set this value if the value might be used on multiple places and the graphql typename is known
 	// When using this struct to set data and this field is defined you should check it
@@ -107,9 +107,9 @@ func makeArrayValue(list []Value) Value {
 	}
 }
 
-func makeStructValue(keyValues Arguments) Value {
+func makeStructValue(keyValues arguments) Value {
 	if keyValues == nil {
-		keyValues = Arguments{}
+		keyValues = arguments{}
 	}
 	return Value{
 		valType:     reflect.Map,

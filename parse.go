@@ -95,7 +95,7 @@ type ObjMethod struct {
 	// false = ResolveFooBar func() string
 	isTypeMethod bool
 
-	ins      []BaseInput             // The real function inputs
+	ins      []baseInput             // The real function inputs
 	inFields map[string]referToInput // Contains all the fields of all the ins
 
 	outNr      int
@@ -127,7 +127,7 @@ type Input struct {
 	structContent    map[string]Input
 }
 
-type BaseInput struct {
+type baseInput struct {
 	isCtx bool
 	type_ *reflect.Type
 }
@@ -462,7 +462,7 @@ func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool)
 		return nil, "", errors.New("function method cannot end with spread argument")
 	}
 
-	ins := []BaseInput{}
+	ins := []baseInput{}
 	inFields := map[string]referToInput{}
 
 	totalInputs := t.NumIn()
@@ -477,7 +477,7 @@ func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool)
 		}
 
 		type_ := t.In(i)
-		input := BaseInput{}
+		input := baseInput{}
 		typeKind := type_.Kind()
 		if typeKind == reflect.Ptr && isCtx(type_.Elem()) {
 			input.isCtx = true

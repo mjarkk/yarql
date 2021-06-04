@@ -11,12 +11,12 @@ import (
 
 // Ctx contains all the request information and responses
 type Ctx struct {
-	fragments           map[string]Operator    // Query fragments
+	fragments           map[string]operator    // Query fragments
 	schema              *Schema                // The Go code schema (graphql schema)
 	Values              map[string]interface{} // API User values, user can put all their shitty things in here like poems or tax papers
-	directvies          []Directives           // Directives stored in ctx
+	directvies          []directives           // Directives stored in ctx
 	errors              []error                // Query errors
-	operator            *Operator              // Part of query to execute
+	operator            *operator              // Part of query to execute
 	jsonVariablesString string                 // Raw query variables
 	jsonVariables       *fastjson.Value        // Parsed query variables
 	path                *[]string              // Property ment to be used within custom resolvers and field methods (value also only set when executing one of those)
@@ -100,7 +100,7 @@ func (ctx *Ctx) getVariable(name string, value *Value) error {
 	return nil
 }
 
-func (ctx *Ctx) resolveVariableFromJson(jsonValue *fastjson.Value, expectedValueType *TypeReference, value *Value) error {
+func (ctx *Ctx) resolveVariableFromJson(jsonValue *fastjson.Value, expectedValueType *typeReference, value *Value) error {
 	if expectedValueType.list {
 		arrContents, err := jsonValue.Array()
 		if err != nil {
@@ -169,7 +169,7 @@ func (ctx *Ctx) resolveVariableFromJson(jsonValue *fastjson.Value, expectedValue
 			return errors.New("exected default value to be of kind object")
 		}
 
-		objectContent := Arguments{}
+		objectContent := arguments{}
 		jsonObject.Visit(func(key []byte, v *fastjson.Value) {
 			if v != nil {
 				keyStr := string(key)
@@ -185,7 +185,7 @@ func (ctx *Ctx) resolveVariableFromJson(jsonValue *fastjson.Value, expectedValue
 	return errors.New("Unknown input type " + expectedValueType.name)
 }
 
-func (ctx *Ctx) resolveVariableFromDefault(defaultValue Value, expectedValueType *TypeReference, value *Value) error {
+func (ctx *Ctx) resolveVariableFromDefault(defaultValue Value, expectedValueType *typeReference, value *Value) error {
 	// TODO: CRITICAL BUG: You can create a invite loop by refering to a variable from withinn the default data
 
 	if expectedValueType.list {
@@ -270,7 +270,7 @@ func jsonValueToValue(jsonValue *fastjson.Value) Value {
 	case fastjson.TypeNull:
 		return makeNullValue()
 	case fastjson.TypeObject:
-		objectContent := Arguments{}
+		objectContent := arguments{}
 		jsonValue.GetObject().Visit(func(key []byte, v *fastjson.Value) {
 			keyStr := string(key)
 			objectContent[keyStr] = jsonValueToValue(v)

@@ -252,7 +252,7 @@ func TestQueryParserSimpleQuery(t *testing.T) {
 
 		Equal(t, 3, len(res[0].selection), "Should have 3 properties")
 
-		selectionMap := map[string]Field{}
+		selectionMap := map[string]field{}
 		for _, item := range res[0].selection {
 			Equal(t, "Field", item.selectionType)
 			NotNil(t, item.field)

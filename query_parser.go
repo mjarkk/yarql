@@ -9,55 +9,51 @@ import (
 	"unicode"
 )
 
-var (
-	ErrorUnexpectedEOF = errors.New("unexpected EOF")
-)
-
-type Operator struct {
+type operator struct {
 	operationType       string // "query" || "mutation" || "subscription" || "fragment"
 	name                string // "" = no name given, note: fragments always have a name
-	selection           SelectionSet
-	directives          Directives
-	variableDefinitions VariableDefinitions
-	fragment            *InlineFragment // defined if: operationType == "fragment"
+	selection           selectionSet
+	directives          directives
+	variableDefinitions variableDefinitions
+	fragment            *inlineFragment // defined if: operationType == "fragment"
 }
 
-type SelectionSet []Selection
+type selectionSet []selection
 
-type Selection struct {
+type selection struct {
 	selectionType  string          // "Field" || "FragmentSpread" || "InlineFragment"
-	field          *Field          // Optional
-	fragmentSpread *FragmentSpread // Optional
-	inlineFragment *InlineFragment // Optional
+	field          *field          // Optional
+	fragmentSpread *fragmentSpread // Optional
+	inlineFragment *inlineFragment // Optional
 }
 
-type Field struct {
+type field struct {
 	name       string
 	alias      string       // Optional
-	selection  SelectionSet // Optional
-	directives Directives   // Optional
-	arguments  Arguments    // Optional
+	selection  selectionSet // Optional
+	directives directives   // Optional
+	arguments  arguments    // Optional
 }
 
-type FragmentSpread struct {
+type fragmentSpread struct {
 	name       string
-	directives Directives // Optional
+	directives directives // Optional
 }
 
-type InlineFragment struct {
-	selection           SelectionSet
+type inlineFragment struct {
+	selection           selectionSet
 	onTypeConditionName string     // Optional
-	directives          Directives // Optional
+	directives          directives // Optional
 }
 
-type Directives map[string]Directive
+type directives map[string]directive
 
-type Directive struct {
+type directive struct {
 	name      string
-	arguments Arguments
+	arguments arguments
 }
 
-type TypeReference struct {
+type typeReference struct {
 	list    bool
 	nonNull bool
 
@@ -65,21 +61,21 @@ type TypeReference struct {
 	name string
 
 	// list == true
-	listType *TypeReference
+	listType *typeReference
 }
 
-type VariableDefinitions map[string]VariableDefinition // Key is the variable name without the $
+type variableDefinitions map[string]variableDefinition // Key is the variable name without the $
 
-type VariableDefinition struct {
+type variableDefinition struct {
 	name         string
-	varType      TypeReference
+	varType      typeReference
 	defaultValue *Value
 }
 
-type Arguments map[string]Value
+type arguments map[string]Value
 
-func ParseQuery(input string) ([]*Operator, *ErrorWLocation) {
-	res := []*Operator{}
+func ParseQuery(input string) ([]*operator, *ErrorWLocation) {
+	res := []*operator{}
 	iter := &iter{
 		data: input,
 	}
@@ -143,7 +139,7 @@ func (i *iter) err(err string) *ErrorWLocation {
 }
 
 func (i *iter) unexpectedEOF() *ErrorWLocation {
-	return i.err(ErrorUnexpectedEOF.Error())
+	return i.err("unexpected EOF")
 }
 
 func (i *iter) checkC(nr uint64) (res rune, end bool) {
@@ -168,13 +164,13 @@ func (i *iter) currentC() rune {
 // Parses one of the following:
 // - https://spec.graphql.org/June2018/#sec-Language.Operations
 // - https://spec.graphql.org/June2018/#FragmentDefinition
-func (i *iter) parseOperatorOrFragment() (*Operator, *ErrorWLocation) {
-	res := Operator{
+func (i *iter) parseOperatorOrFragment() (*operator, *ErrorWLocation) {
+	res := operator{
 		operationType:       "query",
 		name:                "",
-		selection:           SelectionSet{},
-		directives:          Directives{},
-		variableDefinitions: VariableDefinitions{},
+		selection:           selectionSet{},
+		directives:          directives{},
+		variableDefinitions: variableDefinitions{},
 	}
 
 	// This can only return EOF errors atm and as we handle those differently here we can ignore the error
@@ -262,8 +258,8 @@ func (i *iter) parseOperatorOrFragment() (*Operator, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#VariableDefinitions
-func (i *iter) parseVariableDefinitions() (VariableDefinitions, *ErrorWLocation) {
-	res := VariableDefinitions{}
+func (i *iter) parseVariableDefinitions() (variableDefinitions, *ErrorWLocation) {
+	res := variableDefinitions{}
 	for {
 		c, err := i.mightIgnoreNextTokens()
 		if err != nil {
@@ -285,8 +281,8 @@ func (i *iter) parseVariableDefinitions() (VariableDefinitions, *ErrorWLocation)
 }
 
 // https://spec.graphql.org/June2018/#VariableDefinition
-func (i *iter) parseVariableDefinition() (VariableDefinition, *ErrorWLocation) {
-	res := VariableDefinition{}
+func (i *iter) parseVariableDefinition() (variableDefinition, *ErrorWLocation) {
+	res := variableDefinition{}
 
 	// Parse var name
 	varName, err := i.parseVariable(false)
@@ -709,8 +705,8 @@ func (i *iter) parseNumberValue() (Value, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#Type
-func (i *iter) parseType() (*TypeReference, *ErrorWLocation) {
-	res := TypeReference{}
+func (i *iter) parseType() (*typeReference, *ErrorWLocation) {
+	res := typeReference{}
 
 	if i.currentC() == '[' {
 		res.list = true
@@ -781,8 +777,8 @@ func (i *iter) parseVariable(alreadyParsedIdentifier bool) (string, *ErrorWLocat
 }
 
 // https://spec.graphql.org/June2018/#sec-Selection-Sets
-func (i *iter) parseSelectionSets() (SelectionSet, *ErrorWLocation) {
-	res := SelectionSet{}
+func (i *iter) parseSelectionSets() (selectionSet, *ErrorWLocation) {
+	res := selectionSet{}
 
 	for {
 		c, err := i.mightIgnoreNextTokens()
@@ -817,8 +813,8 @@ func (i *iter) parseSelectionSets() (SelectionSet, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#Selection
-func (i *iter) parseSelection() (Selection, *ErrorWLocation) {
-	res := Selection{}
+func (i *iter) parseSelection() (selection, *ErrorWLocation) {
+	res := selection{}
 
 	if len(i.matches("...")) > 0 {
 		_, err := i.mightIgnoreNextTokens()
@@ -859,8 +855,8 @@ func (i *iter) parseSelection() (Selection, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#InlineFragment
-func (i *iter) parseInlineFragment(hasTypeCondition bool) (*InlineFragment, *ErrorWLocation) {
-	res := InlineFragment{}
+func (i *iter) parseInlineFragment(hasTypeCondition bool) (*inlineFragment, *ErrorWLocation) {
+	res := inlineFragment{}
 	if hasTypeCondition {
 		_, err := i.mightIgnoreNextTokens()
 		if err != nil {
@@ -903,8 +899,8 @@ func (i *iter) parseInlineFragment(hasTypeCondition bool) (*InlineFragment, *Err
 }
 
 // https://spec.graphql.org/June2018/#FragmentSpread
-func (i *iter) parseFragmentSpread(name string) (*FragmentSpread, *ErrorWLocation) {
-	res := FragmentSpread{name: name}
+func (i *iter) parseFragmentSpread(name string) (*fragmentSpread, *ErrorWLocation) {
+	res := fragmentSpread{name: name}
 
 	// parse optional directives
 	c, err := i.mightIgnoreNextTokens()
@@ -922,8 +918,8 @@ func (i *iter) parseFragmentSpread(name string) (*FragmentSpread, *ErrorWLocatio
 }
 
 // https://spec.graphql.org/June2018/#Field
-func (i *iter) parseField() (*Field, *ErrorWLocation) {
-	res := Field{}
+func (i *iter) parseField() (*field, *ErrorWLocation) {
+	res := field{}
 
 	// Parse name (and alias if pressent)
 	nameOrAlias, err := i.parseName()
@@ -1006,8 +1002,8 @@ func (i *iter) parseField() (*Field, *ErrorWLocation) {
 // Parses object values and arguments as the only diffrents seems to be the wrappers around it
 // ObjectValues > https://spec.graphql.org/June2018/#ObjectValue
 // Arguments > https://spec.graphql.org/June2018/#Arguments
-func (i *iter) parseArgumentsOrObjectValues(closure rune) (Arguments, *ErrorWLocation) {
-	res := Arguments{}
+func (i *iter) parseArgumentsOrObjectValues(closure rune) (arguments, *ErrorWLocation) {
+	res := arguments{}
 
 	c, err := i.mightIgnoreNextTokens()
 	if err != nil {
@@ -1071,8 +1067,8 @@ func (i *iter) parseArgumentsOrObjectValues(closure rune) (Arguments, *ErrorWLoc
 }
 
 // https://spec.graphql.org/June2018/#Directives
-func (i *iter) parseDirectives() (Directives, *ErrorWLocation) {
-	res := Directives{}
+func (i *iter) parseDirectives() (directives, *ErrorWLocation) {
+	res := directives{}
 	for {
 		c, err := i.mightIgnoreNextTokens()
 		if err != nil {
@@ -1093,7 +1089,7 @@ func (i *iter) parseDirectives() (Directives, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#Directive
-func (i *iter) parseDirective() (*Directive, *ErrorWLocation) {
+func (i *iter) parseDirective() (*directive, *ErrorWLocation) {
 	name, err := i.parseName()
 	if err != nil {
 		return nil, err
@@ -1101,7 +1097,7 @@ func (i *iter) parseDirective() (*Directive, *ErrorWLocation) {
 	if name == "" {
 		return nil, i.err("directive must have a name")
 	}
-	res := Directive{name: name}
+	res := directive{name: name}
 
 	// Parse optional Arguments
 	c, err := i.mightIgnoreNextTokens()

@@ -4,10 +4,10 @@ import (
 	"fmt"
 )
 
-func ParseQueryAndCheckNames(input string) (fragments, operatorsMap map[string]Operator, resErrors []error) {
+func ParseQueryAndCheckNames(input string) (fragments, operatorsMap map[string]operator, resErrors []error) {
 	resErrors = []error{}
-	fragments = map[string]Operator{}
-	operatorsMap = map[string]Operator{}
+	fragments = map[string]operator{}
+	operatorsMap = map[string]operator{}
 
 	operators, err := ParseQuery(input)
 	if err != nil {
