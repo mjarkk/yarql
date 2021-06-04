@@ -75,7 +75,7 @@ type Obj struct {
 	method *ObjMethod
 
 	// Value type == valueTypeEnum
-	enumKey string
+	enumTypeName string
 }
 
 func (o *Obj) getRef() Obj {
@@ -111,9 +111,9 @@ type referToInput struct {
 }
 
 type Input struct {
-	kind    reflect.Kind
-	isEnum  bool
-	enumKey string
+	kind         reflect.Kind
+	isEnum       bool
+	enumTypeName string
 
 	goFieldName string
 	gqFieldName string
@@ -268,7 +268,7 @@ func (c *parseCtx) check(t reflect.Type) (*Obj, error) {
 		enum := getEnum(t)
 		if enum != nil {
 			res.valueType = valueTypeEnum
-			res.enumKey = enum.key
+			res.enumTypeName = enum.typeName
 		} else {
 			res.valueType = valueTypeData
 			res.dataValueType = t.Kind()
@@ -386,7 +386,7 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type) (Input, error) {
 		enum := getEnum(t)
 		if enum != nil {
 			res.isEnum = true
-			res.enumKey = enum.key
+			res.enumTypeName = enum.typeName
 		}
 	case reflect.Ptr, reflect.Array, reflect.Slice:
 		input, err := c.checkFunctionInput(t.Elem())

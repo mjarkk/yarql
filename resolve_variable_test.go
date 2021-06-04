@@ -18,7 +18,7 @@ func TestResolveSimpleVariable(t *testing.T) {
 	Equal(t, `{"bar":"foo"}`, out)
 
 	// Default variable
-	variables = `{}`
+	variables = ``
 	out, errs = parseAndTestWithOptions(t, `query($baz: String = "foo") {bar(a: $baz)}`, TestExecStructTypeMethodWithArgsData{}, M{}, 255, "", variables)
 	for _, err := range errs {
 		panic(err)
@@ -71,9 +71,8 @@ func TestResolveOtherSimpleVariable(t *testing.T) {
 		Equal(t, fmt.Sprintf(`{"%s":%s}`, field, test.value), out)
 
 		// Using default variable
-		variables = `{}`
 		query = fmt.Sprintf(`query($baz: %s = %s) {%s(a: $baz)}`, test.type_, test.value, field)
-		out, errs = parseAndTestWithOptions(t, query, TestResolveOtherSimpleVariableData{}, M{}, 255, "", variables)
+		out, errs = parseAndTestWithOptions(t, query, TestResolveOtherSimpleVariableData{}, M{}, 255, "", "")
 		for _, err := range errs {
 			panic(err)
 		}
@@ -98,10 +97,32 @@ func TestResolveArrayVariable(t *testing.T) {
 	Equal(t, `{"bar":[2,3]}`, out)
 
 	// Default variable
-	variables = `{}`
-	out, errs = parseAndTestWithOptions(t, `query($baz: [Int] = [2,3]) {bar(a: $baz)}`, TestResolveArrayVariableData{}, M{}, 255, "", variables)
+	out, errs = parseAndTestWithOptions(t, `query($baz: [Int] = [2,3]) {bar(a: $baz)}`, TestResolveArrayVariableData{}, M{}, 255, "", "")
 	for _, err := range errs {
 		panic(err)
 	}
 	Equal(t, `{"bar":[2,3]}`, out)
+}
+
+type TestResolveEnumVariableData struct{}
+
+func (TestResolveEnumVariableData) ResolveBar(c *Ctx, args struct{ A __TypeKind }) __TypeKind {
+	return args.A
+}
+
+func TestResolveEnumVariable(t *testing.T) {
+	// Normal variables
+	variables := `{"baz": "UNION"}`
+	out, errs := parseAndTestWithOptions(t, `query($baz: __TypeKind) {bar(a: $baz)}`, TestResolveEnumVariableData{}, M{}, 255, "", variables)
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"bar":"UNION"}`, out)
+
+	// Default variable
+	out, errs = parseAndTestWithOptions(t, `query($baz: __TypeKind = UNION) {bar(a: $baz)}`, TestResolveEnumVariableData{}, M{}, 255, "", "")
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"bar":"UNION"}`, out)
 }

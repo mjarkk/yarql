@@ -8,13 +8,9 @@ import (
 
 type enum struct {
 	contentType reflect.Type
-	key         string
+	typeName    string
 	keyValue    map[string]reflect.Value
 	valueKey    reflect.Value
-}
-
-func getEnumKey(t reflect.Type) string {
-	return t.PkgPath() + " " + t.Name()
 }
 
 func getEnum(t reflect.Type) *enum {
@@ -22,7 +18,7 @@ func getEnum(t reflect.Type) *enum {
 		return nil
 	}
 
-	enum, ok := definedEnums[getEnumKey(t)]
+	enum, ok := definedEnums[t.Name()]
 	if !ok {
 		return nil
 	}
@@ -54,7 +50,7 @@ func RegisterEnum(map_ interface{}) bool {
 		return false
 	}
 
-	definedEnums[enum.key] = *enum
+	definedEnums[enum.typeName] = *enum
 	return true
 }
 
@@ -139,6 +135,6 @@ func registerEnumCheck(map_ interface{}) *enum {
 		contentType: contentType,
 		keyValue:    res,
 		valueKey:    valueKeyMap,
-		key:         getEnumKey(contentType),
+		typeName:    contentType.Name(),
 	}
 }

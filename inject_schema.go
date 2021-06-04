@@ -257,7 +257,7 @@ func (s *Schema) objToQLType(item *Obj) (res *QLType, isNonNull bool) {
 		res = &rawRes
 	case valueTypeEnum:
 		isNonNull = true
-		enumType := enumToQlType(definedEnums[item.enumKey])
+		enumType := enumToQlType(definedEnums[item.enumTypeName])
 		res = &enumType
 	case valueTypePtr:
 		// This basically sets the isNonNull to false

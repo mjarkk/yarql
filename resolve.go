@@ -251,15 +251,17 @@ func (ctx *Ctx) matchInputValue(queryValue *Value, goField *reflect.Value, goAny
 	if queryValue.isNull {
 		// Na mate just keep it at it's default
 		return nil
-	} else if queryValue.isEnum {
+	}
+
+	if queryValue.isEnum {
 		if !goAnylizedData.isEnum {
 			return mismatchError()
 		}
 
-		enum := definedEnums[goAnylizedData.enumKey]
+		enum := definedEnums[goAnylizedData.enumTypeName]
 		value, ok := enum.keyValue[queryValue.enumValue]
 		if !ok {
-			return fmt.Errorf("unknown enum value %s for enum %s", queryValue.enumValue, goAnylizedData.enumKey)
+			return fmt.Errorf("unknown enum value %s for enum %s", queryValue.enumValue, goAnylizedData.enumTypeName)
 		}
 
 		switch value.Kind() {
@@ -450,7 +452,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *Field, value reflect.Value, codeStr
 
 		return ctx.resolveFieldDataValue(query, value.Elem(), codeStructure.innerContent, dept)
 	case valueTypeEnum:
-		enum := definedEnums[codeStructure.enumKey]
+		enum := definedEnums[codeStructure.enumTypeName]
 
 		key := enum.valueKey.MapIndex(value)
 		if !key.IsValid() {

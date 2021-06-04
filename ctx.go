@@ -106,19 +106,22 @@ func (ctx *Ctx) resolveVariableFromJson(jsonValue *fastjson.Value, expectedValue
 		return nil
 	}
 
-	// TODO support struct, ID and enum values
+	// TODO support struct and ID values
 
 	var err error
 	switch expectedValueType.name {
 	case "Boolean":
 		value.valType = reflect.Bool
 		value.booleanValue, err = jsonValue.Bool()
+		return err
 	case "Int":
 		value.valType = reflect.Int
 		value.intValue, err = jsonValue.Int()
+		return err
 	case "Float":
 		value.valType = reflect.Float64
 		value.floatValue, err = jsonValue.Float64()
+		return err
 	case "String":
 		value.valType = reflect.String
 		val, err := jsonValue.StringBytes()
@@ -126,10 +129,21 @@ func (ctx *Ctx) resolveVariableFromJson(jsonValue *fastjson.Value, expectedValue
 			return err
 		}
 		value.stringValue = string(val)
-	default:
-		return errors.New("Unknown input type " + expectedValueType.name)
+		return nil
 	}
-	return err
+
+	_, ok := definedEnums[expectedValueType.name]
+	if ok {
+		value.isEnum = true
+		val, err := jsonValue.StringBytes()
+		if err != nil {
+			return errors.New("expected enum value as string but got " + jsonValue.Type().String())
+		}
+		value.enumValue = string(val)
+		return nil
+	}
+
+	return errors.New("Unknown input type " + expectedValueType.name)
 }
 
 func (ctx *Ctx) resolveVariableFromDefault(defaultValue Value, expectedValueType *TypeReference, value *Value) error {
@@ -151,22 +165,30 @@ func (ctx *Ctx) resolveVariableFromDefault(defaultValue Value, expectedValueType
 		return nil
 	}
 
-	// TODO support struct, ID and enum values
+	// TODO support struct and ID values
 
-	var reflValType reflect.Kind
 	switch expectedValueType.name {
 	case "Boolean":
-		reflValType = reflect.Bool
+		return value.SetToValueOfAndExpect(defaultValue, reflect.Bool)
 	case "Int":
-		reflValType = reflect.Int
+		return value.SetToValueOfAndExpect(defaultValue, reflect.Int)
 	case "Float":
-		reflValType = reflect.Float64
+		return value.SetToValueOfAndExpect(defaultValue, reflect.Float64)
 	case "String":
-		reflValType = reflect.String
-	default:
-		return errors.New("Unknown input type " + expectedValueType.name)
+		return value.SetToValueOfAndExpect(defaultValue, reflect.String)
 	}
-	return value.SetToValueOfAndExpect(defaultValue, reflValType)
+
+	_, ok := definedEnums[expectedValueType.name]
+	if ok {
+		if !defaultValue.isEnum {
+			return errors.New("exected default value to be of kind enum")
+		}
+		value.isEnum = true
+		value.enumValue = defaultValue.enumValue
+		return nil
+	}
+
+	return errors.New("Unknown input type " + expectedValueType.name)
 }
 
 func (ctx *Ctx) getJSONVariables() (*fastjson.Value, error) {
