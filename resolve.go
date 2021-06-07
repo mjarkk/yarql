@@ -66,7 +66,7 @@ func (ctx *Ctx) start() string {
 	case "query":
 		return ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootQueryValue, ctx.schema.rootQuery, 0, []string{})
 	case "mutation":
-		return ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootQueryValue, ctx.schema.rootMethod, 0, []string{})
+		return ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootMethodValue, ctx.schema.rootMethod, 0, []string{})
 	case "subscription":
 		// TODO
 		ctx.addErr(nil, "subscription not suppored yet")
@@ -350,11 +350,11 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAny
 func (ctx *Ctx) resolveFieldDataValue(query *field, value reflect.Value, codeStructure *obj, dept uint8, path []string) (fieldValue string, returnedOnError bool) {
 	switch codeStructure.valueType {
 	case valueTypeMethod:
-		if value.IsNil() {
+		method := codeStructure.method
+
+		if !method.isTypeMethod && value.IsNil() {
 			return "null", false
 		}
-
-		method := codeStructure.method
 
 		inputs := []reflect.Value{}
 		for _, in := range method.ins {
