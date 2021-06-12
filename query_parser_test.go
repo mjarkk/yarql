@@ -109,18 +109,23 @@ func TestQueryParserMultipleQueries(t *testing.T) {
 }
 
 func TestQueryParsingTypes(t *testing.T) {
-	toTest := []string{
-		`query ($a: String) {}`,
-		`query ($a: [String]) {}`,
-		`query ($a: [String!]) {}`,
-		`query ($a: Boolean = true) {}`,
-		`query ($a: Null = null) {}`,
+	toTest := []struct {
+		query       string
+		expectedLen int
+	}{
+		{`query ($a: String) {}`, 1},
+		{`query ($a: [String]) {}`, 1},
+		{`query ($a: [String!]) {}`, 1},
+		{`query ($a: Boolean = true) {}`, 1},
+		{`query ($a: Null = null) {}`, 1},
+		{`query ($a: String $b: Int) {}`, 2},
+		{`query ($a: String, $b: Int) {}`, 2},
 	}
 
 	for _, item := range toTest {
-		res, err := parseQuery(item)
-		Equal(t, 1, len(res), item)
-		Nil(t, err, item)
+		res, err := parseQuery(item.query)
+		Equal(t, item.expectedLen, len(res[0].variableDefinitions), item.query)
+		Nil(t, err, item.query)
 	}
 
 	res, err := parseQuery(`query query_name( $a : String $b:Boolean) {}`)

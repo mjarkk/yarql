@@ -259,13 +259,13 @@ func (i *iter) parseOperatorOrFragment() (*operator, *ErrorWLocation) {
 
 // https://spec.graphql.org/June2018/#VariableDefinitions
 func (i *iter) parseVariableDefinitions() (variableDefinitions, *ErrorWLocation) {
+	c, err := i.mightIgnoreNextTokens()
+	if err != nil {
+		return nil, err
+	}
+
 	res := variableDefinitions{}
 	for {
-		c, err := i.mightIgnoreNextTokens()
-		if err != nil {
-			return nil, err
-		}
-
 		if c == ')' {
 			i.charNr++
 			return res, nil
@@ -274,6 +274,18 @@ func (i *iter) parseVariableDefinitions() (variableDefinitions, *ErrorWLocation)
 		variable, err := i.parseVariableDefinition()
 		if err != nil {
 			return nil, err
+		}
+
+		c, err = i.mightIgnoreNextTokens()
+		if err != nil {
+			return nil, err
+		}
+		if c == ',' {
+			i.charNr++
+			c, err = i.mightIgnoreNextTokens()
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		res[variable.name] = variable
