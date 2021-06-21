@@ -51,16 +51,16 @@ func TestParseQueryAndCheckNamesUnnamed(t *testing.T) {
 	Equal(t, 0, len(fragments))
 	Equal(t, 5, len(operators))
 
-	exsists := func(name string) {
+	exists := func(name string) {
 		_, ok := operators[name]
 		True(t, ok, name)
 	}
 
-	exsists("unknown_query_1")
-	exsists("unknown_query_2")
-	exsists("unknown_query_3")
-	exsists("unknown_mutation_1")
-	exsists("unknown_subscription_1")
+	exists("unknown_query_1")
+	exists("unknown_query_2")
+	exists("unknown_query_3")
+	exists("unknown_mutation_1")
+	exists("unknown_subscription_1")
 }
 
 func TestParseQueryAndCheckNamesReportErrors(t *testing.T) {

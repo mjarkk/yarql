@@ -167,8 +167,8 @@ func (ctx *Ctx) resolveField(query *field, struct_ reflect.Value, codeStructure 
 	return res(fieldValue), returnedOnError
 }
 
-func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAnylizedData *input) error {
-	goFieldKind := goAnylizedData.kind
+func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAnalyzedData *input) error {
+	goFieldKind := goAnalyzedData.kind
 
 	if goFieldKind == reflect.Ptr {
 		if queryValue.isNull {
@@ -180,7 +180,7 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAny
 		newVal := reflect.New(expectedType)
 		newValInner := newVal.Elem()
 
-		err := ctx.matchInputValue(queryValue, &newValInner, goAnylizedData.elem)
+		err := ctx.matchInputValue(queryValue, &newValInner, goAnalyzedData.elem)
 		if err != nil {
 			return err
 		}
@@ -240,18 +240,18 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAny
 	}
 
 	if queryValue.isEnum {
-		if !goAnylizedData.isEnum {
+		if !goAnalyzedData.isEnum {
 			return mismatchError()
 		}
 
-		if queryValue.qlTypeName != nil && *queryValue.qlTypeName != goAnylizedData.enumTypeName {
-			return fmt.Errorf("expected type %s but got %s", goAnylizedData.enumTypeName, *queryValue.qlTypeName)
+		if queryValue.qlTypeName != nil && *queryValue.qlTypeName != goAnalyzedData.enumTypeName {
+			return fmt.Errorf("expected type %s but got %s", goAnalyzedData.enumTypeName, *queryValue.qlTypeName)
 		}
 
-		enum := definedEnums[goAnylizedData.enumTypeName]
+		enum := definedEnums[goAnalyzedData.enumTypeName]
 		value, ok := enum.keyValue[queryValue.enumValue]
 		if !ok {
-			return fmt.Errorf("unknown enum value %s for enum %s", queryValue.enumValue, goAnylizedData.enumTypeName)
+			return fmt.Errorf("unknown enum value %s for enum %s", queryValue.enumValue, goAnalyzedData.enumTypeName)
 		}
 
 		switch value.Kind() {
@@ -290,7 +290,7 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAny
 		case reflect.String:
 			if goFieldKind == reflect.String {
 				goField.SetString(queryValue.stringValue)
-			} else if goAnylizedData.isID {
+			} else if goAnalyzedData.isID {
 				switch goFieldKind {
 				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 					intValue, err := strconv.Atoi(queryValue.stringValue)
@@ -328,7 +328,7 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAny
 
 				for i, item := range queryValue.listValue {
 					arrayItem := arr.Index(i)
-					err := ctx.matchInputValue(&item, &arrayItem, goAnylizedData.elem)
+					err := ctx.matchInputValue(&item, &arrayItem, goAnalyzedData.elem)
 					if err != nil {
 						return fmt.Errorf("%s, Array index: [%d]", err.Error(), i)
 					}
@@ -343,16 +343,16 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAny
 				return mismatchError()
 			}
 
-			if queryValue.qlTypeName != nil && *queryValue.qlTypeName != goAnylizedData.structName {
-				return fmt.Errorf("expected type %s but got %s", goAnylizedData.structName, *queryValue.qlTypeName)
+			if queryValue.qlTypeName != nil && *queryValue.qlTypeName != goAnalyzedData.structName {
+				return fmt.Errorf("expected type %s but got %s", goAnalyzedData.structName, *queryValue.qlTypeName)
 			}
 
-			if goAnylizedData.isStructPointers {
-				goAnylizedData = ctx.schema.inTypes[goAnylizedData.structName]
+			if goAnalyzedData.isStructPointers {
+				goAnalyzedData = ctx.schema.inTypes[goAnalyzedData.structName]
 			}
 
 			for queryKey, arg := range queryValue.objectValue {
-				structItemMeta, ok := goAnylizedData.structContent[queryKey]
+				structItemMeta, ok := goAnalyzedData.structContent[queryKey]
 				if !ok {
 					return fmt.Errorf("undefined property %s", queryKey)
 				}

@@ -19,7 +19,7 @@ type Ctx struct {
 	operator            *operator              // Part of query to execute
 	jsonVariablesString string                 // Raw query variables
 	jsonVariables       *fastjson.Value        // Parsed query variables
-	path                *[]string              // Property ment to be used within custom resolvers and field methods (value also only set when executing one of those)
+	path                *[]string              // Property meant to be used within custom resolvers and field methods (value also only set when executing one of those)
 }
 
 //

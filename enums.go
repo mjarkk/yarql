@@ -110,6 +110,7 @@ func registerEnumCheck(map_ interface{}) *enum {
 		if !valid {
 			panic(fmt.Sprintf("RegisterEnum map key must start with an alphabetic character (lower or upper), key given: %s", keyStr))
 		}
+
 		for _, keyLetter := range keyByteArr[1:] {
 			valid = false
 			for _, letter := range []byte(letters + strings.ToUpper(letters) + numbers + special) {

@@ -14,23 +14,23 @@ func ParseQueryAndCheckNames(input string) (fragments, operatorsMap map[string]o
 		resErrors = append(resErrors, err)
 		return
 	}
-	unkownQueries := 0
+	unknownQueries := 0
 
-	unkownMutations := 0
-	unkownSubscriptions := 0
+	unknownMutations := 0
+	unknownSubscriptions := 0
 
 	for _, item := range operators {
 		if item.name == "" {
 			switch item.operationType {
 			case "query":
-				unkownQueries++
-				item.name = fmt.Sprintf("unknown_query_%d", unkownQueries)
+				unknownQueries++
+				item.name = fmt.Sprintf("unknown_query_%d", unknownQueries)
 			case "mutation":
-				unkownMutations++
-				item.name = fmt.Sprintf("unknown_mutation_%d", unkownMutations)
+				unknownMutations++
+				item.name = fmt.Sprintf("unknown_mutation_%d", unknownMutations)
 			case "subscription":
-				unkownSubscriptions++
-				item.name = fmt.Sprintf("unknown_subscription_%d", unkownSubscriptions)
+				unknownSubscriptions++
+				item.name = fmt.Sprintf("unknown_subscription_%d", unknownSubscriptions)
 			}
 			// "fragment" doesn't have to be handled here as it's required for those to have a name
 		}
