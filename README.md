@@ -118,7 +118,7 @@ struct {
 	bar string
 
 	// ignore public fields
-	Bar string `gqIgnore:"true"`
+	Bar string `gq:"-"`
 }
 ```
 
@@ -127,7 +127,7 @@ struct {
 ```go
 struct {
 	// Change the graphql field name to "bar"
-	Foo string `gqName:"bar"`
+	Foo string `gq:"bar"`
 }
 ```
 

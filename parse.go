@@ -237,15 +237,14 @@ func (c *parseCtx) check(t reflect.Type) (*obj, error) {
 
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
-			obj, err := c.checkStructField(field)
+			customName, obj, err := c.checkStructField(field)
 			if err != nil {
 				return nil, err
 			}
 			if obj != nil {
-				newName, hasNameRewrite := field.Tag.Lookup("gqName")
 				name := formatGoNameToQL(field.Name)
-				if hasNameRewrite {
-					name = newName
+				if customName != nil {
+					name = *customName
 				}
 				res.objContents[name] = obj
 			}
@@ -303,27 +302,26 @@ func (c *parseCtx) check(t reflect.Type) (*obj, error) {
 	return &res, nil
 }
 
-func (c *parseCtx) checkStructField(field reflect.StructField) (*obj, error) {
+func (c *parseCtx) checkStructField(field reflect.StructField) (customName *string, obj *obj, err error) {
 	if field.Anonymous {
-		return nil, nil
+		return nil, nil, nil
 	}
 
-	val, ok := field.Tag.Lookup("gqIgnore")
-	if ok && valueLooksTrue(val) {
-		return nil, nil
+	var ignore bool
+	customName, ignore = parseFieldTagGQ(&field)
+	if ignore {
+		return customName, nil, nil
 	}
 
-	var obj *obj
 	if field.Type.Kind() == reflect.Func {
-		return c.checkStructFieldFunc(field.Name, field.Type)
+		obj, err = c.checkStructFieldFunc(field.Name, field.Type)
+		return
 	}
-	var err error
 	obj, err = c.check(field.Type)
-	if err != nil {
-		return nil, err
+	if obj != nil {
+		obj.structFieldName = field.Name
 	}
-	obj.structFieldName = field.Name
-	return obj, nil
+	return
 }
 
 func (c *parseCtx) checkStructFieldFunc(fieldName string, type_ reflect.Type) (*obj, error) {
@@ -352,16 +350,15 @@ func (c *parseCtx) checkFunctionInputStruct(field *reflect.StructField) (res inp
 		return res, true, nil
 	}
 
-	val, ok := field.Tag.Lookup("gqIgnore")
-	if ok && valueLooksTrue(val) {
+	newName, ignore := parseFieldTagGQ(field)
+	if ignore {
 		// skip field
 		return res, true, nil
 	}
 
 	qlFieldName := formatGoNameToQL(field.Name)
-	newQlFieldName, hasNameRewrite := field.Tag.Lookup("gqName")
-	if hasNameRewrite {
-		qlFieldName = newQlFieldName
+	if newName != nil {
+		qlFieldName = *newName
 	}
 
 	res, err = c.checkFunctionInput(field.Type)
@@ -578,7 +575,22 @@ func formatGoNameToQL(input string) string {
 	return string(bytes.ToLower([]byte{input[0]})) + input[1:]
 }
 
-func valueLooksTrue(val string) bool {
-	val = strings.ToLower(val)
-	return val == "true" || val == "t" || val == "1"
+func parseFieldTagGQ(field *reflect.StructField) (newName *string, ignore bool) {
+	val, ok := field.Tag.Lookup("gq")
+	if !ok {
+		return
+	}
+
+	args := strings.Split(val, ",")
+	nameArg := strings.TrimSpace(args[0])
+	if val == "" {
+		return
+	}
+	if nameArg == "-" {
+		ignore = true
+		return
+	}
+
+	newName = &nameArg
+	return
 }

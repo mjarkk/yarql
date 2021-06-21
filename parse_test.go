@@ -7,20 +7,6 @@ import (
 	. "github.com/stretchr/testify/assert"
 )
 
-func TestValueLooksTrue(t *testing.T) {
-	True(t, valueLooksTrue("true"))
-	True(t, valueLooksTrue("t"))
-	True(t, valueLooksTrue("1"))
-
-	False(t, valueLooksTrue("false"))
-	False(t, valueLooksTrue("f"))
-	False(t, valueLooksTrue("0"))
-
-	False(t, valueLooksTrue(""))
-	False(t, valueLooksTrue("tr"))
-	False(t, valueLooksTrue("tru"))
-}
-
 func TestFormatGoNameToQL(t *testing.T) {
 	Equal(t, "input", formatGoNameToQL("input"))
 	Equal(t, "input", formatGoNameToQL("Input"))
@@ -115,8 +101,8 @@ func TestCheckStructWPtr(t *testing.T) {
 }
 
 type TestCheckStructTagsData struct {
-	Name        string `gqName:"otherName"`
-	HiddenField string `gqIgnore:"true"`
+	Name        string `gq:"otherName"`
+	HiddenField string `gq:"-"`
 }
 
 func TestCheckStructTags(t *testing.T) {

@@ -13,7 +13,7 @@ type QueryRoot struct{}
 
 type Post struct {
 	Id    uint
-	Title string `gqName:"name"`
+	Title string `gq:"name"`
 }
 
 func (QueryRoot) ResolvePosts() []Post {

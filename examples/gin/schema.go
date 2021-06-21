@@ -5,7 +5,7 @@ type QueryRoot struct{}
 type MethodRoot struct{}
 
 type User struct {
-	ID    uint `gqName:"id"`
+	ID    uint `gq:"id"`
 	Name  string
 	Email string
 }

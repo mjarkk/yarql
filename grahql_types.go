@@ -71,7 +71,7 @@ var _ = TypeRename(qlType{}, "__Type")
 
 type qlType struct {
 	Kind     __TypeKind `json:"-"`
-	JSONKind string     `json:"kind" gqIgnore:"true"`
+	JSONKind string     `json:"kind" gq:"-"`
 
 	Name        *string `json:"name"`
 	Description *string `json:"description"`
@@ -79,7 +79,7 @@ type qlType struct {
 	// OBJECT and INTERFACE only
 	Fields func(isDeprecatedArgs) []qlField `json:"-"`
 	// For testing perposes mainly
-	JSONFields []qlField `json:"fields" gqIgnore:"true"`
+	JSONFields []qlField `json:"fields" gq:"-"`
 
 	// OBJECT only
 	Interfaces []qlType `json:"interfaces"`
@@ -93,7 +93,7 @@ type qlType struct {
 	// INPUT_OBJECT only
 	InputFields func() []qlInputValue `json:"-"`
 	// For testing perposes mainly
-	JSONInputFields []qlField `json:"inputFields" gqIgnore:"true"`
+	JSONInputFields []qlField `json:"inputFields" gq:"-"`
 
 	// NON_NULL and LIST only
 	OfType *qlType `json:"ofType"`
@@ -178,7 +178,7 @@ type qlDirective struct {
 	Name          string                `json:"name"`
 	Description   *string               `json:"description"`
 	Locations     []__DirectiveLocation `json:"-"`
-	JSONLocations []string              `json:"locations" gqIgnore:"true"`
+	JSONLocations []string              `json:"locations" gq:"-"`
 	Args          []qlInputValue        `json:"args"`
 }
 
@@ -187,5 +187,5 @@ var scalars = map[string]qlType{
 	"Int":     {Kind: typeKindScalar, Name: h.StrPtr("Int"), Description: h.StrPtr("The Int scalar type represents a signed 32‐bit numeric non‐fractional value.")},
 	"Float":   {Kind: typeKindScalar, Name: h.StrPtr("Float"), Description: h.StrPtr("The Float scalar type represents signed double‐precision fractional values as specified by IEEE 754.")},
 	"String":  {Kind: typeKindScalar, Name: h.StrPtr("String"), Description: h.StrPtr("The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.")},
-	// "ID": {Kind: TypeKindScalar, Name: h.StrPtr("ID"), Description: h.StrPtr("The ID scalar type represents a unique identifier, often used to refetch an object or as the key for a cache")},
+	// "ID":      {Kind: typeKindScalar, Name: h.StrPtr("ID"), Description: h.StrPtr("The ID scalar type represents a unique identifier, often used to refetch an object or as the key for a cache")},
 }
