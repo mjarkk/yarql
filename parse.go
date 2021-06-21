@@ -659,23 +659,21 @@ func validGraphQlName(name string) error {
 		'x': true,
 		'y': true,
 		'z': true,
-		'1': true,
-		'2': true,
-		'3': true,
-		'4': true,
-		'5': true,
-		'6': true,
-		'7': true,
-		'8': true,
-		'0': true,
-		'9': true,
+		'1': false,
+		'2': false,
+		'3': false,
+		'4': false,
+		'5': false,
+		'6': false,
+		'7': false,
+		'8': false,
+		'0': false,
+		'9': false,
+		'_': false,
 	}
 	for i, char := range strings.ToLower(name) {
-		_, ok := allowedChars[char]
-		if !ok {
-			if i == 0 && char == '_' {
-				continue
-			}
+		canUseAsFirst, ok := allowedChars[char]
+		if !ok || (i == 0 && !canUseAsFirst) {
 			return errors.New("invalid graphql name")
 		}
 	}

@@ -10,7 +10,7 @@ var renamedTypes = map[string]string{}
 
 // TypeRename renames the graphql type of the input type
 // By default the typename of the struct is used but you might want to change this form time to time and with this you can
-func TypeRename(type_ interface{}, newName string) string {
+func TypeRename(type_ interface{}, newName string, force ...bool) string {
 	t := reflect.TypeOf(type_)
 	originalName := t.Name()
 
@@ -24,6 +24,13 @@ func TypeRename(type_ interface{}, newName string) string {
 	newName = strings.TrimSpace(newName)
 	if len(newName) == 0 {
 		log.Panicf("GraphQl cannot rename to empty string on type: %s %s\n", t.PkgPath(), originalName)
+	}
+
+	if len(force) == 0 || !force[0] {
+		err := validGraphQlName(newName)
+		if err != nil {
+			log.Panicf("GraphQl cannot rename typeof of %s with name %s to %s, err: %s", t.Kind().String(), originalName, newName, err.Error())
+		}
 	}
 
 	renamedTypes[originalName] = newName

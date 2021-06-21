@@ -3,7 +3,6 @@ package graphql
 import (
 	"fmt"
 	"reflect"
-	"strings"
 )
 
 type enum struct {
@@ -94,34 +93,9 @@ func registerEnumCheck(map_ interface{}) *enum {
 			panic("RegisterEnum input map cannot contain empty keys")
 		}
 
-		keyByteArr := []byte(keyStr)
-
-		letters := "abcdefghijklmnopqrstuvwxyz"
-		numbers := "0123456789"
-		special := "_"
-
-		valid := false
-		for _, letter := range []byte(letters + strings.ToUpper(letters)) {
-			if keyByteArr[0] == letter {
-				valid = true
-				break
-			}
-		}
-		if !valid {
-			panic(fmt.Sprintf("RegisterEnum map key must start with an alphabetic character (lower or upper), key given: %s", keyStr))
-		}
-
-		for _, keyLetter := range keyByteArr[1:] {
-			valid = false
-			for _, letter := range []byte(letters + strings.ToUpper(letters) + numbers + special) {
-				if keyLetter == letter {
-					valid = true
-					break
-				}
-			}
-			if !valid {
-				panic(fmt.Sprintf("RegisterEnum map key must match [a-zA-Z][a-zA-Z0-9_]*, key given: %s", keyStr))
-			}
+		err := validGraphQlName(keyStr)
+		if err != nil {
+			panic(fmt.Sprintf("RegisterEnum map key must start with an alphabetic character (lower or upper) followed by the same or a \"_\", key given: %s", keyStr))
 		}
 
 		v := iter.Value()

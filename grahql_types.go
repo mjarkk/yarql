@@ -7,7 +7,7 @@ import h "github.com/mjarkk/go-graphql/helpers"
 // https://spec.graphql.org/June2018/#sec-Schema-Introspection
 //
 
-var _ = TypeRename(qlSchema{}, "__Schema")
+var _ = TypeRename(qlSchema{}, "__Schema", true)
 
 type qlSchema struct {
 	Types            []qlType      `json:"types"`
@@ -67,7 +67,7 @@ func (kind __TypeKind) String() string {
 	return ""
 }
 
-var _ = TypeRename(qlType{}, "__Type")
+var _ = TypeRename(qlType{}, "__Type", true)
 
 type qlType struct {
 	Kind     __TypeKind `json:"-"`
@@ -99,7 +99,7 @@ type qlType struct {
 	OfType *qlType `json:"ofType"`
 }
 
-var _ = TypeRename(qlField{}, "__Field")
+var _ = TypeRename(qlField{}, "__Field", true)
 
 type qlField struct {
 	Name              string         `json:"name"`
@@ -110,7 +110,7 @@ type qlField struct {
 	DeprecationReason *string        `json:"deprecationReason"`
 }
 
-var _ = TypeRename(qlEnumValue{}, "__EnumValue")
+var _ = TypeRename(qlEnumValue{}, "__EnumValue", true)
 
 type qlEnumValue struct {
 	Name              string  `json:"name"`
@@ -119,7 +119,7 @@ type qlEnumValue struct {
 	DeprecationReason *string `json:"deprecationReason"`
 }
 
-var _ = TypeRename(qlInputValue{}, "__InputValue")
+var _ = TypeRename(qlInputValue{}, "__InputValue", true)
 
 type qlInputValue struct {
 	Name         string  `json:"name"`
@@ -172,7 +172,7 @@ var _ = RegisterEnum(map[string]__DirectiveLocation{
 	"INPUT_FIELD_DEFINITION": directiveLocationInputFieldDefinition,
 })
 
-var _ = TypeRename(qlDirective{}, "__Directive")
+var _ = TypeRename(qlDirective{}, "__Directive", true)
 
 type qlDirective struct {
 	Name          string                `json:"name"`
