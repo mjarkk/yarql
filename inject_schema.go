@@ -10,7 +10,7 @@ import (
 
 func (s *Schema) injectQLTypes(ctx *parseCtx) {
 	// Inject __Schema
-	ref, err := ctx.check(reflect.TypeOf(qlSchema{}))
+	ref, err := ctx.check(reflect.TypeOf(qlSchema{}), false)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -24,7 +24,7 @@ func (s *Schema) injectQLTypes(ctx *parseCtx) {
 		return ctx.schema.getTypeByName(args.Name, true, true)
 	}
 	typeResolverReflection := reflect.ValueOf(typeResolver)
-	functionObj, err := ctx.checkStructFieldFunc("__type", typeResolverReflection.Type())
+	functionObj, err := ctx.checkStructFieldFunc("__type", typeResolverReflection.Type(), false)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func (s *Schema) getAllQLTypes() []qlType {
 }
 
 func (s *Schema) getTypeByName(name string, includeInputTypes, includeOutputTypes bool) *qlType {
-	// FIXME: Make one gigantic map on schema creation with all the types below
+	// FIXME: Make one gigantic map on schema creation with all the types below so we don't have to re-calculate them every request
 	scalars, ok := scalars[name]
 	if ok {
 		return &scalars
@@ -168,6 +168,9 @@ func (s *Schema) inputToQLType(in *input) (res *qlType, isNonNull bool) {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.UnsafePointer, reflect.Complex64, reflect.Complex128:
 		isNonNull = true
 		rawRes := scalars["Int"]
+		if in.isID {
+			rawRes = scalars["ID"]
+		}
 		res = &rawRes
 	case reflect.Float32, reflect.Float64:
 		isNonNull = true
@@ -176,6 +179,9 @@ func (s *Schema) inputToQLType(in *input) (res *qlType, isNonNull bool) {
 	case reflect.String:
 		isNonNull = true
 		rawRes := scalars["String"]
+		if in.isID {
+			rawRes = scalars["ID"]
+		}
 		res = &rawRes
 	default:
 		isNonNull = true
@@ -234,17 +240,21 @@ func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 	case valueTypeData:
 		isNonNull = true
 		var rawRes qlType
-		switch item.dataValueType {
-		case reflect.Bool:
-			rawRes = scalars["Boolean"]
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.UnsafePointer, reflect.Complex64, reflect.Complex128:
-			rawRes = scalars["Int"]
-		case reflect.Float32, reflect.Float64:
-			rawRes = scalars["Float"]
-		case reflect.String:
-			rawRes = scalars["String"]
-		default:
-			rawRes = qlType{Kind: typeKindScalar, Name: h.StrPtr(""), Description: h.StrPtr("")}
+		if item.isID {
+			rawRes = scalars["ID"]
+		} else {
+			switch item.dataValueType {
+			case reflect.Bool:
+				rawRes = scalars["Boolean"]
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.UnsafePointer, reflect.Complex64, reflect.Complex128:
+				rawRes = scalars["Int"]
+			case reflect.Float32, reflect.Float64:
+				rawRes = scalars["Float"]
+			case reflect.String:
+				rawRes = scalars["String"]
+			default:
+				rawRes = qlType{Kind: typeKindScalar, Name: h.StrPtr(""), Description: h.StrPtr("")}
+			}
 		}
 		res = &rawRes
 	case valueTypeEnum:

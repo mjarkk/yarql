@@ -70,6 +70,7 @@ type obj struct {
 
 	// Value type == valueTypeData
 	dataValueType reflect.Kind
+	isID          bool
 
 	// Value type == valueTypeMethod
 	method *objMethod
@@ -114,6 +115,7 @@ type input struct {
 	kind         reflect.Kind
 	isEnum       bool
 	enumTypeName string
+	isID         bool
 
 	goFieldName string
 	gqFieldName string
@@ -142,7 +144,7 @@ type parseCtx struct {
 	types              *types
 	inTypes            *inputMap
 	unknownTypesCount  int
-	unkonwnInputsCount int
+	unknownInputsCount int
 }
 
 func newParseCtx() *parseCtx {
@@ -166,7 +168,7 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 		inTypes: &res.inTypes,
 	}
 
-	obj, err := ctx.check(reflect.TypeOf(queries))
+	obj, err := ctx.check(reflect.TypeOf(queries), false)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +177,7 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 	}
 	res.rootQuery = res.types[obj.typeName]
 
-	obj, err = ctx.check(reflect.TypeOf(methods))
+	obj, err = ctx.check(reflect.TypeOf(methods), false)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +201,7 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 	return &res, nil
 }
 
-func (c *parseCtx) check(t reflect.Type) (*obj, error) {
+func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 	res := obj{
 		typeName: t.Name(),
 		pkgPath:  t.PkgPath(),
@@ -250,13 +252,14 @@ func (c *parseCtx) check(t reflect.Type) (*obj, error) {
 			}
 		}
 	case reflect.Array, reflect.Slice, reflect.Ptr:
-		if t.Kind() == reflect.Ptr {
+		isPtr := t.Kind() == reflect.Ptr
+		if isPtr {
 			res.valueType = valueTypePtr
 		} else {
 			res.valueType = valueTypeArray
 		}
 
-		obj, err := c.check(t.Elem())
+		obj, err := c.check(t.Elem(), hasIDTag && isPtr)
 		if err != nil {
 			return nil, err
 		}
@@ -271,6 +274,14 @@ func (c *parseCtx) check(t reflect.Type) (*obj, error) {
 		} else {
 			res.valueType = valueTypeData
 			res.dataValueType = t.Kind()
+
+			if hasIDTag {
+				res.isID = hasIDTag
+				err := checkValidIDKind(res.dataValueType)
+				if err != nil {
+					return nil, err
+				}
+			}
 		}
 	}
 
@@ -278,7 +289,7 @@ func (c *parseCtx) check(t reflect.Type) (*obj, error) {
 		for i := 0; i < t.NumMethod(); i++ {
 			method := t.Method(i)
 			methodName := method.Name
-			methodObj, name, err := c.checkFunction(methodName, method.Type, true)
+			methodObj, name, err := c.checkFunction(methodName, method.Type, true, false)
 			if err != nil {
 				return nil, err
 			} else if methodObj == nil {
@@ -292,9 +303,7 @@ func (c *parseCtx) check(t reflect.Type) (*obj, error) {
 				method:          methodObj,
 			}
 		}
-	}
 
-	if res.valueType == valueTypeObj {
 		res = c.types.Add(res)
 		// res is now a objptr pointing to the obj
 	}
@@ -307,25 +316,26 @@ func (c *parseCtx) checkStructField(field reflect.StructField) (customName *stri
 		return nil, nil, nil
 	}
 
-	var ignore bool
-	customName, ignore = parseFieldTagGQ(&field)
-	if ignore {
-		return customName, nil, nil
+	var ignore, isID bool
+	customName, ignore, isID, err = parseFieldTagGQ(&field)
+	if ignore || err != nil {
+		return nil, nil, err
 	}
 
 	if field.Type.Kind() == reflect.Func {
-		obj, err = c.checkStructFieldFunc(field.Name, field.Type)
-		return
+		obj, err = c.checkStructFieldFunc(field.Name, field.Type, isID)
+	} else {
+		obj, err = c.check(field.Type, isID)
 	}
-	obj, err = c.check(field.Type)
+
 	if obj != nil {
 		obj.structFieldName = field.Name
 	}
 	return
 }
 
-func (c *parseCtx) checkStructFieldFunc(fieldName string, type_ reflect.Type) (*obj, error) {
-	methodObj, _, err := c.checkFunction(fieldName, type_, false)
+func (c *parseCtx) checkStructFieldFunc(fieldName string, type_ reflect.Type, hasIDTag bool) (*obj, error) {
+	methodObj, _, err := c.checkFunction(fieldName, type_, false, hasIDTag)
 	if err != nil {
 		return nil, err
 	} else if methodObj == nil {
@@ -345,15 +355,22 @@ func isCtx(t reflect.Type) bool {
 }
 
 func (c *parseCtx) checkFunctionInputStruct(field *reflect.StructField) (res input, skipThisField bool, err error) {
+	wrapErr := func(err error) error {
+		return fmt.Errorf("%s, struct field: %s", err.Error(), field.Name)
+	}
+
 	if field.Anonymous {
 		// skip field
 		return res, true, nil
 	}
 
-	newName, ignore := parseFieldTagGQ(field)
+	newName, ignore, isID, err := parseFieldTagGQ(field)
 	if ignore {
 		// skip field
 		return res, true, nil
+	}
+	if err != nil {
+		return res, false, wrapErr(err)
 	}
 
 	qlFieldName := formatGoNameToQL(field.Name)
@@ -361,9 +378,9 @@ func (c *parseCtx) checkFunctionInputStruct(field *reflect.StructField) (res inp
 		qlFieldName = *newName
 	}
 
-	res, err = c.checkFunctionInput(field.Type)
+	res, err = c.checkFunctionInput(field.Type, isID)
 	if err != nil {
-		return input{}, false, fmt.Errorf("%s, struct field: %s", err.Error(), field.Name)
+		return input{}, false, wrapErr(err)
 	}
 
 	res.goFieldName = field.Name
@@ -372,7 +389,7 @@ func (c *parseCtx) checkFunctionInputStruct(field *reflect.StructField) (res inp
 	return
 }
 
-func (c *parseCtx) checkFunctionInput(t reflect.Type) (input, error) {
+func (c *parseCtx) checkFunctionInput(t reflect.Type, hasIDTag bool) (input, error) {
 	kind := t.Kind()
 	res := input{
 		kind: kind,
@@ -384,9 +401,15 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type) (input, error) {
 		if enum != nil {
 			res.isEnum = true
 			res.enumTypeName = enum.typeName
+		} else if hasIDTag {
+			res.isID = true
+			err := checkValidIDKind(res.kind)
+			if err != nil {
+				return res, err
+			}
 		}
 	case reflect.Ptr, reflect.Array, reflect.Slice:
-		input, err := c.checkFunctionInput(t.Elem())
+		input, err := c.checkFunctionInput(t.Elem(), hasIDTag && kind == reflect.Ptr)
 		if err != nil {
 			return res, err
 		}
@@ -394,8 +417,8 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type) (input, error) {
 	case reflect.Struct:
 		structName := t.Name()
 		if len(structName) == 0 {
-			c.unkonwnInputsCount++
-			structName = fmt.Sprintf("__UnknownInput%d", c.unkonwnInputsCount)
+			c.unknownInputsCount++
+			structName = fmt.Sprintf("__UnknownInput%d", c.unknownInputsCount)
 		} else {
 			newStructName, ok := renamedTypes[structName]
 			if ok {
@@ -438,7 +461,7 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type) (input, error) {
 	return res, nil
 }
 
-func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool) (*objMethod, string, error) {
+func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool, hasIDTag bool) (*objMethod, string, error) {
 	trimmedName := name
 
 	if strings.HasPrefix(name, "Resolve") {
@@ -536,7 +559,7 @@ func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool)
 				return nil, "", fmt.Errorf("%s cannot return multiple types of data", name)
 			}
 
-			outObj, err := c.check(outType)
+			outObj, err := c.check(outType, hasIDTag)
 			if err != nil {
 				return nil, "", err
 			}
@@ -575,22 +598,97 @@ func formatGoNameToQL(input string) string {
 	return string(bytes.ToLower([]byte{input[0]})) + input[1:]
 }
 
-func parseFieldTagGQ(field *reflect.StructField) (newName *string, ignore bool) {
+func parseFieldTagGQ(field *reflect.StructField) (newName *string, ignore bool, isID bool, err error) {
 	val, ok := field.Tag.Lookup("gq")
 	if !ok {
+		return
+	}
+	if val == "" {
 		return
 	}
 
 	args := strings.Split(val, ",")
 	nameArg := strings.TrimSpace(args[0])
-	if val == "" {
-		return
-	}
-	if nameArg == "-" {
-		ignore = true
-		return
+	if nameArg != "" {
+		if nameArg == "-" {
+			ignore = true
+			return
+		}
+		err = validGraphQlName(nameArg)
+		newName = &nameArg
 	}
 
-	newName = &nameArg
+	for _, modifier := range args[1:] {
+		switch strings.ToLower(strings.TrimSpace(modifier)) {
+		case "id":
+			isID = true
+		default:
+			err = fmt.Errorf("unknown field tag gq argument: %s", modifier)
+			return
+		}
+	}
+
 	return
+}
+
+func validGraphQlName(name string) error {
+	allowedChars := map[rune]bool{
+		'a': true,
+		'b': true,
+		'c': true,
+		'd': true,
+		'e': true,
+		'f': true,
+		'g': true,
+		'h': true,
+		'i': true,
+		'j': true,
+		'k': true,
+		'l': true,
+		'm': true,
+		'n': true,
+		'o': true,
+		'p': true,
+		'q': true,
+		'r': true,
+		's': true,
+		't': true,
+		'u': true,
+		'v': true,
+		'w': true,
+		'x': true,
+		'y': true,
+		'z': true,
+		'1': true,
+		'2': true,
+		'3': true,
+		'4': true,
+		'5': true,
+		'6': true,
+		'7': true,
+		'8': true,
+		'0': true,
+		'9': true,
+	}
+	for i, char := range strings.ToLower(name) {
+		_, ok := allowedChars[char]
+		if !ok {
+			if i == 0 && char == '_' {
+				continue
+			}
+			return errors.New("invalid graphql name")
+		}
+	}
+	return nil
+}
+
+func checkValidIDKind(kind reflect.Kind) error {
+	switch kind {
+	case reflect.String:
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+	default:
+		return errors.New("strings and numbers can only be labeld with the ID property")
+	}
+	return nil
 }

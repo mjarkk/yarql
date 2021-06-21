@@ -13,7 +13,7 @@ type TestTypeRenameData struct{}
 
 func TestTypeRename(t *testing.T) {
 	ctx := newParseCtx()
-	obj, err := ctx.check(reflect.TypeOf(TestTypeRenameData{}))
+	obj, err := ctx.check(reflect.TypeOf(TestTypeRenameData{}), false)
 	NoError(t, err)
 
 	Equal(t, "Foo", obj.typeName)

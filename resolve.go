@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -270,6 +271,9 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAny
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 				goField.SetInt(int64(queryValue.intValue))
 			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+				if queryValue.intValue < 0 {
+					return errors.New("argument cannot be less than 0")
+				}
 				goField.SetUint(uint64(queryValue.intValue))
 			case reflect.Float32, reflect.Float64:
 				goField.SetFloat(float64(queryValue.intValue))
@@ -286,6 +290,26 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAny
 		case reflect.String:
 			if goFieldKind == reflect.String {
 				goField.SetString(queryValue.stringValue)
+			} else if goAnylizedData.isID {
+				switch goFieldKind {
+				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+					intValue, err := strconv.Atoi(queryValue.stringValue)
+					if err != nil {
+						return errors.New("id argument must match a number type")
+					}
+					goField.SetInt(int64(intValue))
+				case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+					intValue, err := strconv.Atoi(queryValue.stringValue)
+					if err != nil {
+						return errors.New("id argument must match a number type")
+					}
+					if intValue < 0 {
+						return errors.New("id argument must match a number above 0")
+					}
+					goField.SetUint(uint64(intValue))
+				default:
+					return mismatchError()
+				}
 			} else {
 				return mismatchError()
 			}
@@ -437,6 +461,10 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, value reflect.Value, codeStr
 			return "null", true
 		}
 		val, _ := valueToJson(value.Interface())
+		if codeStructure.isID && codeStructure.dataValueType != reflect.String {
+			// Graphql ID fields are always strings
+			val = `"` + val + `"`
+		}
 		return val, false
 	case valueTypePtr:
 		if value.Kind() != reflect.Ptr || value.IsNil() {

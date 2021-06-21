@@ -24,8 +24,8 @@ import (
 )
 
 type Post struct {
-	Id    uint
-	Title string `gqName:"name"`
+	Id    uint `gq:",ID"`
+	Title string `gq:"name"`
 }
 
 type QueryRoot struct{}
@@ -58,9 +58,9 @@ func main() {
     fmt.Println(out)
     // {"data": {
     //   "posts": [
-    //     {"id": 1, "name": "post 1"},
-    //     {"id": 2, "name": "post 2"},
-    //     {"id": 3, "name": "post 3"}
+    //     {"id": "1", "name": "post 1"},
+    //     {"id": "2", "name": "post 2"},
+    //     {"id": "3", "name": "post 3"}
     //   ]
     // }}
 }
@@ -110,7 +110,7 @@ These go data kinds should be globally accepted:
 - string
 - struct
 
-### ignore fields
+### Ignore fields
 
 ```go
 struct {
@@ -122,12 +122,25 @@ struct {
 }
 ```
 
-### custom field name
+### Custom field name
 
 ```go
 struct {
 	// Change the graphql field name to "bar"
 	Foo string `gq:"bar"`
+}
+```
+
+### Label as ID field
+
+```go
+struct {
+	// Notice the "," before the id
+	Id string `gq:",id"`
+
+	// Pointers and numbers are also supported
+	// NOTE NUMBERS WILL BE CONVERTED TO STRINGS IN OUTPUT
+	PostId *int `gq:",id"`
 }
 ```
 

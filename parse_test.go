@@ -17,7 +17,7 @@ func TestFormatGoNameToQL(t *testing.T) {
 type TestCheckEmptyStructData struct{}
 
 func TestCheckEmptyStruct(t *testing.T) {
-	obj, err := newParseCtx().check(reflect.TypeOf(TestCheckEmptyStructData{}))
+	obj, err := newParseCtx().check(reflect.TypeOf(TestCheckEmptyStructData{}), false)
 	NoError(t, err)
 
 	Equal(t, valueTypeObjRef, obj.valueType)
@@ -31,7 +31,7 @@ type TestCheckStructSimpleDemo struct {
 
 func TestCheckStructSimple(t *testing.T) {
 	ctx := newParseCtx()
-	obj, err := ctx.check(reflect.TypeOf(TestCheckStructSimpleDemo{}))
+	obj, err := ctx.check(reflect.TypeOf(TestCheckStructSimpleDemo{}), false)
 	NoError(t, err)
 
 	Equal(t, obj.valueType, valueTypeObjRef)
@@ -62,7 +62,7 @@ type TestCheckStructWArrayData struct {
 
 func TestCheckStructWArray(t *testing.T) {
 	ctx := newParseCtx()
-	ref, err := ctx.check(reflect.TypeOf(TestCheckStructWArrayData{}))
+	ref, err := ctx.check(reflect.TypeOf(TestCheckStructWArrayData{}), false)
 	NoError(t, err)
 	obj := (*ctx.types)[ref.typeName]
 
@@ -84,7 +84,7 @@ type TestCheckStructWPtrData struct {
 
 func TestCheckStructWPtr(t *testing.T) {
 	ctx := newParseCtx()
-	ref, err := ctx.check(reflect.TypeOf(TestCheckStructWPtrData{}))
+	ref, err := ctx.check(reflect.TypeOf(TestCheckStructWPtrData{}), false)
 	NoError(t, err)
 	obj := (*ctx.types)[ref.typeName]
 
@@ -107,7 +107,7 @@ type TestCheckStructTagsData struct {
 
 func TestCheckStructTags(t *testing.T) {
 	ctx := newParseCtx()
-	ref, err := ctx.check(reflect.TypeOf(TestCheckStructTagsData{}))
+	ref, err := ctx.check(reflect.TypeOf(TestCheckStructTagsData{}), false)
 	NoError(t, err)
 	obj := (*ctx.types)[ref.typeName]
 
@@ -124,19 +124,19 @@ func TestCheckStructTags(t *testing.T) {
 func TestCheckInvalidStruct(t *testing.T) {
 	_, err := newParseCtx().check(reflect.TypeOf(struct {
 		Foo interface{}
-	}{}))
+	}{}), false)
 	Error(t, err)
 
 	_, err = newParseCtx().check(reflect.TypeOf(struct {
 		Foo complex64
-	}{}))
+	}{}), false)
 	Error(t, err)
 
 	_, err = newParseCtx().check(reflect.TypeOf(struct {
 		Foo struct {
 			Bar complex64
 		}
-	}{}))
+	}{}), false)
 	Error(t, err)
 }
 
@@ -154,7 +154,7 @@ func (TestCheckMethodsData) ResolvePeer(in struct{}) string {
 
 func TestCheckMethods(t *testing.T) {
 	ctx := newParseCtx()
-	ref, err := ctx.check(reflect.TypeOf(TestCheckMethodsData{}))
+	ref, err := ctx.check(reflect.TypeOf(TestCheckMethodsData{}), false)
 	Nil(t, err)
 	obj := (*ctx.types)[ref.typeName]
 
@@ -185,13 +185,13 @@ func (TestCheckMethodsFailData3) ResolveName(in int) func(string) string {
 }
 
 func TestCheckMethodsFail(t *testing.T) {
-	_, err := newParseCtx().check(reflect.TypeOf(TestCheckMethodsFailData1{}))
+	_, err := newParseCtx().check(reflect.TypeOf(TestCheckMethodsFailData1{}), false)
 	Error(t, err)
 
-	_, err = newParseCtx().check(reflect.TypeOf(TestCheckMethodsFailData2{}))
+	_, err = newParseCtx().check(reflect.TypeOf(TestCheckMethodsFailData2{}), false)
 	Error(t, err)
 
-	_, err = newParseCtx().check(reflect.TypeOf(TestCheckMethodsFailData3{}))
+	_, err = newParseCtx().check(reflect.TypeOf(TestCheckMethodsFailData3{}), false)
 	Error(t, err)
 }
 
@@ -201,7 +201,7 @@ type TestCheckStructFuncsData struct {
 
 func TestCheckStructFuncs(t *testing.T) {
 	ctx := newParseCtx()
-	ref, err := ctx.check(reflect.TypeOf(TestCheckStructFuncsData{}))
+	ref, err := ctx.check(reflect.TypeOf(TestCheckStructFuncsData{}), false)
 	Nil(t, err)
 	obj := (*ctx.types)[ref.typeName]
 
@@ -214,7 +214,7 @@ type ReferToSelf1 struct {
 }
 
 func TestReferenceLoop1(t *testing.T) {
-	_, err := newParseCtx().check(reflect.TypeOf(ReferToSelf1{}))
+	_, err := newParseCtx().check(reflect.TypeOf(ReferToSelf1{}), false)
 	Nil(t, err)
 }
 
@@ -223,7 +223,7 @@ type ReferToSelf2 struct {
 }
 
 func TestReferenceLoop2(t *testing.T) {
-	_, err := newParseCtx().check(reflect.TypeOf(ReferToSelf2{}))
+	_, err := newParseCtx().check(reflect.TypeOf(ReferToSelf2{}), false)
 	Nil(t, err)
 }
 
@@ -232,6 +232,6 @@ type ReferToSelf3 struct {
 }
 
 func TestReferenceLoop3(t *testing.T) {
-	_, err := newParseCtx().check(reflect.TypeOf(ReferToSelf3{}))
+	_, err := newParseCtx().check(reflect.TypeOf(ReferToSelf3{}), false)
 	Nil(t, err)
 }

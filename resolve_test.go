@@ -662,6 +662,26 @@ func TestExecInputAllKindsOfNumbers(t *testing.T) {
 
 }
 
+type TestExecInputIDData struct{}
+
+type TestExecInputIDDataInput struct {
+	A string `gq:",id"`
+	B string `gq:"BOOOO,id"`
+	C int    `gq:",ID"`
+}
+
+func (TestExecInputIDData) ResolveFoo(args TestExecInputIDDataInput) TestExecInputIDDataInput {
+	return args
+}
+
+func TestExecInputID(t *testing.T) {
+	out, errs := parseAndTest(t, `{foo(a: "1", BOOOO: "2", c: "3") {a BOOOO c}}`, TestExecInputIDData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"foo":{"a":"1","BOOOO":"2","c":"3"}}`, out)
+}
+
 func TestExecInlineFragment(t *testing.T) {
 	out, errs := parseAndTest(t, `{a...{b, c} d}`, TestExecSimpleQueryData{A: "foo", B: "bar", C: "baz", D: "foobar"}, M{})
 	for _, err := range errs {
@@ -826,7 +846,7 @@ func TestExecSchemaRequestSimple(t *testing.T) {
 	schema := res.Schema
 	types := schema.Types
 
-	totalTypes := 14
+	totalTypes := 15
 	if testingRegisteredTestEnum {
 		totalTypes++
 	}
@@ -843,6 +863,7 @@ func TestExecSchemaRequestSimple(t *testing.T) {
 
 	is("SCALAR", "Boolean")
 	is("SCALAR", "Float")
+	is("SCALAR", "ID")
 	is("SCALAR", "Int")
 	is("OBJECT", "M")
 	is("SCALAR", "String")
@@ -894,7 +915,7 @@ func TestExecSchemaRequestWithFields(t *testing.T) {
 	schema := res.Schema
 	types := schema.Types
 
-	totalTypes := 18
+	totalTypes := 19
 	if testingRegisteredTestEnum {
 		totalTypes++
 	}
@@ -912,6 +933,7 @@ func TestExecSchemaRequestWithFields(t *testing.T) {
 
 	is("SCALAR", "Boolean")
 	is("SCALAR", "Float")
+	is("SCALAR", "ID")
 	is("SCALAR", "Int")
 	is("OBJECT", "M")
 	is("SCALAR", "String")

@@ -12,7 +12,7 @@ import (
 type QueryRoot struct{}
 
 type Post struct {
-	Id    uint
+	Id    uint   `gq:",ID"`
 	Title string `gq:"name"`
 }
 
@@ -41,5 +41,5 @@ func TestReadmeExample(t *testing.T) {
 		}
 	`, ResolveOptions{}))
 
-	Equal(t, `{"data":{"posts":[{"id":1,"name":"post 1"},{"id":2,"name":"post 2"},{"id":3,"name":"post 3"}]}}`, out)
+	Equal(t, `{"data":{"posts":[{"id":"1","name":"post 1"},{"id":"2","name":"post 2"},{"id":"3","name":"post 3"}]}}`, out)
 }
