@@ -427,7 +427,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, value reflect.Value, codeStr
 		}
 
 		if codeStructure.innerContent == nil {
-			ctx.addErr(path, "does not have an internal type of an array")
+			ctx.addErr(path, "server didn't exepct an array")
 			return "null", true
 		}
 		codeStructure = codeStructure.innerContent

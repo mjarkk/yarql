@@ -668,6 +668,7 @@ type TestExecInputIDDataInput struct {
 	A string `gq:",id"`
 	B string `gq:"BAR,id"`
 	C int    `gq:",ID"`
+	D uint   `gq:",ID"`
 }
 
 func (TestExecInputIDData) ResolveFoo(args TestExecInputIDDataInput) TestExecInputIDDataInput {
@@ -675,11 +676,23 @@ func (TestExecInputIDData) ResolveFoo(args TestExecInputIDDataInput) TestExecInp
 }
 
 func TestExecInputID(t *testing.T) {
-	out, errs := parseAndTest(t, `{foo(a: "1", BAR: "2", c: "3") {a BAR c}}`, TestExecInputIDData{}, M{})
+	out, errs := parseAndTest(t, `{foo(a: "1", BAR: "2", c: "3", d: "4") {a BAR c d}}`, TestExecInputIDData{}, M{})
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"foo":{"a":"1","BAR":"2","c":"3"}}`, out)
+	Equal(t, `{"foo":{"a":"1","BAR":"2","c":"3","d":"4"}}`, out)
+}
+
+func TestExecInputIDInvalidArguments(t *testing.T) {
+	testCases := []string{
+		`{foo(c: "not a number"){c}}`,
+		`{foo(d: "not a number"){d}}`,
+		`{foo(d: "-10"){d}}`,
+	}
+	for _, _case := range testCases {
+		_, errs := parseAndTest(t, _case, TestExecInputIDData{}, M{})
+		Equal(t, 1, len(errs))
+	}
 }
 
 func TestExecInlineFragment(t *testing.T) {
