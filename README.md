@@ -184,6 +184,32 @@ All types that might be `nil` will be optional fields, by default these fields a
 - Pointers
 - Arrays
 
+### Enums
+
+Enums can be defined like so
+
+Side note on using enums as argument, It might return a nullish value if the user didn't provide a value
+
+```go
+// The enum type, everywhere where this value is used it will be converted to an enum in graphql
+// This can also be a: string, int(*) or uint(*)
+type Fruit uint8
+
+const (
+	Apple Fruit = iota
+	Peer
+	Grapefruit
+)
+
+// The map key is the enum it's key in graphql
+// The map value is the go value the enum key is mapped to or the other way around
+var _ = RegisterEnum(map[string]Fruit{
+	"APPLE":      Apple,
+	"PEER":       Peer,
+	"GRAPEFRUIT": Grapefruit,
+})
+```
+
 ## Alternatives
 
 - [graph-gophers/graphql-go](https://github.com/graph-gophers/graphql-go)
