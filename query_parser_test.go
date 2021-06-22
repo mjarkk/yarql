@@ -138,6 +138,12 @@ func TestQueryParsingTypes(t *testing.T) {
 	Equal(t, "Boolean", item2.varType.name)
 	Nil(t, item1.defaultValue)
 	Nil(t, item2.defaultValue)
+}
+
+func TestQueryParsingInvalidVariableDefinition(t *testing.T) {
+	_, err := parseQuery(`query query_name($a: String = $b) {}`)
+	Error(t, err)
+	Equal(t, "variables not allowed within this context", err.Error())
 
 }
 

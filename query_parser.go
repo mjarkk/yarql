@@ -336,7 +336,7 @@ func (i *iter) parseVariableDefinition() (variableDefinition, *ErrorWLocation) {
 			return res, err
 		}
 
-		value, err := i.parseValue()
+		value, err := i.parseValue(false)
 		if err != nil {
 			return res, err
 		}
@@ -352,9 +352,12 @@ func (i *iter) parseVariableDefinition() (variableDefinition, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#Value
-func (i *iter) parseValue() (value, *ErrorWLocation) {
+func (i *iter) parseValue(allowVariables bool) (value, *ErrorWLocation) {
 	switch i.currentC() {
 	case '$':
+		if !allowVariables {
+			return value{}, i.err("variables not allowed within this context")
+		}
 		i.charNr++
 		varName, err := i.parseVariable(true)
 		return makeVariableValue(varName), err
@@ -365,7 +368,7 @@ func (i *iter) parseValue() (value, *ErrorWLocation) {
 		return makeStringValue(val), err
 	case '[':
 		i.charNr++
-		list, err := i.parseListValue()
+		list, err := i.parseListValue(allowVariables)
 		return makeArrayValue(list), err
 	case '{':
 		i.charNr++
@@ -513,7 +516,7 @@ func (i *iter) parseString() (string, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#ListValue
-func (i *iter) parseListValue() ([]value, *ErrorWLocation) {
+func (i *iter) parseListValue(allowVariables bool) ([]value, *ErrorWLocation) {
 	res := []value{}
 
 	firstLoop := true
@@ -540,7 +543,7 @@ func (i *iter) parseListValue() ([]value, *ErrorWLocation) {
 			}
 		}
 
-		val, err := i.parseValue()
+		val, err := i.parseValue(allowVariables)
 		if err != nil {
 			return nil, err
 		}
@@ -1052,7 +1055,7 @@ func (i *iter) parseArgumentsOrObjectValues(closure rune) (arguments, *ErrorWLoc
 			return nil, err
 		}
 
-		value, err := i.parseValue()
+		value, err := i.parseValue(true)
 		if err != nil {
 			return nil, err
 		}
