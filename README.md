@@ -7,7 +7,7 @@ Just a different approach to making graphql servers in Go
 - Easy to use and not much code required
 - Build on top of the graphql spec 2018
 - No code generators
-- Schema is generated so no duplicated code
+- Schema is based on code
 - Only 1 dependency
 - Easy to implement, see the [gin](https://github.com/mjarkk/go-graphql/blob/main/examples/gin/main.go) and [viber](https://github.com/mjarkk/go-graphql/blob/main/examples/viber/main.go) examples
 
