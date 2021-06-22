@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -34,12 +35,17 @@ func GenerateResponse(data string, errors []error) string {
 	return res + "}"
 }
 
+type RequestOptions struct {
+	Context context.Context
+}
+
 func (s *Schema) HandleRequest(
 	method string, // GET, POST, etc..
 	getQuery func(key string) string, // URL value (needs to be un-escaped before returning)
 	getFormField func(key string) (string, error), // get form field, only used if content type == form data
 	getBody func() []byte, // get the request body
 	contentType string, // body content type, can be an empty string if method == "GET"
+	options *RequestOptions, // optional options
 ) (string, []error) {
 	method = strings.ToUpper(method)
 
@@ -106,8 +112,14 @@ func (s *Schema) HandleRequest(
 		operationName = getQuery("operationName")
 	}
 
+	var context context.Context
+	if options.Context != nil {
+		context = options.Context
+	}
+
 	return s.Resolve(query, ResolveOptions{
 		OperatorTarget: operationName,
 		Variables:      variables,
+		Context:        context,
 	})
 }

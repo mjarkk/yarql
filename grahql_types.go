@@ -10,7 +10,10 @@ import h "github.com/mjarkk/go-graphql/helpers"
 var _ = TypeRename(qlSchema{}, "__Schema", true)
 
 type qlSchema struct {
-	Types            []qlType      `json:"types"`
+	Types func() []qlType `json:"-"`
+	// For testing perposes mainly
+	JSONTypes []qlType `json:"types" gq:"-"`
+
 	QueryType        *qlType       `json:"queryType"`
 	MutationType     *qlType       `json:"mutationType"`
 	SubscriptionType *qlType       `json:"subscriptionType"`

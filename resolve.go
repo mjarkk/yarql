@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -11,6 +12,7 @@ import (
 type ResolveOptions struct {
 	OperatorTarget string
 	Variables      string // Expects JSON or empty string
+	Context        context.Context
 }
 
 func (s *Schema) Resolve(query string, options ResolveOptions) (string, []error) {
@@ -29,6 +31,7 @@ func (s *Schema) Resolve(query string, options ResolveOptions) (string, []error)
 		directvies:          []directives{},
 		errors:              []error{},
 		jsonVariablesString: options.Variables,
+		context:             options.Context,
 	}
 
 	switch len(operatorsMap) {
@@ -417,6 +420,15 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, value reflect.Value, codeStr
 				} else if err != nil {
 					ctx.addErr(path, err.Error())
 				}
+			}
+		}
+
+		if ctx.context != nil {
+			err := ctx.context.Err()
+			if err != nil {
+				// Context ended
+				ctx.addErr(path, err.Error())
+				return "null", true
 			}
 		}
 

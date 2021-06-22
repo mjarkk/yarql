@@ -1,10 +1,12 @@
 package graphql
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	. "github.com/stretchr/testify/assert"
 )
@@ -108,14 +110,14 @@ func TestValueToJson(t *testing.T) {
 }
 
 func parseAndTest(t *testing.T, query string, queries interface{}, methods interface{}) (string, []error) {
-	return parseAndTestWithOptions(t, query, queries, methods, 255, "", "")
+	return parseAndTestWithOptions(t, query, queries, methods, 255, ResolveOptions{})
 }
 
-func parseAndTestWithOptions(t *testing.T, query string, queries interface{}, methods interface{}, maxDept uint8, operatorTarget, variables string) (string, []error) {
+func parseAndTestWithOptions(t *testing.T, query string, queries interface{}, methods interface{}, maxDept uint8, options ResolveOptions) (string, []error) {
 	s, err := ParseSchema(queries, methods, nil)
 	NoError(t, err, query)
 	s.MaxDepth = maxDept
-	out, errs := s.Resolve(query, ResolveOptions{OperatorTarget: operatorTarget, Variables: variables})
+	out, errs := s.Resolve(query, options)
 	if !json.Valid([]byte(out)) {
 		panic(fmt.Sprintf("query %s, returned invalid json: %s", query, out))
 	}
@@ -453,7 +455,7 @@ type TestExecMaxDeptData struct {
 }
 
 func TestExecMaxDept(t *testing.T) {
-	out, errs := parseAndTestWithOptions(t, `{foo{bar{baz{fooBar{barBaz{bazFoo}}}}}}`, TestExecMaxDeptData{}, M{}, 3, "", "")
+	out, errs := parseAndTestWithOptions(t, `{foo{bar{baz{fooBar{barBaz{bazFoo}}}}}}`, TestExecMaxDeptData{}, M{}, 3, ResolveOptions{})
 	Greater(t, len(errs), 0)
 	Equal(t, `{"foo":{"bar":{"baz":null}}}`, out)
 }
@@ -722,17 +724,17 @@ func TestExecMultipleOperators(t *testing.T) {
 	query QueryA {a b}
 	query QueryB {c d}
 	`
-	out, errs := parseAndTestWithOptions(t, query, TestExecSimpleQueryData{}, M{}, 255, "", "")
+	out, errs := parseAndTestWithOptions(t, query, TestExecSimpleQueryData{}, M{}, 255, ResolveOptions{})
 	Equal(t, 1, len(errs))
 	Equal(t, "{}", out)
 
-	out, errs = parseAndTestWithOptions(t, query, TestExecSimpleQueryData{}, M{}, 255, "QueryA", "")
+	out, errs = parseAndTestWithOptions(t, query, TestExecSimpleQueryData{}, M{}, 255, ResolveOptions{OperatorTarget: "QueryA"})
 	for _, err := range errs {
 		panic(err)
 	}
 	Equal(t, `{"a":"","b":""}`, out)
 
-	out, errs = parseAndTestWithOptions(t, query, TestExecSimpleQueryData{}, M{}, 255, "QueryB", "")
+	out, errs = parseAndTestWithOptions(t, query, TestExecSimpleQueryData{}, M{}, 255, ResolveOptions{OperatorTarget: "QueryB"})
 	for _, err := range errs {
 		panic(err)
 	}
@@ -857,7 +859,7 @@ func TestExecSchemaRequestSimple(t *testing.T) {
 	NoError(t, err)
 
 	schema := res.Schema
-	types := schema.Types
+	types := schema.JSONTypes
 
 	totalTypes := 15
 	if testingRegisteredTestEnum {
@@ -926,7 +928,7 @@ func TestExecSchemaRequestWithFields(t *testing.T) {
 	NoError(t, err)
 
 	schema := res.Schema
-	types := schema.Types
+	types := schema.JSONTypes
 
 	totalTypes := 19
 	if testingRegisteredTestEnum {
@@ -1013,4 +1015,25 @@ func TestExecGraphqlTypename(t *testing.T) {
 	}
 
 	Equal(t, `{"a":{"__typename":"TestExecSchemaRequestWithFieldsDataInnerStruct"}}`, res)
+}
+
+type TestExecWithContextData struct{}
+
+func (TestExecWithContextData) ResolveFoo(ctx *Ctx) string {
+	<-ctx.context.Done()
+	return "Oh no the time has ran out"
+}
+
+func TestExecWithContext(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Millisecond*300)
+	out, errs := parseAndTestWithOptions(t, `{foo}`, TestExecWithContextData{}, M{}, 255, ResolveOptions{
+		Context: ctx,
+	})
+	cancel()
+	Equal(t, 1, len(errs))
+	Equal(t, "context deadline exceeded", errs[0].Error())
+
+	if !json.Valid([]byte(out)) {
+		panic(fmt.Sprintf("query should return valid json: %s", out))
+	}
 }

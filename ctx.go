@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -11,20 +12,29 @@ import (
 
 // Ctx contains all the request information and responses
 type Ctx struct {
-	fragments           map[string]operator    // Query fragments
-	schema              *Schema                // The Go code schema (graphql schema)
-	Values              map[string]interface{} // API User values, user can put all their shitty things in here like poems or tax papers
-	directvies          []directives           // Directives stored in ctx
-	errors              []error                // Query errors
-	operator            *operator              // Part of query to execute
-	jsonVariablesString string                 // Raw query variables
-	jsonVariables       *fastjson.Value        // Parsed query variables
-	path                *[]string              // Property meant to be used within custom resolvers and field methods (value also only set when executing one of those)
+	// Private
+	fragments           map[string]operator // Query fragments
+	schema              *Schema             // The Go code schema (graphql schema)
+	directvies          []directives        // Directives stored in ctx
+	errors              []error             // Query errors
+	operator            *operator           // Part of query to execute
+	jsonVariablesString string              // Raw query variables
+	jsonVariables       *fastjson.Value     // Parsed query variables
+	path                *[]string           // Property meant to be used within custom resolvers and field methods (value also only set when executing one of those)
+	context             context.Context
+
+	// Public
+	Values map[string]interface{} // API User values, user can put all their shitty things in here like poems or tax papers
 }
 
 //
 // External
 //
+
+// Returns the request's context
+func (ctx *Ctx) Context() context.Context {
+	return ctx.context
+}
 
 // Path to the current method, path elements are encoded in json format
 func (ctx *Ctx) Path() []string {

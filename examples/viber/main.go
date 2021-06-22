@@ -22,6 +22,7 @@ func main() {
 			func(key string) (string, error) { return c.FormValue(key), nil },
 			func() []byte { return c.Body() },
 			string(c.Request().Header.ContentType()),
+			nil,
 		)
 		res := graphql.GenerateResponse(body, errors)
 

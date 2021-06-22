@@ -94,7 +94,9 @@ type objMethod struct {
 	// Is this a function field inside this object or a method attached to the struct
 	// true = func (*someStruct) ResolveFooBar() string {}
 	// false = ResolveFooBar func() string
-	isTypeMethod bool
+	isTypeMethod   bool
+	goFunctionName string
+	type_          reflect.Type
 
 	ins      []baseInput             // The real function inputs
 	inFields map[string]referToInput // Contains all the fields of all the ins
@@ -135,22 +137,23 @@ type baseInput struct {
 }
 
 type SchemaOptions struct {
-	noMethodEqualToQueryChecks bool // internal for testing
+	noMethodEqualToQueryChecks bool // only used for for testing
 	SkipGraphqlTypesInjection  bool
 }
 
 type parseCtx struct {
-	// TODO: Maybe change this to objects as the types defined here are always objects
 	types              *types
 	inTypes            *inputMap
 	unknownTypesCount  int
 	unknownInputsCount int
+	parsedMethods      []*objMethod
 }
 
 func newParseCtx() *parseCtx {
 	return &parseCtx{
-		types:   &types{},
-		inTypes: &inputMap{},
+		types:         &types{},
+		inTypes:       &inputMap{},
+		parsedMethods: []*objMethod{},
 	}
 }
 
@@ -163,9 +166,10 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 		MaxDepth:        255,
 	}
 
-	ctx := parseCtx{
-		types:   &res.types,
-		inTypes: &res.inTypes,
+	ctx := &parseCtx{
+		types:         &res.types,
+		inTypes:       &res.inTypes,
+		parsedMethods: []*objMethod{},
 	}
 
 	obj, err := ctx.check(reflect.TypeOf(queries), false)
@@ -195,8 +199,15 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 	}
 
 	if options == nil || !options.SkipGraphqlTypesInjection {
-		res.injectQLTypes(&ctx)
+		res.injectQLTypes(ctx)
 	}
+
+	for _, method := range ctx.parsedMethods {
+		ctx.checkFunctionIns(method)
+	}
+
+	// Nullify the ctx to freeup space
+	ctx = nil
 
 	return &res, nil
 }
@@ -424,6 +435,12 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type, hasIDTag bool) (input, err
 			if ok {
 				structName = newStructName
 			}
+			_, equalTypeExist := (*c.types)[structName]
+			if equalTypeExist {
+				// types and inputs with the same name are not allowed in graphql, add __input as suffix
+				// TODO allow this value to be filledin by the user
+				structName = structName + "__input"
+			}
 		}
 
 		_, ok := (*c.inTypes)[structName]
@@ -479,52 +496,7 @@ func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool,
 	}
 
 	if t.IsVariadic() {
-		return nil, "", errors.New("function method cannot end with spread argument")
-	}
-
-	ins := []baseInput{}
-	inFields := map[string]referToInput{}
-
-	totalInputs := t.NumIn()
-	for i := 0; i < totalInputs; i++ {
-		iInList := i
-		if isTypeMethod {
-			if i == 0 {
-				// First argument can be skipped if type method
-				continue
-			}
-			iInList = i - 1
-		}
-
-		type_ := t.In(i)
-		input := baseInput{}
-		typeKind := type_.Kind()
-		if typeKind == reflect.Ptr && isCtx(type_.Elem()) {
-			input.isCtx = true
-		} else if isCtx(type_) {
-			return nil, "", fmt.Errorf("%s ctx must be a pointer", name)
-		} else if typeKind == reflect.Struct {
-			input.type_ = &type_
-			for i := 0; i < type_.NumField(); i++ {
-				field := type_.Field(i)
-				input, skip, err := c.checkFunctionInputStruct(&field)
-				if skip {
-					continue
-				}
-				if err != nil {
-					return nil, "", fmt.Errorf("%s, type %s (#%d)", err.Error(), type_.Name(), i)
-				}
-
-				inFields[input.gqFieldName] = referToInput{
-					inputIdx: iInList,
-					input:    input,
-				}
-			}
-		} else {
-			return nil, "", fmt.Errorf("invalid struct item type %s (#%d)", type_.Name(), i)
-		}
-
-		ins = append(ins, input)
+		return nil, "", errors.New("function method cannot end with spread operator")
 	}
 
 	numOuts := t.NumOut()
@@ -575,14 +547,64 @@ func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool,
 		return nil, "", fmt.Errorf("%s does not return usable data", name)
 	}
 
-	return &objMethod{
-		isTypeMethod: isTypeMethod,
-		ins:          ins,
-		inFields:     inFields,
-		outNr:        *outNr,
-		outType:      *outTypeObj,
-		errorOutNr:   hasErrorOut,
-	}, formatGoNameToQL(trimmedName), nil
+	res := &objMethod{
+		type_:          t,
+		goFunctionName: name,
+		isTypeMethod:   isTypeMethod,
+		ins:            []baseInput{},
+		inFields:       map[string]referToInput{},
+		outNr:          *outNr,
+		outType:        *outTypeObj,
+		errorOutNr:     hasErrorOut,
+	}
+	c.parsedMethods = append(c.parsedMethods, res)
+	return res, formatGoNameToQL(trimmedName), nil
+}
+
+func (c *parseCtx) checkFunctionIns(method *objMethod) error {
+	totalInputs := method.type_.NumIn()
+	for i := 0; i < totalInputs; i++ {
+		iInList := i
+		if method.isTypeMethod {
+			if i == 0 {
+				// First argument can be skipped if type method
+				continue
+			}
+			iInList = i - 1
+		}
+
+		type_ := method.type_.In(i)
+		input := baseInput{}
+		typeKind := type_.Kind()
+		if typeKind == reflect.Ptr && isCtx(type_.Elem()) {
+			input.isCtx = true
+		} else if isCtx(type_) {
+			return fmt.Errorf("%s ctx argument must be a pointer", method.goFunctionName)
+		} else if typeKind == reflect.Struct {
+			input.type_ = &type_
+			for i := 0; i < type_.NumField(); i++ {
+				field := type_.Field(i)
+				input, skip, err := c.checkFunctionInputStruct(&field)
+				if skip {
+					continue
+				}
+				if err != nil {
+					return fmt.Errorf("%s, type %s (#%d)", err.Error(), type_.Name(), i)
+				}
+
+				method.inFields[input.gqFieldName] = referToInput{
+					inputIdx: iInList,
+					input:    input,
+				}
+			}
+		} else {
+			return fmt.Errorf("invalid struct item type %s (#%d)", type_.Name(), i)
+		}
+
+		method.ins = append(method.ins, input)
+	}
+
+	return nil
 }
 
 func formatGoNameToQL(input string) string {

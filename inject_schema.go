@@ -35,7 +35,7 @@ func (s *Schema) injectQLTypes(ctx *parseCtx) {
 
 func (s *Schema) getQLSchema() qlSchema {
 	res := qlSchema{
-		Types:      s.getAllQLTypes(),
+		Types:      s.getAllQLTypes,
 		Directives: []qlDirective{},
 		QueryType: &qlType{
 			Kind:        typeKindObject,

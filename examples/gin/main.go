@@ -41,6 +41,7 @@ func main() {
 				return requestBody
 			},
 			c.ContentType(),
+			nil,
 		)
 		res := graphql.GenerateResponse(body, errors)
 
