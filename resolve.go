@@ -11,8 +11,9 @@ import (
 
 type ResolveOptions struct {
 	OperatorTarget string
-	Variables      string // Expects JSON or empty string
+	Variables      string // Expects valid JSON or empty string
 	Context        context.Context
+	Values         map[string]interface{} // Passed directly to the request context
 }
 
 func (s *Schema) Resolve(query string, options ResolveOptions) (string, []error) {
@@ -32,6 +33,9 @@ func (s *Schema) Resolve(query string, options ResolveOptions) (string, []error)
 		errors:              []error{},
 		jsonVariablesString: options.Variables,
 		context:             options.Context,
+	}
+	if options.Values != nil {
+		ctx.Values = options.Values
 	}
 
 	switch len(operatorsMap) {

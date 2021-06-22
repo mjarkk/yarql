@@ -37,6 +37,7 @@ func GenerateResponse(data string, errors []error) string {
 
 type RequestOptions struct {
 	Context context.Context
+	Values  map[string]interface{} // Passed directly to the request context
 }
 
 func (s *Schema) HandleRequest(
@@ -112,14 +113,18 @@ func (s *Schema) HandleRequest(
 		operationName = getQuery("operationName")
 	}
 
-	var context context.Context
-	if options.Context != nil {
-		context = options.Context
-	}
-
-	return s.Resolve(query, ResolveOptions{
+	resolveOptions := ResolveOptions{
 		OperatorTarget: operationName,
 		Variables:      variables,
-		Context:        context,
-	})
+	}
+	if options != nil {
+		if options.Context != nil {
+			resolveOptions.Context = options.Context
+		}
+		if options.Values != nil {
+			resolveOptions.Values = options.Values
+		}
+	}
+
+	return s.Resolve(query, resolveOptions)
 }

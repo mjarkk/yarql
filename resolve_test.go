@@ -1037,3 +1037,22 @@ func TestExecWithContext(t *testing.T) {
 		panic(fmt.Sprintf("query should return valid json: %s", out))
 	}
 }
+
+type TestExecWithPreDefinedVarsData struct{}
+
+func (TestExecWithPreDefinedVarsData) ResolveFoo(ctx *Ctx) string {
+	return ctx.Values["bar"].(string)
+}
+
+func TestExecWithPreDefinedVars(t *testing.T) {
+	out, errs := parseAndTestWithOptions(t, `{foo}`, TestExecWithPreDefinedVarsData{}, M{}, 255, ResolveOptions{
+		Values: map[string]interface{}{
+			"bar": "baz",
+		},
+	})
+	for _, err := range errs {
+		panic(err)
+	}
+
+	Equal(t, `{"foo":"baz"}`, out)
+}
