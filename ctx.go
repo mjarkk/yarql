@@ -42,6 +42,9 @@ func (ctx *Ctx) HasErrors() bool {
 
 // Errors returns the query errors til this point
 func (ctx *Ctx) Errors() []error {
+	if ctx.errors == nil {
+		return []error{}
+	}
 	return ctx.errors
 }
 
