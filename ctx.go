@@ -189,8 +189,6 @@ func (ctx *Ctx) resolveVariableFromJson(jsonValue *fastjson.Value, expectedValue
 }
 
 func (ctx *Ctx) resolveVariableFromDefault(defaultValue value, expectedValueType *typeReference, val *value) error {
-	// TODO: CRITICAL BUG: You can create a invite loop by refering to a variable from withinn the default data
-
 	if expectedValueType.list {
 		if defaultValue.valType != reflect.Array {
 			return errors.New("exected list")
