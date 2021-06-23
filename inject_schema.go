@@ -159,8 +159,13 @@ func (s *Schema) inputToQLType(in *input) (res *qlType, isNonNull bool) {
 			OfType: wrapQLTypeInNonNull(s.inputToQLType(in.elem)),
 		}
 	case reflect.Ptr:
-		// This basically sets the isNonNull to false
-		res, _ = s.inputToQLType(in.elem)
+		if in.isFile {
+			rawRes := scalars["File"]
+			res = &rawRes
+		} else {
+			// Basically sets the isNonNull to false
+			res, _ = s.inputToQLType(in.elem)
+		}
 	case reflect.Bool:
 		isNonNull = true
 		rawRes := scalars["Boolean"]

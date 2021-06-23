@@ -191,4 +191,5 @@ var scalars = map[string]qlType{
 	"Float":   {Kind: typeKindScalar, Name: h.StrPtr("Float"), Description: h.StrPtr("The Float scalar type represents signed double‐precision fractional values as specified by IEEE 754.")},
 	"String":  {Kind: typeKindScalar, Name: h.StrPtr("String"), Description: h.StrPtr("The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.")},
 	"ID":      {Kind: typeKindScalar, Name: h.StrPtr("ID"), Description: h.StrPtr("The ID scalar type represents a unique identifier, often used to refetch an object or as the key for a cache")},
+	"File":    {Kind: typeKindScalar, Name: h.StrPtr("File"), Description: h.StrPtr("The File scalar type references to a multipart file, often used to upload files to the server")},
 }

@@ -864,7 +864,7 @@ func TestExecSchemaRequestSimple(t *testing.T) {
 	schema := res.Schema
 	types := schema.JSONTypes
 
-	totalTypes := 15
+	totalTypes := 16
 	if testingRegisteredTestEnum {
 		totalTypes++
 	}
@@ -880,6 +880,7 @@ func TestExecSchemaRequestSimple(t *testing.T) {
 	}
 
 	is("SCALAR", "Boolean")
+	is("SCALAR", "File")
 	is("SCALAR", "Float")
 	is("SCALAR", "ID")
 	is("SCALAR", "Int")
@@ -933,7 +934,7 @@ func TestExecSchemaRequestWithFields(t *testing.T) {
 	schema := res.Schema
 	types := schema.JSONTypes
 
-	totalTypes := 19
+	totalTypes := 20
 	if testingRegisteredTestEnum {
 		totalTypes++
 	}
@@ -950,6 +951,7 @@ func TestExecSchemaRequestWithFields(t *testing.T) {
 	}
 
 	is("SCALAR", "Boolean")
+	is("SCALAR", "File")
 	is("SCALAR", "Float")
 	is("SCALAR", "ID")
 	is("SCALAR", "Int")
