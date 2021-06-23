@@ -97,14 +97,16 @@ func (s *Schema) HandleRequest(
 		jsonOperationName := v.Get("operationName")
 		if jsonOperationName != nil {
 			t := jsonOperationName.Type()
-			if t != fastjson.TypeString {
-				return errRes("expected operationName to be a string but got " + t.String())
+			if t != fastjson.TypeNull {
+				if t != fastjson.TypeString {
+					return errRes("expected operationName to be a string but got " + t.String())
+				}
+				operationNameBytes, err := jsonOperationName.StringBytes()
+				if err != nil {
+					return errRes("invalid operationName param, must be a valid string")
+				}
+				operationName = string(operationNameBytes)
 			}
-			operationNameBytes, err := jsonOperationName.StringBytes()
-			if err != nil {
-				return errRes("invalid operationName param, must be a valid string")
-			}
-			operationName = string(operationNameBytes)
 		}
 
 		jsonVariables := v.Get("variables")

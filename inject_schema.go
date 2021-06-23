@@ -241,6 +241,7 @@ func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 				sort.Slice(res, func(a int, b int) bool { return res[a].Name < res[b].Name })
 				return res
 			},
+			Interfaces: []qlType{},
 		}
 	case valueTypeData:
 		isNonNull = true
@@ -283,8 +284,9 @@ func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 func enumToQlType(enum enum) qlType {
 	name := enum.contentType.Name()
 	return qlType{
-		Kind: typeKindEnum,
-		Name: &name,
+		Kind:        typeKindEnum,
+		Name:        &name,
+		Description: h.StrPtr(""),
 		EnumValues: func(args isDeprecatedArgs) []qlEnumValue {
 			res := []qlEnumValue{}
 			for key := range enum.keyValue {
