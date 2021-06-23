@@ -12,6 +12,8 @@ Just a different approach to making graphql servers in Go
 - Easy to implement, see the [gin](https://github.com/mjarkk/go-graphql/blob/main/examples/gin/main.go) and [viber](https://github.com/mjarkk/go-graphql/blob/main/examples/viber/main.go) examples
 - File upload support
 
+*For further plans see the [/projects](https://github.com/mjarkk/go-graphql/projects) tab*
+
 ## Example
 
 See the [/examples](https://github.com/mjarkk/go-graphql/tree/main/examples) folder for more examples
