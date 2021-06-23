@@ -131,6 +131,21 @@ func wrapQLTypeInNonNull(type_ *qlType, isNonNull bool) *qlType {
 }
 
 func (s *Schema) inputToQLType(in *input) (res *qlType, isNonNull bool) {
+	if in.isID {
+		rawRes := scalars["ID"]
+		res = &rawRes
+		return
+	} else if in.isTime {
+		rawRes := scalars["Time"]
+		res = &rawRes
+		isNonNull = true
+		return
+	} else if in.isFile {
+		rawRes := scalars["File"]
+		res = &rawRes
+		return
+	}
+
 	switch in.kind {
 	case reflect.Struct:
 		isNonNull = true
@@ -159,13 +174,8 @@ func (s *Schema) inputToQLType(in *input) (res *qlType, isNonNull bool) {
 			OfType: wrapQLTypeInNonNull(s.inputToQLType(in.elem)),
 		}
 	case reflect.Ptr:
-		if in.isFile {
-			rawRes := scalars["File"]
-			res = &rawRes
-		} else {
-			// Basically sets the isNonNull to false
-			res, _ = s.inputToQLType(in.elem)
-		}
+		// Basically sets the isNonNull to false
+		res, _ = s.inputToQLType(in.elem)
 	case reflect.Bool:
 		isNonNull = true
 		rawRes := scalars["Boolean"]
@@ -184,9 +194,6 @@ func (s *Schema) inputToQLType(in *input) (res *qlType, isNonNull bool) {
 	case reflect.String:
 		isNonNull = true
 		rawRes := scalars["String"]
-		if in.isID {
-			rawRes = scalars["ID"]
-		}
 		res = &rawRes
 	default:
 		isNonNull = true
@@ -276,6 +283,9 @@ func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 		if !item.method.isTypeMethod {
 			isNonNull = false
 		}
+	case valueTypeTime:
+		rawRes := scalars["Time"]
+		res = &rawRes
 	}
 
 	return

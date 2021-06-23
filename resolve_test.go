@@ -688,6 +688,25 @@ func TestExecInputID(t *testing.T) {
 	Equal(t, `{"foo":{"a":"1","BAR":"2","c":"3","d":"4"}}`, out)
 }
 
+type TestExecTimeIOData struct{}
+
+func (TestExecTimeIOData) ResolveFoo(args struct{ T time.Time }) time.Time {
+	return args.T.AddDate(3, 2, 1).Add(time.Hour + time.Second)
+}
+
+func TestExecTimeIO(t *testing.T) {
+	now := time.Now()
+	testTimeInput := timeToString(now)
+
+	out, errs := parseAndTest(t, `{foo(t: "`+testTimeInput+`")}`, TestExecTimeIOData{}, M{})
+	for _, err := range errs {
+		panic(err)
+	}
+
+	exectedOutTime := timeToString(now.AddDate(3, 2, 1).Add(time.Hour + time.Second))
+	Equal(t, `{"foo":"`+exectedOutTime+`"}`, out)
+}
+
 func TestExecInputIDInvalidArguments(t *testing.T) {
 	testCases := []string{
 		`{foo(c: "not a number"){c}}`,
@@ -864,7 +883,7 @@ func TestExecSchemaRequestSimple(t *testing.T) {
 	schema := res.Schema
 	types := schema.JSONTypes
 
-	totalTypes := 16
+	totalTypes := 17
 	if testingRegisteredTestEnum {
 		totalTypes++
 	}
@@ -890,6 +909,7 @@ func TestExecSchemaRequestSimple(t *testing.T) {
 		is("ENUM", "TestEnum2")
 	}
 	is("OBJECT", "TestExecSchemaRequestSimpleData")
+	is("SCALAR", "Time")
 	is("OBJECT", "__Directive")
 	is("ENUM", "__DirectiveLocation")
 	is("OBJECT", "__EnumValue")
@@ -934,7 +954,7 @@ func TestExecSchemaRequestWithFields(t *testing.T) {
 	schema := res.Schema
 	types := schema.JSONTypes
 
-	totalTypes := 20
+	totalTypes := 21
 	if testingRegisteredTestEnum {
 		totalTypes++
 	}
@@ -962,6 +982,7 @@ func TestExecSchemaRequestWithFields(t *testing.T) {
 	}
 	queryIdx := is("OBJECT", "TestExecSchemaRequestWithFieldsData")
 	is("OBJECT", "TestExecSchemaRequestWithFieldsDataInnerStruct")
+	is("SCALAR", "Time")
 	is("OBJECT", "__Directive")
 	is("ENUM", "__DirectiveLocation")
 	is("OBJECT", "__EnumValue")

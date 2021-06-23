@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type ResolveOptions struct {
@@ -239,7 +240,10 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 		}
 
 		if goAnalyzedData.isFile {
-			return fmt.Errorf("arguments type missmatch expected a string pointing to a form file")
+			return errors.New("arguments type missmatch expected a string pointing to a form file")
+		}
+		if goAnalyzedData.isTime {
+			return errors.New("argument type missmatch expected a string in ISO 8601 format")
 		}
 		return fmt.Errorf("arguments type missmatch expected %s", m[goField.Type().Kind()])
 	}
@@ -257,17 +261,22 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 	}
 
 	setString := func(str string) error {
-		if !goAnalyzedData.isFile {
+		if goAnalyzedData.isTime {
+			parsedTime, err := parseTime(str)
+			if err != nil {
+				return err
+			}
+			goField.Set(reflect.ValueOf(parsedTime))
+		} else if goAnalyzedData.isFile {
+			file, err := ctx.getFormFile(str)
+			if err != nil {
+				return err
+			}
+
+			goField.Set(reflect.ValueOf(file))
+		} else {
 			goField.SetString(str)
-			return nil
 		}
-		file, err := ctx.getFormFile(str)
-		if err != nil {
-			return err
-		}
-
-		goField.Set(reflect.ValueOf(file))
-
 		return nil
 	}
 
@@ -523,6 +532,13 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, value reflect.Value, codeStr
 			return "null", false
 		}
 		return `"` + key.Interface().(string) + `"`, false
+	case valueTypeTime:
+		timeValue, ok := value.Interface().(time.Time)
+		if !ok {
+			return "null", false
+		}
+		timeString, _ := valueToJson(timeToString(timeValue))
+		return timeString, false
 	default:
 		ctx.addErr(path, "has invalid data type")
 		return "null", true
@@ -643,4 +659,18 @@ func valueToJson(in interface{}) (string, error) {
 	default:
 		return "null", errors.New("invalid data type")
 	}
+}
+
+func parseTime(val string) (time.Time, error) {
+	// Parse to ISO 8601
+	// The ISO 8601 layout might also be "2006-01-02T15:04:05.999Z" but it's mentioned less than the current so i presume what we're now using is correct
+	parsedTime, err := time.Parse("2006-01-02T15:04:05.000Z", val)
+	if err != nil {
+		return time.Time{}, errors.New("time value doesn't match the ISO 8601 layout")
+	}
+	return parsedTime, nil
+}
+
+func timeToString(t time.Time) string {
+	return t.Format("2006-01-02T15:04:05.000Z")
 }

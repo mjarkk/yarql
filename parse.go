@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 )
 
 type types map[string]*obj
@@ -52,6 +53,8 @@ const (
 	valueTypePtr
 	valueTypeMethod
 	valueTypeEnum
+	valueTypeString
+	valueTypeTime
 )
 
 type obj struct {
@@ -115,11 +118,14 @@ type referToInput struct {
 }
 
 type input struct {
-	kind         reflect.Kind
+	kind reflect.Kind
+
+	// Is this a custom type?
 	isEnum       bool
 	enumTypeName string
 	isID         bool
 	isFile       bool
+	isTime       bool
 
 	goFieldName string
 	gqFieldName string
@@ -218,6 +224,11 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 	res := obj{
 		typeName: t.Name(),
 		pkgPath:  t.PkgPath(),
+	}
+
+	if res.pkgPath == "time" && res.typeName == "Time" {
+		res.valueType = valueTypeTime
+		return &res, nil
 	}
 
 	switch t.Kind() {
@@ -423,14 +434,16 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type, hasIDTag bool) (input, err
 		}
 	case reflect.Ptr:
 		if t.AssignableTo(reflect.TypeOf(&multipart.FileHeader{})) {
+			// This is a file header, these are handled completely diffrent from a normal pointer
 			res.isFile = true
-		} else {
-			input, err := c.checkFunctionInput(t.Elem(), hasIDTag)
-			if err != nil {
-				return res, err
-			}
-			res.elem = &input
+			return res, nil
 		}
+
+		input, err := c.checkFunctionInput(t.Elem(), hasIDTag)
+		if err != nil {
+			return res, err
+		}
+		res.elem = &input
 	case reflect.Array, reflect.Slice:
 		input, err := c.checkFunctionInput(t.Elem(), false)
 		if err != nil {
@@ -438,6 +451,14 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type, hasIDTag bool) (input, err
 		}
 		res.elem = &input
 	case reflect.Struct:
+		if t.AssignableTo(reflect.TypeOf(time.Time{})) {
+			// This is a time property, these are handled completely diffrent from a normal struct
+			return input{
+				kind:   reflect.String,
+				isTime: true,
+			}, nil
+		}
+
 		structName := t.Name()
 		if len(structName) == 0 {
 			c.unknownInputsCount++
