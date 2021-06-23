@@ -73,16 +73,12 @@ func (kind __TypeKind) String() string {
 var _ = TypeRename(qlType{}, "__Type", true)
 
 type qlType struct {
-	Kind     __TypeKind `json:"-"`
-	JSONKind string     `json:"kind" gq:"-"`
-
-	Name        *string `json:"name"`
-	Description *string `json:"description"`
+	Kind        __TypeKind `json:"-"`
+	Name        *string    `json:"name"`
+	Description *string    `json:"description"`
 
 	// OBJECT and INTERFACE only
 	Fields func(isDeprecatedArgs) []qlField `json:"-"`
-	// For testing perposes mainly
-	JSONFields []qlField `json:"fields" gq:"-"`
 
 	// OBJECT only
 	Interfaces []qlType `json:"interfaces"`
@@ -95,11 +91,14 @@ type qlType struct {
 
 	// INPUT_OBJECT only
 	InputFields func() []qlInputValue `json:"-"`
-	// For testing perposes mainly
-	JSONInputFields []qlField `json:"inputFields" gq:"-"`
 
 	// NON_NULL and LIST only
 	OfType *qlType `json:"ofType"`
+
+	// For testing perposes mainly
+	JSONKind        string    `json:"kind" gq:"-"`
+	JSONFields      []qlField `json:"fields" gq:"-"`
+	JSONInputFields []qlField `json:"inputFields" gq:"-"`
 }
 
 var _ = TypeRename(qlField{}, "__Field", true)
