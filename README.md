@@ -104,14 +104,17 @@ func (A) ResolveA() string {return "Ahh yea"}
 
 These go data kinds should be globally accepted:
 
-- bool
-- int, int(8 | 16 | 32 | 64)
-- uint, uint(8 | 16 | 32 | 64)
-- float(32 | 64)
-- array
-- ptr
-- string
-- struct
+- `bool`
+- `int` *all bit sizes* 
+- `uint` *all bit sizes*
+- `float(32 | 64)`
+- `array`
+- `ptr`
+- `string`
+- `struct`
+
+There are also special values:
+- `time.Time` > converted from/to ISO 8601
 
 ### Ignore fields
 
