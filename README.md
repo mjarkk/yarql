@@ -91,7 +91,9 @@ struct {
 
 A resolver attached to the struct.
 
-Name Must start with `Resolver` then at least one uppercase letter
+Name Must start with `Resolver` followed by one uppercase letter
+
+_The resolve identifier is trimmed away in the graphql name_
 
 ```go
 type A struct {}
