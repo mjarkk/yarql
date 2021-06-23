@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"mime/multipart"
 	"reflect"
 	"strings"
 	"sync"
@@ -118,6 +119,7 @@ type input struct {
 	isEnum       bool
 	enumTypeName string
 	isID         bool
+	isFile       bool
 
 	goFieldName string
 	gqFieldName string
@@ -419,8 +421,18 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type, hasIDTag bool) (input, err
 				return res, err
 			}
 		}
-	case reflect.Ptr, reflect.Array, reflect.Slice:
-		input, err := c.checkFunctionInput(t.Elem(), hasIDTag && kind == reflect.Ptr)
+	case reflect.Ptr:
+		if t.AssignableTo(reflect.TypeOf(&multipart.FileHeader{})) {
+			res.isFile = true
+		} else {
+			input, err := c.checkFunctionInput(t.Elem(), hasIDTag)
+			if err != nil {
+				return res, err
+			}
+			res.elem = &input
+		}
+	case reflect.Array, reflect.Slice:
+		input, err := c.checkFunctionInput(t.Elem(), false)
 		if err != nil {
 			return res, err
 		}

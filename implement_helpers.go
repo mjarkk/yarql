@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"mime/multipart"
 	"strings"
 
 	"github.com/valyala/fastjson"
@@ -36,8 +37,9 @@ func GenerateResponse(data string, errors []error) string {
 }
 
 type RequestOptions struct {
-	Context context.Context
-	Values  map[string]interface{} // Passed directly to the request context
+	Context     context.Context                                 // Request context can be used to verify
+	Values      map[string]interface{}                          // Passed directly to the request context
+	GetFormFile func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
 }
 
 func (s *Schema) HandleRequest(
@@ -61,12 +63,12 @@ func (s *Schema) HandleRequest(
 	if contentType == "application/json" || ((contentType == "text/plain" || contentType == "multipart/form-data") && method != "GET") {
 		var body []byte
 		if contentType == "multipart/form-data" {
-			// TODO support the full https://github.com/jaydenseric/graphql-multipart-request-spec
 			value, err := getFormField("operations")
 			if err != nil {
 				return "{}", []error{err}
 			}
 			body = []byte(value)
+
 		} else {
 			body = getBody()
 		}
@@ -93,17 +95,23 @@ func (s *Schema) HandleRequest(
 		query = string(queryBytes)
 
 		jsonOperationName := v.Get("operationName")
-		if jsonOperationName != nil && jsonOperationName.Type() != fastjson.TypeNull {
+		if jsonOperationName != nil {
+			t := jsonOperationName.Type()
+			if t != fastjson.TypeString {
+				return errRes("expected operationName to be a string but got " + t.String())
+			}
 			operationNameBytes, err := jsonOperationName.StringBytes()
 			if err != nil {
 				return errRes("invalid operationName param, must be a valid string")
 			}
 			operationName = string(operationNameBytes)
 		}
+
 		jsonVariables := v.Get("variables")
-		if jsonVariables != nil && jsonVariables.Type() != fastjson.TypeNull {
-			if jsonVariables.Type() != fastjson.TypeObject {
-				return errRes("invalid variables param, must be a key value object")
+		if jsonVariables != nil {
+			t := jsonVariables.Type()
+			if t != fastjson.TypeObject {
+				return errRes("expected variables to be a key value object but got: " + t.String())
 			}
 			variables = jsonVariables.String()
 		}
@@ -123,6 +131,9 @@ func (s *Schema) HandleRequest(
 		}
 		if options.Values != nil {
 			resolveOptions.Values = options.Values
+		}
+		if options.GetFormFile != nil {
+			resolveOptions.GetFormFile = options.GetFormFile
 		}
 	}
 

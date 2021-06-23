@@ -10,6 +10,7 @@ Just a different approach to making graphql servers in Go
 - Schema is based on code
 - Only 1 dependency
 - Easy to implement, see the [gin](https://github.com/mjarkk/go-graphql/blob/main/examples/gin/main.go) and [viber](https://github.com/mjarkk/go-graphql/blob/main/examples/viber/main.go) examples
+- File upload support
 
 ## Example
 
@@ -209,6 +210,28 @@ var _ = RegisterEnum(map[string]Fruit{
 	"GRAPEFRUIT": Grapefruit,
 })
 ```
+
+### File upload
+
+_NOTE: This is NOT [graphql-multipart-request-spec](https://github.com/jaydenseric/graphql-multipart-request-spec)_
+
+In your go code add `*multipart.FileHeader` to a methods inputs
+
+```go
+func (SomeStruct) ResolveUploadFile(args struct{ File *multipart.FileHeader }) string {
+	// ...
+}
+```
+
+In your graphql query you can now do:
+
+```gql
+  uploadFile(file: "form_file_field_name")
+```
+
+In your request add a form file with the field name: `form_file_field_name`
+
+_Based on [graphql-multipart-request-spec #55](https://github.com/jaydenseric/graphql-multipart-request-spec/issues/55)_
 
 ## Alternatives
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"mime/multipart"
 	"reflect"
 	"strings"
 
@@ -22,6 +23,7 @@ type Ctx struct {
 	jsonVariables       *fastjson.Value     // Parsed query variables
 	path                *[]string           // Property meant to be used within custom resolvers and field methods (value also only set when executing one of those)
 	context             context.Context
+	getFormFile         func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
 
 	// Public
 	Values map[string]interface{} // API User values, user can put all their shitty things in here like poems or tax papers

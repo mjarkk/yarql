@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"mime/multipart"
 	"reflect"
 	"strconv"
 	"strings"
@@ -13,7 +14,8 @@ type ResolveOptions struct {
 	OperatorTarget string
 	Variables      string // Expects valid JSON or empty string
 	Context        context.Context
-	Values         map[string]interface{} // Passed directly to the request context
+	Values         map[string]interface{}                          // Passed directly to the request context
+	GetFormFile    func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
 }
 
 func (s *Schema) Resolve(query string, options ResolveOptions) (string, []error) {
@@ -33,6 +35,7 @@ func (s *Schema) Resolve(query string, options ResolveOptions) (string, []error)
 		errors:              []error{},
 		jsonVariablesString: options.Variables,
 		context:             options.Context,
+		getFormFile:         options.GetFormFile,
 	}
 	if options.Values != nil {
 		ctx.Values = options.Values
@@ -177,6 +180,14 @@ func (ctx *Ctx) resolveField(query *field, struct_ reflect.Value, codeStructure 
 func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAnalyzedData *input) error {
 	goFieldKind := goAnalyzedData.kind
 
+	if goAnalyzedData.isFile {
+		goAnalyzedData.kind = reflect.String
+		goFieldKind = goAnalyzedData.kind
+		if queryValue.isNull {
+			return nil
+		}
+	}
+
 	if goFieldKind == reflect.Ptr {
 		if queryValue.isNull {
 			// Na mate just keep it at it's default
@@ -227,11 +238,10 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 			reflect.UnsafePointer: "a number",
 		}
 
-		t := goField.Type()
-		for t.Kind() == reflect.Ptr {
-			t = t.Elem()
+		if goAnalyzedData.isFile {
+			return fmt.Errorf("arguments type missmatch expected a string pointing to a form file")
 		}
-		return fmt.Errorf("arguments type missmatch expected %s", m[t.Kind()])
+		return fmt.Errorf("arguments type missmatch expected %s", m[goField.Type().Kind()])
 	}
 
 	if queryValue.isVar {
@@ -243,6 +253,21 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 
 	if queryValue.isNull {
 		// Na mate just keep it at it's default
+		return nil
+	}
+
+	setString := func(str string) error {
+		if !goAnalyzedData.isFile {
+			goField.SetString(str)
+			return nil
+		}
+		file, err := ctx.getFormFile(str)
+		if err != nil {
+			return err
+		}
+
+		goField.Set(reflect.ValueOf(file))
+
 		return nil
 	}
 
@@ -263,7 +288,7 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 
 		switch value.Kind() {
 		case reflect.String:
-			goField.SetString(value.String())
+			setString(value.String())
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			goField.SetInt(value.Int())
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
@@ -296,7 +321,7 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 			}
 		case reflect.String:
 			if goFieldKind == reflect.String {
-				goField.SetString(queryValue.stringValue)
+				setString(queryValue.stringValue)
 			} else if goAnalyzedData.isID {
 				switch goFieldKind {
 				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -330,21 +355,23 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 			if goFieldKind == reflect.Array {
 				// TODO support this
 				return errors.New("fixed length arrays not supported")
-			} else if goFieldKind == reflect.Slice {
-				arr := reflect.MakeSlice(goField.Type(), len(queryValue.listValue), len(queryValue.listValue))
+			}
 
-				for i, item := range queryValue.listValue {
-					arrayItem := arr.Index(i)
-					err := ctx.matchInputValue(&item, &arrayItem, goAnalyzedData.elem)
-					if err != nil {
-						return fmt.Errorf("%s, Array index: [%d]", err.Error(), i)
-					}
-				}
-
-				goField.Set(arr)
-			} else {
+			if goFieldKind != reflect.Slice {
 				return mismatchError()
 			}
+
+			arr := reflect.MakeSlice(goField.Type(), len(queryValue.listValue), len(queryValue.listValue))
+
+			for i, item := range queryValue.listValue {
+				arrayItem := arr.Index(i)
+				err := ctx.matchInputValue(&item, &arrayItem, goAnalyzedData.elem)
+				if err != nil {
+					return fmt.Errorf("%s, Array index: [%d]", err.Error(), i)
+				}
+			}
+
+			goField.Set(arr)
 		case reflect.Map:
 			if goFieldKind != reflect.Struct {
 				return mismatchError()

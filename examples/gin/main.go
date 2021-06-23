@@ -20,28 +20,48 @@ func main() {
 	r.Any("/graphql", func(c *gin.Context) {
 		var form *multipart.Form
 
+		getForm := func() (*multipart.Form, error) {
+			if form != nil {
+				return form, nil
+			}
+
+			var err error
+			form, err = c.MultipartForm()
+			return form, err
+		}
+
 		body, errors := graphqlSchema.HandleRequest(
 			c.Request.Method,
 			c.Query,
 			func(key string) (string, error) {
-				if form != nil {
-					return form.Value[key][0], nil
-				}
-
-				var err error
-				form, err = c.MultipartForm()
+				form, err := getForm()
 				if err != nil {
 					return "", err
 				}
-
-				return form.Value[key][0], nil
+				values, ok := form.Value[key]
+				if !ok || len(values) == 0 {
+					return "", nil
+				}
+				return values[0], nil
 			},
 			func() []byte {
 				requestBody, _ := ioutil.ReadAll(c.Request.Body)
 				return requestBody
 			},
 			c.ContentType(),
-			nil,
+			&graphql.RequestOptions{
+				GetFormFile: func(key string) (*multipart.FileHeader, error) {
+					form, err := getForm()
+					if err != nil {
+						return nil, err
+					}
+					files, ok := form.File[key]
+					if !ok || len(files) == 0 {
+						return nil, nil
+					}
+					return files[0], nil
+				},
+			},
 		)
 		res := graphql.GenerateResponse(body, errors)
 

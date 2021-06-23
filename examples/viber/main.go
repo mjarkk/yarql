@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"mime/multipart"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/mjarkk/go-graphql"
@@ -22,7 +23,9 @@ func main() {
 			func(key string) (string, error) { return c.FormValue(key), nil },
 			func() []byte { return c.Body() },
 			string(c.Request().Header.ContentType()),
-			nil,
+			&graphql.RequestOptions{
+				GetFormFile: func(key string) (*multipart.FileHeader, error) { return c.FormFile(key) },
+			},
 		)
 		res := graphql.GenerateResponse(body, errors)
 
