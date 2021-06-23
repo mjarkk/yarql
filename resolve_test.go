@@ -1135,3 +1135,71 @@ func TestExecWithFile(t *testing.T) {
 	}
 	Equal(t, `{"foo":"hello world"}`, out)
 }
+
+func TestExecTheSkipDerive(t *testing.T) {
+	tests := []struct {
+		query   string
+		expects string
+	}{
+		{
+			`{
+				a
+				b @skip(if: true)
+				c
+			}`,
+			`{"a":"foo","c":"baz"}`,
+		},
+		{
+			`{
+				a
+				b @skip(if: false)
+				c
+			}`,
+			`{"a":"foo","b":"bar","c":"baz"}`,
+		},
+		{
+			`{
+				a
+				b @include(if: false)
+				c
+			}`,
+			`{"a":"foo","c":"baz"}`,
+		},
+		{
+			`{
+				a
+				b @include(if: true)
+				c
+			}`,
+			`{"a":"foo","b":"bar","c":"baz"}`,
+		},
+		{
+			`{
+				a
+				... on Root @skip(if: true) {
+					b
+				}
+				c
+			}`,
+			`{"a":"foo","c":"baz"}`,
+		},
+		{
+			`{
+				a
+				... on Root @skip(if: false) {
+					b
+				}
+				c
+			}`,
+			`{"a":"foo","b":"bar","c":"baz"}`,
+		},
+	}
+
+	for _, test := range tests {
+		out, errs := parseAndTest(t, test.query, TestExecSimpleQueryData{A: "foo", B: "bar", C: "baz", D: "foo_bar"}, M{})
+		for _, err := range errs {
+			panic(err)
+		}
+		Equal(t, test.expects, out, test.query)
+	}
+}

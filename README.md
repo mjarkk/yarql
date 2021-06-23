@@ -218,6 +218,13 @@ var _ = RegisterEnum(map[string]Fruit{
 })
 ```
 
+### Directives
+
+These directives are supported:
+
+- `@include(if: Boolean!)` *on Fields and fragments*
+- `@skip(if: Boolean!)` *on Fields and fragments*
+
 ### File upload
 
 _NOTE: This is NOT [graphql-multipart-request-spec](https://github.com/jaydenseric/graphql-multipart-request-spec)_

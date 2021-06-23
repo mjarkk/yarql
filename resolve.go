@@ -98,12 +98,54 @@ func (ctx *Ctx) resolveSelection(selectionSet selectionSet, struct_ reflect.Valu
 	return "{" + ctx.resolveSelectionContent(selectionSet, struct_, structType, dept, path) + "}"
 }
 
+func (ctx *Ctx) resolveSelectionContentDirectiveCheck(directives directives) (include bool, err error) {
+	include = true
+loop:
+	for directiveName, arg := range directives {
+		switch directiveName {
+		case "skip", "include":
+			ifArg, ok := arg.arguments["if"]
+			if !ok {
+				return false, errors.New("if argument missing in skip directive")
+			}
+
+			v := reflect.New(reflect.TypeOf(true)).Elem()
+			err = ctx.matchInputValue(&ifArg, &v, &input{kind: reflect.Bool})
+			if err != nil {
+				return false, err
+			}
+
+			include = v.Bool()
+			if directiveName == "skip" {
+				include = !include
+			}
+			if !include {
+				break loop
+			}
+		default:
+			return false, fmt.Errorf("unknown directive %s", directiveName)
+		}
+	}
+	return
+}
+
 func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, struct_ reflect.Value, structType *obj, dept uint8, path []string) string {
 	res := ""
 	writtenToRes := false
 	for _, selection := range selectionSet {
 		switch selection.selectionType {
 		case "Field":
+			if len(selection.field.directives) > 0 {
+				include, err := ctx.resolveSelectionContentDirectiveCheck(selection.field.directives)
+				if err != nil {
+					ctx.addErrf(path, err.Error())
+					continue
+				}
+				if !include {
+					continue
+				}
+			}
+
 			value, hasError := ctx.resolveField(selection.field, struct_, structType, dept, path)
 			if !hasError {
 				if writtenToRes {
@@ -114,6 +156,17 @@ func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, struct_ refle
 				res += value
 			}
 		case "FragmentSpread":
+			if len(selection.fragmentSpread.directives) > 0 {
+				include, err := ctx.resolveSelectionContentDirectiveCheck(selection.fragmentSpread.directives)
+				if err != nil {
+					ctx.addErrf(path, err.Error())
+					continue
+				}
+				if !include {
+					continue
+				}
+			}
+
 			operator, ok := ctx.fragments[selection.fragmentSpread.name]
 			if !ok {
 				ctx.addErrf(path, "unknown fragment %s", selection.fragmentSpread.name)
@@ -130,6 +183,17 @@ func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, struct_ refle
 				res += value
 			}
 		case "InlineFragment":
+			if len(selection.inlineFragment.directives) > 0 {
+				include, err := ctx.resolveSelectionContentDirectiveCheck(selection.inlineFragment.directives)
+				if err != nil {
+					ctx.addErrf(path, err.Error())
+					continue
+				}
+				if !include {
+					continue
+				}
+			}
+
 			value := ctx.resolveSelectionContent(selection.inlineFragment.selection, struct_, structType, dept, path)
 			if len(value) > 0 {
 				if writtenToRes {
@@ -211,7 +275,7 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 	mismatchError := func() error {
 		m := map[reflect.Kind]string{
 			reflect.Invalid:       "an unknown type",
-			reflect.Bool:          "a boolean",
+			reflect.Bool:          "a Boolean",
 			reflect.Int:           "a number",
 			reflect.Int8:          "a number",
 			reflect.Int16:         "a number",
@@ -223,8 +287,8 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 			reflect.Uint32:        "a number",
 			reflect.Uint64:        "a number",
 			reflect.Uintptr:       "a number",
-			reflect.Float32:       "a float",
-			reflect.Float64:       "a float",
+			reflect.Float32:       "a Float",
+			reflect.Float64:       "a Float",
 			reflect.Complex64:     "a number",
 			reflect.Complex128:    "a number",
 			reflect.Array:         "an array",
@@ -234,7 +298,7 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 			reflect.Map:           "an unknown type",
 			reflect.Ptr:           "optional type",
 			reflect.Slice:         "an array",
-			reflect.String:        "a string",
+			reflect.String:        "a String",
 			reflect.Struct:        "a object",
 			reflect.UnsafePointer: "a number",
 		}
