@@ -7,7 +7,7 @@ import (
 )
 
 func TestParseQueryAndCheckNamesSimple(t *testing.T) {
-	fragments, operators, errs := ParseQueryAndCheckNames(`{}`)
+	fragments, operators, errs := ParseQueryAndCheckNames(`{}`, nil)
 	NotNil(t, fragments)
 	NotNil(t, operators)
 	NotNil(t, errs)
@@ -27,7 +27,7 @@ func TestParseQueryAndCheckNamesWithFragment(t *testing.T) {
 				name
 			}
 		}
-	`)
+	`, nil)
 	Equal(t, 0, len(errs))
 	Equal(t, 1, len(operators))
 	Equal(t, 1, len(fragments))
@@ -45,7 +45,7 @@ func TestParseQueryAndCheckNamesUnnamed(t *testing.T) {
 		query {}
 		mutation {}
 		subscription {}
-	`)
+	`, nil)
 
 	Equal(t, 0, len(errs))
 	Equal(t, 0, len(fragments))
@@ -65,7 +65,7 @@ func TestParseQueryAndCheckNamesUnnamed(t *testing.T) {
 
 func TestParseQueryAndCheckNamesReportErrors(t *testing.T) {
 	// Invalid query
-	fragments, operators, errs := ParseQueryAndCheckNames(`this is not a query and should fail`)
+	fragments, operators, errs := ParseQueryAndCheckNames(`this is not a query and should fail`, nil)
 	NotNil(t, fragments)
 	NotNil(t, operators)
 	NotNil(t, errs)
@@ -83,7 +83,7 @@ func TestParseQueryAndCheckNamesReportErrors(t *testing.T) {
 
 		fragment baz on Character {}
 		fragment baz on Character {}
-	`)
+	`, nil)
 	Equal(t, 3, len(errs))
 	Equal(t, 2, len(operators))
 	Equal(t, 1, len(fragments))

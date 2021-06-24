@@ -21,9 +21,11 @@ type Ctx struct {
 	operator            *operator           // Part of query to execute
 	jsonVariablesString string              // Raw query variables
 	jsonVariables       *fastjson.Value     // Parsed query variables
-	path                *[]string           // Property meant to be used within custom resolvers and field methods (value also only set when executing one of those)
+	path                *pathT              // Property meant to be used within custom resolvers and field methods (value also only set when executing one of those)
 	context             context.Context
 	getFormFile         func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
+	tracing             *tracer
+	extensions          map[string]interface{}
 
 	// Public
 	Values map[string]interface{} // API User values, user can put all their shitty things in here like poems or tax papers
@@ -32,6 +34,15 @@ type Ctx struct {
 //
 // External
 //
+
+func (ctx *Ctx) GetExtension(key string) (value interface{}, ok bool) {
+	value, ok = ctx.extensions[key]
+	return
+}
+
+func (ctx *Ctx) SetExtension(key string, value interface{}) {
+	ctx.extensions[key] = value
+}
 
 // Returns the request's context
 func (ctx *Ctx) Context() context.Context {
@@ -62,9 +73,13 @@ func (ctx *Ctx) Errors() []error {
 
 // AddError add an error to the query
 func (ctx *Ctx) AddError(err error) {
+	path := pathT{}
+	if ctx.path != nil {
+		path = *ctx.path
+	}
 	ctx.errors = append(ctx.errors, ErrorWPath{
 		err:  err,
-		path: copyPath(ctx.Path()),
+		path: path.copy(),
 	})
 }
 
@@ -72,17 +87,17 @@ func (ctx *Ctx) AddError(err error) {
 // Internal
 //
 
-func (ctx *Ctx) addErr(path []string, err string) {
+func (ctx *Ctx) addErr(path pathT, err string) {
 	ctx.errors = append(ctx.errors, ErrorWPath{
 		err:  errors.New(err),
-		path: copyPath(path),
+		path: path.copy(),
 	})
 }
 
-func (ctx *Ctx) addErrf(path []string, err string, args ...interface{}) {
+func (ctx *Ctx) addErrf(path pathT, err string, args ...interface{}) {
 	ctx.errors = append(ctx.errors, ErrorWPath{
 		err:  fmt.Errorf(err, args...),
-		path: copyPath(path),
+		path: path.copy(),
 	})
 }
 
@@ -312,18 +327,9 @@ func jsonValueToValue(jsonValue *fastjson.Value) value {
 	return makeNullValue()
 }
 
-func copyPath(p []string) []string {
-	if p == nil {
-		return nil
-	}
-	res := make([]string, len(p))
-	copy(res, p)
-	return res
-}
-
 type ErrorWPath struct {
 	err  error
-	path []string
+	path pathT
 }
 
 func (e ErrorWPath) Error() string {

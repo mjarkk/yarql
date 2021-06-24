@@ -260,11 +260,13 @@ func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 	case valueTypeUndefined:
 		// WUT??, we'll just look away and continue as if nothing happend
 		// FIXME: maybe we should return an error here
+		return
 	case valueTypeArray:
 		res = &qlType{
 			Kind:   typeKindList,
 			OfType: wrapQLTypeInNonNull(s.objToQLType(item.innerContent)),
 		}
+		return
 	case valueTypeObjRef:
 		return s.objToQLType(s.types[item.typeName])
 	case valueTypeObj:
@@ -287,30 +289,11 @@ func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 			},
 			Interfaces: []qlType{},
 		}
-	case valueTypeData:
-		isNonNull = true
-		var rawRes qlType
-		if item.isID {
-			rawRes = scalars["ID"]
-		} else {
-			switch item.dataValueType {
-			case reflect.Bool:
-				rawRes = scalars["Boolean"]
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.UnsafePointer, reflect.Complex64, reflect.Complex128:
-				rawRes = scalars["Int"]
-			case reflect.Float32, reflect.Float64:
-				rawRes = scalars["Float"]
-			case reflect.String:
-				rawRes = scalars["String"]
-			default:
-				rawRes = qlType{Kind: typeKindScalar, Name: h.StrPtr(""), Description: h.StrPtr("")}
-			}
-		}
-		res = &rawRes
+		return
 	case valueTypeEnum:
-		isNonNull = true
 		enumType := enumToQlType(definedEnums[item.enumTypeName])
 		res = &enumType
+		return res, true
 	case valueTypePtr:
 		// This basically sets the isNonNull to false
 		res, _ := s.objToQLType(item.innerContent)
@@ -320,12 +303,38 @@ func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 		if !item.method.isTypeMethod {
 			isNonNull = false
 		}
-	case valueTypeTime:
-		rawRes := scalars["Time"]
-		res = &rawRes
+		return
+	default:
+		return resolveObjToScalar(item), true
 	}
+}
 
-	return
+func resolveObjToScalar(item *obj) *qlType {
+	var res qlType
+	switch item.valueType {
+	case valueTypeData:
+		if item.isID {
+			res = scalars["ID"]
+		} else {
+			switch item.dataValueType {
+			case reflect.Bool:
+				res = scalars["Boolean"]
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.UnsafePointer, reflect.Complex64, reflect.Complex128:
+				res = scalars["Int"]
+			case reflect.Float32, reflect.Float64:
+				res = scalars["Float"]
+			case reflect.String:
+				res = scalars["String"]
+			default:
+				res = qlType{Kind: typeKindScalar, Name: h.StrPtr(""), Description: h.StrPtr("")}
+			}
+		}
+		return &res
+	case valueTypeTime:
+		res = scalars["Time"]
+		return &res
+	}
+	return nil
 }
 
 func enumToQlType(enum enum) qlType {

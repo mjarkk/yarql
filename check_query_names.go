@@ -4,18 +4,29 @@ import (
 	"fmt"
 )
 
-func ParseQueryAndCheckNames(input string) (fragments, operatorsMap map[string]operator, resErrors []error) {
+func ParseQueryAndCheckNames(input string, tracing *tracer) (fragments, operatorsMap map[string]operator, resErrors []error) {
 	resErrors = []error{}
 	fragments = map[string]operator{}
 	operatorsMap = map[string]operator{}
 
+	pref := startTrace(tracing)
 	operators, err := parseQuery(input)
 	if err != nil {
 		resErrors = append(resErrors, err)
 		return
 	}
-	unknownQueries := 0
+	pref.finish(func(t *tracer, offset, duration int64) {
+		t.Parsing.StartOffset = offset
+		t.Parsing.Duration = duration
+	})
 
+	pref = startTrace(tracing)
+	defer pref.finish(func(t *tracer, offset, duration int64) {
+		t.Validation.StartOffset = offset
+		t.Validation.Duration = duration
+	})
+
+	unknownQueries := 0
 	unknownMutations := 0
 	unknownSubscriptions := 0
 

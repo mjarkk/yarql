@@ -61,6 +61,7 @@ func main() {
 					}
 					return files[0], nil
 				},
+				Tracing: true,
 			},
 		)
 

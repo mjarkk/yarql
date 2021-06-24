@@ -2,6 +2,7 @@ package graphql
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"mime/multipart"
@@ -17,15 +18,36 @@ type ResolveOptions struct {
 	Context        context.Context
 	Values         map[string]interface{}                          // Passed directly to the request context
 	GetFormFile    func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
+	Tracing        bool                                            // https://github.com/apollographql/apollo-tracing
 }
 
-func (s *Schema) Resolve(query string, options ResolveOptions) (string, []error) {
+type pathT []string
+
+func (p pathT) toJson() string {
+	return "[" + strings.Join(p, ",") + "]"
+}
+
+func (p pathT) copy() pathT {
+	if p == nil {
+		return nil
+	}
+	res := make(pathT, len(p))
+	copy(res, p)
+	return res
+}
+
+func (s *Schema) Resolve(query string, options ResolveOptions) (data string, extensions map[string]interface{}, errs []error) {
 	s.m.Lock()
 	defer s.m.Unlock()
 
-	fragments, operatorsMap, errs := ParseQueryAndCheckNames(query)
+	var tracing *tracer
+	if options.Tracing {
+		tracing = newTracer()
+	}
+
+	fragments, operatorsMap, errs := ParseQueryAndCheckNames(query, tracing)
 	if len(errs) > 0 {
-		return "{}", errs
+		return "{}", nil, errs
 	}
 
 	ctx := &Ctx{
@@ -37,21 +59,30 @@ func (s *Schema) Resolve(query string, options ResolveOptions) (string, []error)
 		jsonVariablesString: options.Variables,
 		context:             options.Context,
 		getFormFile:         options.GetFormFile,
+		tracing:             tracing,
+		extensions:          map[string]interface{}{},
 	}
 	if options.Values != nil {
 		ctx.Values = options.Values
 	}
 
+	getExtensions := func() map[string]interface{} {
+		if options.Tracing {
+			ctx.extensions["tracing"] = tracing.finish()
+		}
+		return ctx.extensions
+	}
+
 	switch len(operatorsMap) {
 	case 0:
-		return "{}", nil
+		return "{}", getExtensions(), nil
 	case 1:
 		for _, operator := range operatorsMap {
 			ctx.operator = &operator
 		}
 	default:
 		if options.OperatorTarget == "" {
-			return "{}", []error{errors.New("multiple operators defined without target")}
+			return "{}", getExtensions(), []error{errors.New("multiple operators defined without target")}
 		}
 
 		operator, ok := operatorsMap[options.OperatorTarget]
@@ -60,13 +91,13 @@ func (s *Schema) Resolve(query string, options ResolveOptions) (string, []error)
 			for k := range operatorsMap {
 				operatorsList = append(operatorsList, k)
 			}
-			return "{}", []error{fmt.Errorf("%s is not a valid operator, available operators: %s", options.OperatorTarget, strings.Join(operatorsList, ", "))}
+			return "{}", getExtensions(), []error{fmt.Errorf("%s is not a valid operator, available operators: %s", options.OperatorTarget, strings.Join(operatorsList, ", "))}
 		}
 		ctx.operator = &operator
 	}
 
 	res := ctx.start()
-	return res, ctx.errors
+	return res, getExtensions(), ctx.errors
 }
 
 func (ctx *Ctx) start() string {
@@ -76,9 +107,9 @@ func (ctx *Ctx) start() string {
 
 	switch ctx.operator.operationType {
 	case "query":
-		return ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootQueryValue, ctx.schema.rootQuery, 0, []string{})
+		return ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootQueryValue, ctx.schema.rootQuery, 0, pathT{})
 	case "mutation":
-		return ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootMethodValue, ctx.schema.rootMethod, 0, []string{})
+		return ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootMethodValue, ctx.schema.rootMethod, 0, pathT{})
 	case "subscription":
 		// TODO
 		ctx.addErr(nil, "subscription not suppored yet")
@@ -89,7 +120,7 @@ func (ctx *Ctx) start() string {
 	}
 }
 
-func (ctx *Ctx) resolveSelection(selectionSet selectionSet, struct_ reflect.Value, structType *obj, dept uint8, path []string) string {
+func (ctx *Ctx) resolveSelection(selectionSet selectionSet, struct_ reflect.Value, structType *obj, dept uint8, path pathT) string {
 	if dept >= ctx.schema.MaxDepth {
 		ctx.addErr(path, "reached max dept")
 		return "null"
@@ -129,7 +160,7 @@ loop:
 	return
 }
 
-func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, struct_ reflect.Value, structType *obj, dept uint8, path []string) string {
+func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, struct_ reflect.Value, structType *obj, dept uint8, path pathT) string {
 	res := ""
 	writtenToRes := false
 	for _, selection := range selectionSet {
@@ -208,12 +239,13 @@ func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, struct_ refle
 	return res
 }
 
-func (ctx *Ctx) resolveField(query *field, struct_ reflect.Value, codeStructure *obj, dept uint8, path []string) (fieldValue string, returnedOnError bool) {
+func (ctx *Ctx) resolveField(query *field, struct_ reflect.Value, codeStructure *obj, dept uint8, path pathT) (fieldValue string, returnedOnError bool) {
+	pref := startTrace(ctx.tracing)
 	name := query.name
 	if len(query.alias) > 0 {
 		name = query.alias
 	}
-	jsonName := fmt.Sprintf("%q", name)
+	newPath := append(path, fmt.Sprintf("%q", name))
 
 	res := func(data string) string {
 		return fmt.Sprintf(`"%s":%s`, name, data)
@@ -226,9 +258,20 @@ func (ctx *Ctx) resolveField(query *field, struct_ reflect.Value, codeStructure 
 	structItem, ok := codeStructure.objContents[query.name]
 	var value reflect.Value
 	if !ok {
-		ctx.addErrf(append(path, jsonName), "%s does not exists on %s", query.name, codeStructure.typeName)
+		ctx.addErrf(newPath, "%s does not exists on %s", query.name, codeStructure.typeName)
 		return res("null"), true
 	}
+
+	defer pref.finish(func(t *tracer, offset, duration int64) {
+		t.Execution.Resolvers = append(t.Execution.Resolvers, tracerResolver{
+			Path:        json.RawMessage(newPath.toJson()),
+			ParentType:  codeStructure.typeName,
+			FieldName:   query.name,
+			ReturnType:  ctx.schema.objToQlTypeName(structItem),
+			StartOffset: offset,
+			Duration:    duration,
+		})
+	})
 
 	if structItem.customObjValue != nil {
 		value = *structItem.customObjValue
@@ -238,7 +281,7 @@ func (ctx *Ctx) resolveField(query *field, struct_ reflect.Value, codeStructure 
 		value = struct_.FieldByName(structItem.structFieldName)
 	}
 
-	fieldValue, returnedOnError = ctx.resolveFieldDataValue(query, value, structItem, dept, append(path, jsonName))
+	fieldValue, returnedOnError = ctx.resolveFieldDataValue(query, value, structItem, dept, newPath)
 	return res(fieldValue), returnedOnError
 }
 
@@ -478,7 +521,7 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 	return nil
 }
 
-func (ctx *Ctx) resolveFieldDataValue(query *field, value reflect.Value, codeStructure *obj, dept uint8, path []string) (fieldValue string, returnedOnError bool) {
+func (ctx *Ctx) resolveFieldDataValue(query *field, value reflect.Value, codeStructure *obj, dept uint8, path pathT) (fieldValue string, returnedOnError bool) {
 	switch codeStructure.valueType {
 	case valueTypeMethod:
 		method := codeStructure.method
@@ -543,14 +586,15 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, value reflect.Value, codeStr
 		}
 
 		if codeStructure.innerContent == nil {
-			ctx.addErr(path, "server didn't exepct an array")
+			ctx.addErr(path, "server didn't expected an array")
 			return "null", true
 		}
 		codeStructure = codeStructure.innerContent
 
 		list := []string{}
 		for i := 0; i < value.Len(); i++ {
-			res, _ := ctx.resolveFieldDataValue(query, value.Index(i), codeStructure, dept, append(path, fmt.Sprintf("%d", i)))
+			newPath := append(path, fmt.Sprintf("%d", i))
+			res, _ := ctx.resolveFieldDataValue(query, value.Index(i), codeStructure, dept, newPath)
 			list = append(list, res)
 		}
 		return fmt.Sprintf("[%s]", strings.Join(list, ",")), false
@@ -737,4 +781,28 @@ func parseTime(val string) (time.Time, error) {
 
 func timeToString(t time.Time) string {
 	return t.Format("2006-01-02T15:04:05.000Z")
+}
+
+func (s *Schema) objToQlTypeName(item *obj) string {
+	suffix := ""
+	prefix := ""
+
+	qlType := wrapQLTypeInNonNull(s.objToQLType(item))
+
+	for {
+		switch qlType.Kind {
+		case typeKindList:
+			suffix = "]" + suffix
+			prefix += "["
+		case typeKindNonNull:
+			suffix = "!" + suffix
+		default:
+			if qlType.Name != nil {
+				return prefix + *qlType.Name + suffix
+			} else {
+				return prefix + "Unknown" + suffix
+			}
+		}
+		qlType = qlType.OfType
+	}
 }

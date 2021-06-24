@@ -2,6 +2,7 @@ package graphql
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"mime/multipart"
@@ -10,7 +11,7 @@ import (
 	"github.com/valyala/fastjson"
 )
 
-func GenerateResponse(data string, errors []error) string {
+func GenerateResponse(data string, extensions map[string]interface{}, errors []error) string {
 	res := `{"data":` + data
 	if len(errors) > 0 {
 		res += `,"errors":[`
@@ -19,19 +20,25 @@ func GenerateResponse(data string, errors []error) string {
 				res += ","
 			}
 
-			ctx := ""
+			meta := ""
 			errWPath, isErrWPath := err.(ErrorWPath)
 			if isErrWPath && len(errWPath.path) > 0 {
-				ctx = fmt.Sprintf(`,"path":[%s]`, strings.Join(errWPath.path, ","))
+				meta = fmt.Sprintf(`,"path":%s`, errWPath.path.toJson())
 			}
 			errWLocation, isErrWLocation := err.(ErrorWLocation)
 			if isErrWLocation {
-				ctx = fmt.Sprintf(`,"locations":[{"line":%d,"column":%d}]`, errWLocation.line, errWLocation.column)
+				meta = fmt.Sprintf(`,"locations":[{"line":%d,"column":%d}]`, errWLocation.line, errWLocation.column)
 			}
 
-			res += fmt.Sprintf(`{"message":%q%s}`, err.Error(), ctx)
+			res += fmt.Sprintf(`{"message":%q%s}`, err.Error(), meta)
 		}
 		res += "]"
+	}
+	if len(extensions) > 0 {
+		extensionsJson, err := json.Marshal(extensions)
+		if err == nil {
+			res += `,"extensions":` + string(extensionsJson)
+		}
 	}
 	return res + "}"
 }
@@ -40,6 +47,7 @@ type RequestOptions struct {
 	Context     context.Context                                 // Request context can be used to verify
 	Values      map[string]interface{}                          // Passed directly to the request context
 	GetFormFile func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
+	Tracing     bool                                            // https://github.com/apollographql/apollo-tracing
 }
 
 func (s *Schema) HandleRequest(
@@ -54,7 +62,7 @@ func (s *Schema) HandleRequest(
 
 	errRes := func(errorMsg string) (string, []error) {
 		errs := []error{errors.New(errorMsg)}
-		return GenerateResponse("{}", errs), errs
+		return GenerateResponse("{}", nil, errs), errs
 	}
 
 	if contentType == "application/json" || ((contentType == "text/plain" || contentType == "multipart/form-data") && method != "GET") {
@@ -147,10 +155,11 @@ func (s *Schema) handleSingleRequest(
 		if options.GetFormFile != nil {
 			resolveOptions.GetFormFile = options.GetFormFile
 		}
+		resolveOptions.Tracing = options.Tracing
 	}
 
-	body, errs := s.Resolve(query, resolveOptions)
-	return GenerateResponse(body, errs), errs
+	body, extensions, errs := s.Resolve(query, resolveOptions)
+	return GenerateResponse(body, extensions, errs), errs
 }
 
 func getBodyData(body *fastjson.Value) (query, operationName, variables string, err error) {

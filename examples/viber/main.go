@@ -25,6 +25,7 @@ func main() {
 			string(c.Request().Header.ContentType()),
 			&graphql.RequestOptions{
 				GetFormFile: func(key string) (*multipart.FileHeader, error) { return c.FormFile(key) },
+				Tracing:     true,
 			},
 		)
 
