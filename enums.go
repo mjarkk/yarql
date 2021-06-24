@@ -98,11 +98,11 @@ func registerEnumCheck(map_ interface{}) *enum {
 			panic(fmt.Sprintf("RegisterEnum map key must start with an alphabetic character (lower or upper) followed by the same or a \"_\", key given: %s", keyStr))
 		}
 
-		v := iter.Value()
+		v := reflect.ValueOf(iter.Value().Interface())
 		if valueKeyMap.MapIndex(v).IsValid() {
 			panic(fmt.Sprintf("RegisterEnum input map cannot have duplicated values, value: %+v", v.Interface()))
 		}
-		valueKeyMap.SetMapIndex(v, k)
+		valueKeyMap.SetMapIndex(v, reflect.ValueOf(keyStr))
 		res[keyStr] = v
 	}
 

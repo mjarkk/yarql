@@ -52,28 +52,17 @@ func (t *tracer) finish() *tracer {
 	return t
 }
 
-type prefRecording struct {
-	startTime *time.Time
-	tracer    *tracer
+func (ctx *Ctx) finishTrace(report func(t *tracer, offset, duration int64)) {
+	if ctx.schema.tracingEnabled {
+		f := ctx.prefRecordingStartTime
+		offset := f.Sub(ctx.schema.tracing.GoStartTime).Nanoseconds()
+		duration := time.Since(f).Nanoseconds()
+		report(ctx.schema.tracing, offset, duration)
+	}
 }
 
-func (f *prefRecording) finish(report func(t *tracer, offset, duration int64)) {
-	if f.tracer == nil || f.startTime == nil {
-		return
-	}
-
-	offset := f.startTime.Sub(f.tracer.GoStartTime).Nanoseconds()
-	duration := time.Since(*f.startTime).Nanoseconds()
-	report(f.tracer, offset, duration)
-}
-
-func startTrace(t *tracer) *prefRecording {
-	if t == nil {
-		return &prefRecording{}
-	}
-	now := time.Now()
-	return &prefRecording{
-		startTime: &now,
-		tracer:    t,
+func (ctx *Ctx) startTrace() {
+	if ctx.schema.tracingEnabled {
+		ctx.prefRecordingStartTime = time.Now()
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/valyala/fastjson"
 )
@@ -21,14 +22,16 @@ type Ctx struct {
 	operator            *operator           // Part of query to execute
 	jsonVariablesString string              // Raw query variables
 	jsonVariables       *fastjson.Value     // Parsed query variables
-	path                *pathT              // Property meant to be used within custom resolvers and field methods (value also only set when executing one of those)
+	path                pathT
 	context             context.Context
 	getFormFile         func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
-	tracing             *tracer
 	extensions          map[string]interface{}
 
 	// Public
 	Values map[string]interface{} // API User values, user can put all their shitty things in here like poems or tax papers
+
+	// zero alloc values
+	prefRecordingStartTime time.Time
 }
 
 //
@@ -51,10 +54,7 @@ func (ctx *Ctx) Context() context.Context {
 
 // Path to the current method, path elements are encoded in json format
 func (ctx *Ctx) Path() []string {
-	if ctx.path != nil {
-		return *ctx.path
-	}
-	return nil
+	return ctx.path
 }
 
 // HasErrors checks if the query has errors till this current point of execution
@@ -73,13 +73,9 @@ func (ctx *Ctx) Errors() []error {
 
 // AddError add an error to the query
 func (ctx *Ctx) AddError(err error) {
-	path := pathT{}
-	if ctx.path != nil {
-		path = *ctx.path
-	}
 	ctx.errors = append(ctx.errors, ErrorWPath{
 		err:  err,
-		path: path.copy(),
+		path: ctx.path.copy(),
 	})
 }
 
@@ -87,17 +83,17 @@ func (ctx *Ctx) AddError(err error) {
 // Internal
 //
 
-func (ctx *Ctx) addErr(path pathT, err string) {
+func (ctx *Ctx) addErr(err string) {
 	ctx.errors = append(ctx.errors, ErrorWPath{
 		err:  errors.New(err),
-		path: path.copy(),
+		path: ctx.path.copy(),
 	})
 }
 
-func (ctx *Ctx) addErrf(path pathT, err string, args ...interface{}) {
+func (ctx *Ctx) addErrf(err string, args ...interface{}) {
 	ctx.errors = append(ctx.errors, ErrorWPath{
 		err:  fmt.Errorf(err, args...),
-		path: path.copy(),
+		path: ctx.path.copy(),
 	})
 }
 

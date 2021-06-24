@@ -35,6 +35,7 @@ func TestApolloTracing(t *testing.T) {
 	Less(t, int64(0), tracing.Parsing.StartOffset)
 	Less(t, int64(0), tracing.Parsing.Duration)
 	Less(t, int64(0), tracing.Validation.StartOffset)
+	Greater(t, tracing.Validation.StartOffset, tracing.Parsing.StartOffset+tracing.Parsing.Duration)
 	Less(t, int64(0), tracing.Validation.Duration)
 	Less(t, 0, len(tracing.Execution.Resolvers))
 	for _, item := range tracing.Execution.Resolvers {

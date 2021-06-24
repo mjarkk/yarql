@@ -9,9 +9,8 @@ import (
 
 func TestContextPath(t *testing.T) {
 	ctx := Ctx{}
-	var nilArr []string
-	Equal(t, nilArr, ctx.Path())
-	ctx.path = &pathT{"a", "b"}
+	Equal(t, []string(nil), ctx.Path())
+	ctx.path = pathT{"a", "b"}
 	Equal(t, []string{"a", "b"}, ctx.Path())
 }
 

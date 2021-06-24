@@ -4,27 +4,27 @@ import (
 	"fmt"
 )
 
-func ParseQueryAndCheckNames(input string, tracing *tracer) (fragments, operatorsMap map[string]operator, resErrors []error) {
+func ParseQueryAndCheckNames(input string, ctx *Ctx) (fragments, operatorsMap map[string]operator, resErrors []error) {
 	resErrors = []error{}
 	fragments = map[string]operator{}
 	operatorsMap = map[string]operator{}
 
-	pref := startTrace(tracing)
+	if ctx != nil {
+		ctx.startTrace()
+	}
 	operators, err := parseQuery(input)
 	if err != nil {
 		resErrors = append(resErrors, err)
 		return
 	}
-	pref.finish(func(t *tracer, offset, duration int64) {
-		t.Parsing.StartOffset = offset
-		t.Parsing.Duration = duration
-	})
+	if ctx != nil {
+		ctx.finishTrace(func(t *tracer, offset, duration int64) {
+			t.Parsing.StartOffset = offset
+			t.Parsing.Duration = duration
+		})
 
-	pref = startTrace(tracing)
-	defer pref.finish(func(t *tracer, offset, duration int64) {
-		t.Validation.StartOffset = offset
-		t.Validation.Duration = duration
-	})
+		ctx.startTrace()
+	}
 
 	unknownQueries := 0
 	unknownMutations := 0
@@ -63,6 +63,13 @@ func ParseQueryAndCheckNames(input string, tracing *tracer) (fragments, operator
 
 			operatorsMap[item.name] = *item
 		}
+	}
+
+	if ctx != nil {
+		ctx.finishTrace(func(t *tracer, offset, duration int64) {
+			t.Validation.StartOffset = offset
+			t.Validation.Duration = duration
+		})
 	}
 
 	return

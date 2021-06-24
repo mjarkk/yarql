@@ -40,6 +40,11 @@ type Schema struct {
 	rootMethodValue reflect.Value
 	m               sync.Mutex
 	MaxDepth        uint8 // Default 255
+
+	// Zero alloc variables
+	tracingEnabled bool
+	tracing        *tracer
+	ctx            Ctx
 }
 
 type valueType int
