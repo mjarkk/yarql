@@ -36,7 +36,7 @@ func (s *Schema) injectQLTypes(ctx *parseCtx) {
 func (s *Schema) getQLSchema() qlSchema {
 	res := qlSchema{
 		Types:      s.getAllQLTypes,
-		Directives: []qlDirective{},
+		Directives: s.getDirectives(),
 		QueryType: &qlType{
 			Kind:        typeKindObject,
 			Name:        h.StrPtr(s.rootQuery.typeName),
@@ -66,6 +66,43 @@ func (s *Schema) getQLSchema() qlSchema {
 	res.SubscriptionType = nil
 
 	return res
+}
+
+func (s *Schema) getDirectives() []qlDirective {
+	return []qlDirective{
+		{
+			Name:        "skip",
+			Description: h.StrPtr("Directs the executor to skip this field or fragment when the `if` argument is true."),
+			Locations: []__DirectiveLocation{
+				directiveLocationField,
+				directiveLocationFragmentSpread,
+				directiveLocationInlineFragment,
+			},
+			Args: []qlInputValue{
+				{
+					Name:        "if",
+					Description: h.StrPtr("Skipped when true."),
+					Type:        scalars["Boolean"],
+				},
+			},
+		},
+		{
+			Name:        "include",
+			Description: h.StrPtr("Directs the executor to include this field or fragment only when the `if` argument is true."),
+			Locations: []__DirectiveLocation{
+				directiveLocationField,
+				directiveLocationFragmentSpread,
+				directiveLocationInlineFragment,
+			},
+			Args: []qlInputValue{
+				{
+					Name:        "if",
+					Description: h.StrPtr("Included when true."),
+					Type:        scalars["Boolean"],
+				},
+			},
+		},
+	}
 }
 
 func (s *Schema) getAllQLTypes() []qlType {
