@@ -12,7 +12,7 @@ Just a different approach to making graphql servers in Go
 - Easy to implement, see the [gin](https://github.com/mjarkk/go-graphql/blob/main/examples/gin/main.go) and [viber](https://github.com/mjarkk/go-graphql/blob/main/examples/viber/main.go) examples
 - File upload support
 
-*For further plans see the [/projects](https://github.com/mjarkk/go-graphql/projects) tab*
+_For further plans see the [/projects](https://github.com/mjarkk/go-graphql/projects) tab_
 
 ## Example
 
@@ -107,15 +107,16 @@ func (A) ResolveA() string {return "Ahh yea"}
 These go data kinds should be globally accepted:
 
 - `bool`
-- `int` *all bit sizes* 
-- `uint` *all bit sizes*
-- `float(32 | 64)`
+- `int` _all bit sizes_
+- `uint` _all bit sizes_
+- `float` _all bit sizes_
 - `array`
 - `ptr`
 - `string`
 - `struct`
 
 There are also special values:
+
 - `time.Time` > converted from/to ISO 8601
 
 ### Ignore fields
@@ -222,8 +223,8 @@ var _ = RegisterEnum(map[string]Fruit{
 
 These directives are supported:
 
-- `@include(if: Boolean!)` *on Fields and fragments*
-- `@skip(if: Boolean!)` *on Fields and fragments*
+- `@include(if: Boolean!)` _on Fields and fragments_
+- `@skip(if: Boolean!)` _on Fields and fragments_
 
 ### File upload
 
