@@ -30,7 +30,7 @@ func main() {
 			return form, err
 		}
 
-		body, errors := graphqlSchema.HandleRequest(
+		res, _ := graphqlSchema.HandleRequest(
 			c.Request.Method,
 			c.Query,
 			func(key string) (string, error) {
@@ -63,7 +63,6 @@ func main() {
 				},
 			},
 		)
-		res := graphql.GenerateResponse(body, errors)
 
 		c.Header("Content-Type", "application/json")
 		c.String(200, res)

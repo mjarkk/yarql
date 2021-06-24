@@ -39,3 +39,156 @@ func TestGenerateResponseWErrorWLocation(t *testing.T) {
 	True(t, strings.Contains(j, "4"), "Contains the line number")
 	True(t, strings.Contains(j, "9"), "Contains the column number")
 }
+
+func TestHandleRequestRequestInURL(t *testing.T) {
+	s, err := ParseSchema(TestExecSchemaRequestWithFieldsData{A: TestExecSchemaRequestWithFieldsDataInnerStruct{Bar: "baz"}}, M{}, nil)
+	NoError(t, err)
+
+	res, errs := s.HandleRequest(
+		"GET",
+		func(key string) string {
+			switch key {
+			case "query":
+				return "{a {bar}}"
+			default:
+				return ""
+			}
+		},
+		func(key string) (string, error) { return "", errors.New("this should not be called") },
+		func() []byte { return nil },
+		"",
+		&RequestOptions{},
+	)
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"data":{"a":{"bar":"baz"}}}`, res)
+}
+
+func TestHandleRequestRequestJsonBody(t *testing.T) {
+	s, err := ParseSchema(TestExecSchemaRequestWithFieldsData{A: TestExecSchemaRequestWithFieldsDataInnerStruct{Bar: "baz"}}, M{}, nil)
+	NoError(t, err)
+
+	query := `
+	query Foo {
+		a {
+			foo
+		}
+	}
+	query Bar {
+		a {
+			bar
+		}
+	}
+	`
+	query = strings.ReplaceAll(query, "\n", "\\n")
+	query = strings.ReplaceAll(query, "\t", "\\t")
+
+	res, errs := s.HandleRequest(
+		"POST",
+		func(key string) string { return "" },
+		func(key string) (string, error) { return "", errors.New("this should not be called") },
+		func() []byte {
+			return []byte(`{
+			"query": "` + query + `",
+			"operationName": "Bar",
+			"variables": {"a": "b"}
+		}`)
+		},
+		"application/json",
+		&RequestOptions{},
+	)
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"data":{"a":{"bar":"baz"}}}`, res)
+}
+
+func TestHandleRequestRequestForm(t *testing.T) {
+	s, err := ParseSchema(TestExecSchemaRequestWithFieldsData{A: TestExecSchemaRequestWithFieldsDataInnerStruct{Bar: "baz"}}, M{}, nil)
+	NoError(t, err)
+
+	query := `
+	query Foo {
+		a {
+			foo
+		}
+	}
+	query Bar {
+		a {
+			bar
+		}
+	}
+	`
+	query = strings.ReplaceAll(query, "\n", "\\n")
+	query = strings.ReplaceAll(query, "\t", "\\t")
+
+	res, errs := s.HandleRequest(
+		"POST",
+		func(key string) string { return "" },
+		func(key string) (string, error) {
+			switch key {
+			case "operations":
+				return `{
+					"query": "` + query + `",
+					"operationName": "Bar",
+					"variables": {"a": "b"}
+				}`, nil
+			}
+			return "", errors.New("unknown form field")
+		},
+		func() []byte { return nil },
+		"multipart/form-data",
+		&RequestOptions{},
+	)
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"data":{"a":{"bar":"baz"}}}`, res)
+}
+
+func TestHandleRequestRequestBatch(t *testing.T) {
+	s, err := ParseSchema(TestExecSchemaRequestWithFieldsData{A: TestExecSchemaRequestWithFieldsDataInnerStruct{Bar: "baz"}}, M{}, nil)
+	NoError(t, err)
+
+	query := `
+	query Foo {
+		a {
+			foo
+		}
+	}
+	query Bar {
+		a {
+			bar
+		}
+	}
+	`
+	query = strings.ReplaceAll(query, "\n", "\\n")
+	query = strings.ReplaceAll(query, "\t", "\\t")
+
+	res, errs := s.HandleRequest(
+		"POST",
+		func(key string) string { return "" },
+		func(key string) (string, error) { return "", errors.New("this should not be called") },
+		func() []byte {
+			return []byte(`[
+				{
+					"query": "` + query + `",
+					"operationName": "Bar",
+					"variables": {"a": "b"}
+				},
+				{
+					"query": "` + query + `",
+					"operationName": "Foo",
+					"variables": {"b": "c"}
+				}
+			]`)
+		},
+		"application/json",
+		&RequestOptions{},
+	)
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `[{"data":{"a":{"bar":"baz"}}},{"data":{"a":{"foo":null}}}]`, res)
+}

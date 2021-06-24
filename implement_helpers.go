@@ -52,12 +52,9 @@ func (s *Schema) HandleRequest(
 ) (string, []error) {
 	method = strings.ToUpper(method)
 
-	query := ""
-	variables := ""
-	operationName := ""
-
 	errRes := func(errorMsg string) (string, []error) {
-		return "{}", []error{errors.New(errorMsg)}
+		errs := []error{errors.New(errorMsg)}
+		return GenerateResponse("{}", errs), errs
 	}
 
 	if contentType == "application/json" || ((contentType == "text/plain" || contentType == "multipart/form-data") && method != "GET") {
@@ -68,7 +65,6 @@ func (s *Schema) HandleRequest(
 				return "{}", []error{err}
 			}
 			body = []byte(value)
-
 		} else {
 			body = getBody()
 		}
@@ -81,48 +77,62 @@ func (s *Schema) HandleRequest(
 		if err != nil {
 			return errRes("invalid json body")
 		}
-		if v.Type() != fastjson.TypeObject {
-			return errRes("body should be a object")
-		}
-		jsonQuery := v.Get("query")
-		if jsonQuery == nil {
-			return errRes("query should be set body")
-		}
-		queryBytes, err := jsonQuery.StringBytes()
-		if err != nil {
-			return errRes("invalid query param, must be a valid string")
-		}
-		query = string(queryBytes)
-
-		jsonOperationName := v.Get("operationName")
-		if jsonOperationName != nil {
-			t := jsonOperationName.Type()
-			if t != fastjson.TypeNull {
-				if t != fastjson.TypeString {
-					return errRes("expected operationName to be a string but got " + t.String())
+		if v.Type() == fastjson.TypeArray {
+			// Handle batch query
+			responseErrs := []error{}
+			responses := []string{}
+			for _, item := range v.GetArray() {
+				// TODO potential speed improvement by executing all items at once
+				if item == nil {
+					continue
 				}
-				operationNameBytes, err := jsonOperationName.StringBytes()
+
+				query, operationName, variables, err := getBodyData(item)
+				var res string
+				var errs []error
 				if err != nil {
-					return errRes("invalid operationName param, must be a valid string")
+					responseErrs = append(responseErrs, err)
+					responses = append(responses, "")
+				} else {
+					res, errs = s.handleSingleRequest(
+						query,
+						variables,
+						operationName,
+						options,
+					)
 				}
-				operationName = string(operationNameBytes)
+				responseErrs = append(responseErrs, errs...)
+				responses = append(responses, res)
 			}
+			return "[" + strings.Join(responses, ",") + "]", responseErrs
 		}
 
-		jsonVariables := v.Get("variables")
-		if jsonVariables != nil {
-			t := jsonVariables.Type()
-			if t != fastjson.TypeObject {
-				return errRes("expected variables to be a key value object but got: " + t.String())
-			}
-			variables = jsonVariables.String()
+		query, operationName, variables, err := getBodyData(v)
+		if err != nil {
+			return errRes(err.Error())
 		}
-	} else {
-		query = getQuery("query")
-		variables = getQuery("variables")
-		operationName = getQuery("operationName")
+		return s.handleSingleRequest(
+			query,
+			variables,
+			operationName,
+			options,
+		)
 	}
 
+	return s.handleSingleRequest(
+		getQuery("query"),
+		getQuery("variables"),
+		getQuery("operationName"),
+		options,
+	)
+}
+
+func (s *Schema) handleSingleRequest(
+	query,
+	variables,
+	operationName string,
+	options *RequestOptions,
+) (string, []error) {
 	resolveOptions := ResolveOptions{
 		OperatorTarget: operationName,
 		Variables:      variables,
@@ -139,5 +149,54 @@ func (s *Schema) HandleRequest(
 		}
 	}
 
-	return s.Resolve(query, resolveOptions)
+	body, errs := s.Resolve(query, resolveOptions)
+	return GenerateResponse(body, errs), errs
+}
+
+func getBodyData(body *fastjson.Value) (query, operationName, variables string, err error) {
+	if body.Type() != fastjson.TypeObject {
+		err = errors.New("body should be a object")
+		return
+	}
+
+	jsonQuery := body.Get("query")
+	if jsonQuery == nil {
+		err = errors.New("query should be defined")
+		return
+	}
+	queryBytes, err := jsonQuery.StringBytes()
+	if err != nil {
+		err = errors.New("invalid query param, must be a valid string")
+		return
+	}
+	query = string(queryBytes)
+
+	jsonOperationName := body.Get("operationName")
+	if jsonOperationName != nil {
+		t := jsonOperationName.Type()
+		if t != fastjson.TypeNull {
+			if t != fastjson.TypeString {
+				err = errors.New("expected operationName to be a string but got " + t.String())
+				return
+			}
+			operationNameBytes, errOut := jsonOperationName.StringBytes()
+			if errOut != nil {
+				err = errors.New("invalid operationName param, must be a valid string")
+				return
+			}
+			operationName = string(operationNameBytes)
+		}
+	}
+
+	jsonVariables := body.Get("variables")
+	if jsonVariables != nil {
+		t := jsonVariables.Type()
+		if t != fastjson.TypeObject {
+			err = errors.New("expected variables to be a key value object but got: " + t.String())
+			return
+		}
+		variables = jsonVariables.String()
+	}
+
+	return
 }
