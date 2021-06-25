@@ -610,7 +610,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 
 		ctx.result.WriteByte('[')
 		for i := 0; i < value.Len(); i++ {
-			ctx.path = append(ctx.path, fmt.Sprintf("%d", i))
+			ctx.path = append(ctx.path, strconv.Itoa(i))
 			ctx.currentReflectValueIdx++
 			ctx.reflectValues[ctx.currentReflectValueIdx] = value.Index(i)
 
@@ -649,14 +649,14 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			ctx.result.WriteString("null")
 			return
 		}
-		val, _ := valueToJson(value.Interface())
+
 		if codeStructure.isID && codeStructure.dataValueType != reflect.String {
 			// Graphql ID fields are always strings
 			ctx.result.WriteByte('"')
-			ctx.result.WriteString(val)
+			ctx.valueToJson(value.Interface())
 			ctx.result.WriteByte('"')
 		} else {
-			ctx.result.WriteString(val)
+			ctx.valueToJson(value.Interface())
 		}
 
 		return
@@ -689,8 +689,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			ctx.result.WriteString("null")
 			return
 		}
-		timeString, _ := valueToJson(timeToString(timeValue))
-		ctx.result.WriteString(timeString)
+		ctx.valueToJson(timeToString(timeValue))
 		return
 	default:
 		ctx.addErr("has invalid data type")
@@ -699,120 +698,134 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 	}
 }
 
-func valueToJson(in interface{}) (string, error) {
-	// TODO this function is slow and eats memory
+func (ctx *Ctx) valueToJson(in interface{}) {
 	switch v := in.(type) {
 	case string:
-		return fmt.Sprintf("%q", v), nil
+		stringToJson([]byte(v), &ctx.result, true)
 	case bool:
 		if v {
-			return "true", nil
+			ctx.result.WriteString("true")
 		} else {
-			return "false", nil
+			ctx.result.WriteString("false")
 		}
 	case int:
-		return fmt.Sprintf("%d", v), nil
+		ctx.result.WriteString(strconv.Itoa(v))
 	case int8:
-		return fmt.Sprintf("%d", v), nil
+		ctx.result.WriteString(strconv.Itoa(int(v)))
 	case int16:
-		return fmt.Sprintf("%d", v), nil
+		ctx.result.WriteString(strconv.Itoa(int(v)))
 	case int32: // == rune
-		return fmt.Sprintf("%d", v), nil
+		ctx.result.WriteString(strconv.Itoa(int(v)))
 	case int64:
-		return fmt.Sprintf("%d", v), nil
+		ctx.result.WriteString(strconv.FormatInt(v, 10))
 	case uint:
-		return fmt.Sprintf("%d", v), nil
+		ctx.result.WriteString(strconv.FormatUint(uint64(v), 10))
 	case uint8: // == byte
-		return fmt.Sprintf("%d", v), nil
+		ctx.result.WriteString(strconv.FormatUint(uint64(v), 10))
 	case uint16:
-		return fmt.Sprintf("%d", v), nil
+		ctx.result.WriteString(strconv.FormatUint(uint64(v), 10))
 	case uint32:
-		return fmt.Sprintf("%d", v), nil
+		ctx.result.WriteString(strconv.FormatUint(uint64(v), 10))
 	case uint64:
-		return fmt.Sprintf("%d", v), nil
+		ctx.result.WriteString(strconv.FormatUint(v, 10))
 	case uintptr:
-		return fmt.Sprintf("%d", v), nil
+		ctx.result.WriteString(strconv.FormatUint(uint64(v), 10))
 	case float32:
-		return floatToJson(32, float64(v)), nil
+		floatToJson(32, float64(v), &ctx.result)
 	case float64:
-		return floatToJson(64, v), nil
+		floatToJson(64, v, &ctx.result)
 	case *string:
 		if v == nil {
-			return "null", nil
+			ctx.result.WriteString("null")
+		} else {
+			ctx.valueToJson(*v)
 		}
-		return valueToJson(*v)
 	case *bool:
 		if v == nil {
-			return "null", nil
+			ctx.result.WriteString("null")
+		} else {
+			ctx.valueToJson(*v)
 		}
-		return valueToJson(*v)
 	case *int:
 		if v == nil {
-			return "null", nil
+			ctx.result.WriteString("null")
+		} else {
+			ctx.valueToJson(*v)
 		}
-		return valueToJson(*v)
 	case *int8:
 		if v == nil {
-			return "null", nil
+			ctx.result.WriteString("null")
+		} else {
+			ctx.valueToJson(*v)
 		}
-		return valueToJson(*v)
 	case *int16:
 		if v == nil {
-			return "null", nil
+			ctx.result.WriteString("null")
+		} else {
+			ctx.valueToJson(*v)
 		}
-		return valueToJson(*v)
 	case *int32: // = *rune
 		if v == nil {
-			return "null", nil
+			ctx.result.WriteString("null")
+		} else {
+			ctx.valueToJson(*v)
 		}
-		return valueToJson(*v)
 	case *int64:
 		if v == nil {
-			return "null", nil
+			ctx.result.WriteString("null")
+		} else {
+			ctx.valueToJson(*v)
 		}
-		return valueToJson(*v)
 	case *uint:
 		if v == nil {
-			return "null", nil
+			ctx.result.WriteString("null")
+		} else {
+			ctx.valueToJson(*v)
 		}
-		return valueToJson(*v)
 	case *uint8: // = *byte
 		if v == nil {
-			return "null", nil
+			ctx.result.WriteString("null")
+		} else {
+			ctx.valueToJson(*v)
 		}
-		return valueToJson(*v)
 	case *uint16:
 		if v == nil {
-			return "null", nil
+			ctx.result.WriteString("null")
+		} else {
+			ctx.valueToJson(*v)
 		}
-		return valueToJson(*v)
 	case *uint32:
 		if v == nil {
-			return "null", nil
+			ctx.result.WriteString("null")
+		} else {
+			ctx.valueToJson(*v)
 		}
-		return valueToJson(*v)
 	case *uint64:
 		if v == nil {
-			return "null", nil
+			ctx.result.WriteString("null")
+		} else {
+			ctx.valueToJson(*v)
 		}
-		return valueToJson(*v)
 	case *uintptr:
 		if v == nil {
-			return "null", nil
+			ctx.result.WriteString("null")
+		} else {
+			ctx.valueToJson(*v)
 		}
-		return valueToJson(*v)
 	case *float32:
 		if v == nil {
-			return "null", nil
+			ctx.result.WriteString("null")
+		} else {
+			ctx.valueToJson(*v)
 		}
-		return valueToJson(*v)
 	case *float64:
 		if v == nil {
-			return "null", nil
+			ctx.result.WriteString("null")
+		} else {
+			ctx.valueToJson(*v)
 		}
-		return valueToJson(*v)
 	default:
-		return "null", errors.New("invalid data type")
+		ctx.result.WriteString("null")
 	}
 }
 

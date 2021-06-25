@@ -22,6 +22,7 @@ func BenchmarkResolve(b *testing.B) {
 	// BenchmarkResolve-12    	     915	   1283598 ns/op	  782547 B/op	   10384 allocs/op // Use path from Ctx
 	// BenchmarkResolve-12    	     886	   1308011 ns/op	  782452 B/op	   10379 allocs/op // Use array for value
 	// BenchmarkResolve-12    	    1202	    998317 ns/op	  313687 B/op	    6064 allocs/op // Reduced a lot of string usage
+	// BenchmarkResolve-12    	    1294	    898636 ns/op	  307930 B/op	    5686 allocs/op // Change value formatting to allocate less
 
 	s, _ := ParseSchema(TestExecSchemaRequestWithFieldsData{}, M{}, nil)
 	for i := 0; i < b.N; i++ {

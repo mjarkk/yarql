@@ -1,11 +1,12 @@
 package graphql
 
 import (
+	"bytes"
 	"math"
 	"strconv"
 )
 
-// Copy of https://golang.org/src/encoding/json/encode.go > floatEncoder.encode(..)
+// Modified copy of https://golang.org/src/encoding/json/encode.go > floatEncoder.encode(..)
 // Copyright for function below:
 //
 // Copyright 2010 The Go Authors. All rights reserved.
@@ -13,9 +14,10 @@ import (
 // license that can be found in the LICENSE file.
 //
 // IMPORTANT the full license can be found in this repo: https://github.com/golang/go
-func floatToJson(bits int, f float64) string {
+func floatToJson(bits int, f float64, e *bytes.Buffer) {
 	if math.IsInf(f, 0) || math.IsNaN(f) {
-		return "0.0"
+		e.WriteString("0.0")
+		return
 	}
 
 	abs := math.Abs(f)
@@ -32,8 +34,9 @@ func floatToJson(bits int, f float64) string {
 		// clean up e-09 to e-9
 		n := len(b)
 		if n >= 4 && b[n-4:n-1] == "e-0" {
-			return b[:n-2] + b[n-1:]
+			e.WriteString(b[:n-2] + b[n-1:])
+			return
 		}
 	}
-	return b
+	e.WriteString(b)
 }

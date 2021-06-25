@@ -107,8 +107,9 @@ func TestValueToJson(t *testing.T) {
 		{complex64(1), "null"},
 	}
 	for _, option := range options {
-		res, _ := valueToJson(option.value)
-		Equal(t, option.expect, res)
+		c := &Ctx{}
+		c.valueToJson(option.value)
+		Equal(t, option.expect, c.result.String())
 	}
 }
 
