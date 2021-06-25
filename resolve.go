@@ -45,16 +45,23 @@ func (s *Schema) Resolve(query string, options ResolveOptions) (data string, ext
 		s.tracing = newTracer()
 	}
 
-	s.ctx = Ctx{
-		schema:              s,
-		Values:              map[string]interface{}{},
-		directvies:          []directives{},
-		errors:              []error{},
-		jsonVariablesString: options.Variables,
-		context:             options.Context,
-		getFormFile:         options.GetFormFile,
-		extensions:          map[string]interface{}{},
+	s.ctx.schema = s
+	if s.ctx.errors == nil {
+		s.ctx.errors = []error{}
+	} else {
+		s.ctx.errors = s.ctx.errors[:0]
 	}
+	s.ctx.jsonVariablesString = options.Variables
+	s.ctx.jsonVariables = nil
+	if s.ctx.path == nil {
+		s.ctx.path = pathT{}
+	} else {
+		s.ctx.path = s.ctx.path[:0]
+	}
+	s.ctx.context = options.Context
+	s.ctx.getFormFile = options.GetFormFile
+	s.ctx.extensions = map[string]interface{}{}
+	s.ctx.Values = map[string]interface{}{}
 
 	fragments, operatorsMap, errs := ParseQueryAndCheckNames(query, &s.ctx)
 	if len(errs) > 0 {
@@ -101,16 +108,13 @@ func (s *Schema) Resolve(query string, options ResolveOptions) (data string, ext
 }
 
 func (ctx *Ctx) start() string {
-	if ctx.operator.directives != nil && len(ctx.operator.directives) > 0 {
-		ctx.directvies = append(ctx.directvies, ctx.operator.directives)
-	}
-
-	ctx.path = ctx.path[:0]
 	switch ctx.operator.operationType {
 	case "query":
-		return ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootQueryValue, ctx.schema.rootQuery, 0)
+		ctx.reflectValues[0] = ctx.schema.rootQueryValue
+		return ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootQuery, 0)
 	case "mutation":
-		return ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootMethodValue, ctx.schema.rootMethod, 0)
+		ctx.reflectValues[0] = ctx.schema.rootMethodValue
+		return ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootMethod, 0)
 	case "subscription":
 		// TODO
 		ctx.addErr("subscription not suppored yet")
@@ -121,13 +125,13 @@ func (ctx *Ctx) start() string {
 	}
 }
 
-func (ctx *Ctx) resolveSelection(selectionSet selectionSet, struct_ reflect.Value, structType *obj, dept uint8) string {
+func (ctx *Ctx) resolveSelection(selectionSet selectionSet, structType *obj, dept uint8) string {
 	if dept >= ctx.schema.MaxDepth {
 		ctx.addErr("reached max dept")
 		return "null"
 	}
 	dept = dept + 1
-	return "{" + ctx.resolveSelectionContent(selectionSet, struct_, structType, dept) + "}"
+	return "{" + ctx.resolveSelectionContent(selectionSet, structType, dept) + "}"
 }
 
 func (ctx *Ctx) resolveSelectionContentDirectiveCheck(directives directives) (include bool, err error) {
@@ -161,7 +165,7 @@ loop:
 	return
 }
 
-func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, struct_ reflect.Value, structType *obj, dept uint8) string {
+func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, structType *obj, dept uint8) string {
 	res := ""
 	writtenToRes := false
 	for _, selection := range selectionSet {
@@ -178,7 +182,7 @@ func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, struct_ refle
 				}
 			}
 
-			value, hasError := ctx.resolveField(selection.field, struct_, structType, dept)
+			value, hasError := ctx.resolveField(selection.field, structType, dept)
 			if !hasError {
 				if writtenToRes {
 					res += ","
@@ -205,7 +209,7 @@ func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, struct_ refle
 				continue
 			}
 
-			value := ctx.resolveSelectionContent(operator.fragment.selection, struct_, structType, dept)
+			value := ctx.resolveSelectionContent(operator.fragment.selection, structType, dept)
 			if len(value) > 0 {
 				if writtenToRes {
 					res += ","
@@ -226,7 +230,7 @@ func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, struct_ refle
 				}
 			}
 
-			value := ctx.resolveSelectionContent(selection.inlineFragment.selection, struct_, structType, dept)
+			value := ctx.resolveSelectionContent(selection.inlineFragment.selection, structType, dept)
 			if len(value) > 0 {
 				if writtenToRes {
 					res += ","
@@ -240,7 +244,7 @@ func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, struct_ refle
 	return res
 }
 
-func (ctx *Ctx) resolveField(query *field, struct_ reflect.Value, codeStructure *obj, dept uint8) (fieldValue string, returnedOnError bool) {
+func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8) (fieldValue string, returnedOnError bool) {
 	ctx.startTrace()
 	name := query.name
 	if len(query.alias) > 0 {
@@ -258,7 +262,6 @@ func (ctx *Ctx) resolveField(query *field, struct_ reflect.Value, codeStructure 
 	ctx.path = append(ctx.path, fmt.Sprintf("%q", name))
 
 	structItem, ok := codeStructure.objContents[query.name]
-	var value reflect.Value
 	if !ok {
 		ctx.addErrf("%s does not exists on %s", query.name, codeStructure.typeName)
 		ctx.path = ctx.path[:len(ctx.path)-1]
@@ -276,16 +279,19 @@ func (ctx *Ctx) resolveField(query *field, struct_ reflect.Value, codeStructure 
 		})
 	})
 
+	value := ctx.value()
+	ctx.currentReflectValueIdx++
 	if structItem.customObjValue != nil {
-		value = *structItem.customObjValue
+		ctx.reflectValues[ctx.currentReflectValueIdx] = *structItem.customObjValue
 	} else if structItem.valueType == valueTypeMethod && structItem.method.isTypeMethod {
-		value = struct_.MethodByName(structItem.structFieldName)
+		ctx.reflectValues[ctx.currentReflectValueIdx] = value.MethodByName(structItem.structFieldName)
 	} else {
-		value = struct_.FieldByName(structItem.structFieldName)
+		ctx.reflectValues[ctx.currentReflectValueIdx] = value.FieldByName(structItem.structFieldName)
 	}
 
-	fieldValue, returnedOnError = ctx.resolveFieldDataValue(query, value, structItem, dept)
+	fieldValue, returnedOnError = ctx.resolveFieldDataValue(query, structItem, dept)
 	ctx.path = ctx.path[:len(ctx.path)-1]
+	ctx.currentReflectValueIdx--
 	return res(fieldValue), returnedOnError
 }
 
@@ -525,7 +531,8 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 	return nil
 }
 
-func (ctx *Ctx) resolveFieldDataValue(query *field, value reflect.Value, codeStructure *obj, dept uint8) (fieldValue string, returnedOnError bool) {
+func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uint8) (fieldValue string, returnedOnError bool) {
+	value := ctx.value()
 	switch codeStructure.valueType {
 	case valueTypeMethod:
 		method := codeStructure.method
@@ -582,7 +589,11 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, value reflect.Value, codeStr
 			}
 		}
 
-		return ctx.resolveFieldDataValue(query, outs[method.outNr], &method.outType, dept)
+		ctx.currentReflectValueIdx++
+		ctx.reflectValues[ctx.currentReflectValueIdx] = outs[method.outNr]
+		fieldVal, returnedOnErr := ctx.resolveFieldDataValue(query, &method.outType, dept)
+		ctx.currentReflectValueIdx--
+		return fieldVal, returnedOnErr
 	case valueTypeArray:
 		if (value.Kind() != reflect.Array && value.Kind() != reflect.Slice) || value.IsNil() {
 			return "null", false
@@ -597,8 +608,11 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, value reflect.Value, codeStr
 		list := []string{}
 		for i := 0; i < value.Len(); i++ {
 			ctx.path = append(ctx.path, fmt.Sprintf("%d", i))
-			res, _ := ctx.resolveFieldDataValue(query, value.Index(i), codeStructure, dept)
+			ctx.currentReflectValueIdx++
+			ctx.reflectValues[ctx.currentReflectValueIdx] = value.Index(i)
+			res, _ := ctx.resolveFieldDataValue(query, codeStructure, dept)
 			ctx.path = ctx.path[:len(ctx.path)-1]
+			ctx.currentReflectValueIdx--
 			list = append(list, res)
 		}
 		return fmt.Sprintf("[%s]", strings.Join(list, ",")), false
@@ -617,7 +631,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, value reflect.Value, codeStr
 			}
 		}
 
-		val := ctx.resolveSelection(query.selection, value, codeStructure, dept)
+		val := ctx.resolveSelection(query.selection, codeStructure, dept)
 		return val, false
 	case valueTypeData:
 		if len(query.selection) > 0 {
@@ -635,7 +649,11 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, value reflect.Value, codeStr
 			return "null", false
 		}
 
-		return ctx.resolveFieldDataValue(query, value.Elem(), codeStructure.innerContent, dept)
+		ctx.currentReflectValueIdx++
+		ctx.reflectValues[ctx.currentReflectValueIdx] = value.Elem()
+		fieldValue, returnedOnErr := ctx.resolveFieldDataValue(query, codeStructure.innerContent, dept)
+		ctx.currentReflectValueIdx--
+		return fieldValue, returnedOnErr
 	case valueTypeEnum:
 		enum := definedEnums[codeStructure.enumTypeName]
 

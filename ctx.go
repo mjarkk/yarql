@@ -17,7 +17,6 @@ type Ctx struct {
 	// Private
 	fragments           map[string]operator // Query fragments
 	schema              *Schema             // The Go code schema (graphql schema)
-	directvies          []directives        // Directives stored in ctx
 	errors              []error             // Query errors
 	operator            *operator           // Part of query to execute
 	jsonVariablesString string              // Raw query variables
@@ -32,6 +31,8 @@ type Ctx struct {
 
 	// zero alloc values
 	prefRecordingStartTime time.Time
+	reflectValues          [256]reflect.Value
+	currentReflectValueIdx uint8
 }
 
 //
@@ -82,6 +83,10 @@ func (ctx *Ctx) AddError(err error) {
 //
 // Internal
 //
+
+func (ctx *Ctx) value() reflect.Value {
+	return ctx.reflectValues[ctx.currentReflectValueIdx]
+}
 
 func (ctx *Ctx) addErr(err string) {
 	ctx.errors = append(ctx.errors, ErrorWPath{
