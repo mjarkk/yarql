@@ -62,6 +62,7 @@ func (s *Schema) Resolve(query string, options ResolveOptions) (data string, ext
 	s.ctx.getFormFile = options.GetFormFile
 	s.ctx.extensions = map[string]interface{}{}
 	s.ctx.Values = map[string]interface{}{}
+	s.ctx.result.Reset()
 
 	fragments, operatorsMap, errs := ParseQueryAndCheckNames(query, &s.ctx)
 	if len(errs) > 0 {
@@ -103,35 +104,38 @@ func (s *Schema) Resolve(query string, options ResolveOptions) (data string, ext
 		s.ctx.operator = &operator
 	}
 
-	res := s.ctx.start()
-	return res, getExtensions(), s.ctx.errors
+	s.ctx.start()
+	return s.ctx.result.String(), getExtensions(), s.ctx.errors
 }
 
-func (ctx *Ctx) start() string {
+func (ctx *Ctx) start() {
 	switch ctx.operator.operationType {
 	case "query":
 		ctx.reflectValues[0] = ctx.schema.rootQueryValue
-		return ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootQuery, 0)
+		ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootQuery, 0)
 	case "mutation":
 		ctx.reflectValues[0] = ctx.schema.rootMethodValue
-		return ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootMethod, 0)
+		ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootMethod, 0)
 	case "subscription":
 		// TODO
 		ctx.addErr("subscription not suppored yet")
-		return "{}"
+		ctx.result.WriteString("{}")
 	default:
 		ctx.addErrf("%s cannot be used as operator", ctx.operator.operationType)
-		return "{}"
+		ctx.result.WriteString("{}")
 	}
 }
 
-func (ctx *Ctx) resolveSelection(selectionSet selectionSet, structType *obj, dept uint8) string {
+func (ctx *Ctx) resolveSelection(selectionSet selectionSet, structType *obj, dept uint8) {
 	if dept >= ctx.schema.MaxDepth {
 		ctx.addErr("reached max dept")
-		return "null"
+		ctx.result.WriteString("null")
+		return
 	}
-	dept = dept + 1
-	return "{" + ctx.resolveSelectionContent(selectionSet, structType, dept) + "}"
+
+	ctx.result.WriteString("{")
+	ctx.resolveSelectionContent(selectionSet, structType, dept, ctx.result.Len())
+	ctx.result.WriteString("}")
 }
 
 func (ctx *Ctx) resolveSelectionContentDirectiveCheck(directives directives) (include bool, err error) {
@@ -165,9 +169,9 @@ loop:
 	return
 }
 
-func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, structType *obj, dept uint8) string {
-	res := ""
-	writtenToRes := false
+func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, structType *obj, dept uint8, startLen int) {
+	dept = dept + 1
+
 	for _, selection := range selectionSet {
 		switch selection.selectionType {
 		case "Field":
@@ -182,16 +186,12 @@ func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, structType *o
 				}
 			}
 
-			value, hasError := ctx.resolveField(selection.field, structType, dept)
-			if !hasError {
-				if writtenToRes {
-					res += ","
-				} else {
-					writtenToRes = true
-				}
-				res += value
-			}
+			ctx.resolveField(selection.field, structType, dept, ctx.result.Len() > startLen)
 		case "FragmentSpread":
+			if dept >= ctx.schema.MaxDepth {
+				continue
+			}
+
 			if len(selection.fragmentSpread.directives) > 0 {
 				include, err := ctx.resolveSelectionContentDirectiveCheck(selection.fragmentSpread.directives)
 				if err != nil {
@@ -209,16 +209,12 @@ func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, structType *o
 				continue
 			}
 
-			value := ctx.resolveSelectionContent(operator.fragment.selection, structType, dept)
-			if len(value) > 0 {
-				if writtenToRes {
-					res += ","
-				} else {
-					writtenToRes = true
-				}
-				res += value
-			}
+			ctx.resolveSelectionContent(operator.fragment.selection, structType, dept, startLen)
 		case "InlineFragment":
+			if dept >= ctx.schema.MaxDepth {
+				continue
+			}
+
 			if len(selection.inlineFragment.directives) > 0 {
 				include, err := ctx.resolveSelectionContentDirectiveCheck(selection.inlineFragment.directives)
 				if err != nil {
@@ -230,33 +226,28 @@ func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, structType *o
 				}
 			}
 
-			value := ctx.resolveSelectionContent(selection.inlineFragment.selection, structType, dept)
-			if len(value) > 0 {
-				if writtenToRes {
-					res += ","
-				} else {
-					writtenToRes = true
-				}
-				res += value
-			}
+			ctx.resolveSelectionContent(selection.inlineFragment.selection, structType, dept, startLen)
 		}
 	}
-	return res
 }
 
-func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8) (fieldValue string, returnedOnError bool) {
+func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, placeCommaInFront bool) {
 	ctx.startTrace()
 	name := query.name
 	if len(query.alias) > 0 {
 		name = query.alias
 	}
 
-	res := func(data string) string {
-		return fmt.Sprintf(`"%s":%s`, name, data)
-	}
-
 	if query.name == "__typename" {
-		return res(`"` + codeStructure.typeName + `"`), false
+		if placeCommaInFront {
+			ctx.result.WriteByte(',')
+		}
+		ctx.result.WriteByte('"')
+		ctx.result.WriteString(name)
+		ctx.result.WriteString(`":"`)
+		ctx.result.WriteString(codeStructure.typeName)
+		ctx.result.WriteByte('"')
+		return
 	}
 
 	ctx.path = append(ctx.path, fmt.Sprintf("%q", name))
@@ -265,8 +256,15 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8) (fiel
 	if !ok {
 		ctx.addErrf("%s does not exists on %s", query.name, codeStructure.typeName)
 		ctx.path = ctx.path[:len(ctx.path)-1]
-		return res("null"), true
+		return
 	}
+
+	if placeCommaInFront {
+		ctx.result.WriteByte(',')
+	}
+	ctx.result.WriteByte('"')
+	ctx.result.WriteString(name)
+	ctx.result.WriteString(`":`)
 
 	defer ctx.finishTrace(func(t *tracer, offset, duration int64) {
 		t.Execution.Resolvers = append(t.Execution.Resolvers, tracerResolver{
@@ -289,10 +287,9 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8) (fiel
 		ctx.reflectValues[ctx.currentReflectValueIdx] = value.FieldByName(structItem.structFieldName)
 	}
 
-	fieldValue, returnedOnError = ctx.resolveFieldDataValue(query, structItem, dept)
+	ctx.resolveFieldDataValue(query, structItem, dept)
 	ctx.path = ctx.path[:len(ctx.path)-1]
 	ctx.currentReflectValueIdx--
-	return res(fieldValue), returnedOnError
 }
 
 func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAnalyzedData *input) error {
@@ -531,14 +528,15 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 	return nil
 }
 
-func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uint8) (fieldValue string, returnedOnError bool) {
+func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uint8) {
 	value := ctx.value()
 	switch codeStructure.valueType {
 	case valueTypeMethod:
 		method := codeStructure.method
 
 		if !method.isTypeMethod && value.IsNil() {
-			return "null", false
+			ctx.result.WriteString("null")
+			return
 		}
 
 		inputs := []reflect.Value{}
@@ -561,7 +559,8 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			err := ctx.matchInputValue(&queryValue, &goField, &inField.input)
 			if err != nil {
 				ctx.addErrf("%s, property: %s", err.Error(), queryKey)
-				return "null", true
+				ctx.result.WriteString("null")
+				return
 			}
 		}
 
@@ -573,7 +572,8 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 				err, ok := errOut.Interface().(error)
 				if !ok {
 					ctx.addErr("returned a invalid kind of error")
-					return "null", true
+					ctx.result.WriteString("null")
+					return
 				} else if err != nil {
 					ctx.addErr(err.Error())
 				}
@@ -585,41 +585,50 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			if err != nil {
 				// Context ended
 				ctx.addErr(err.Error())
-				return "null", true
+				ctx.result.WriteString("null")
+				return
 			}
 		}
 
 		ctx.currentReflectValueIdx++
 		ctx.reflectValues[ctx.currentReflectValueIdx] = outs[method.outNr]
-		fieldVal, returnedOnErr := ctx.resolveFieldDataValue(query, &method.outType, dept)
+		ctx.resolveFieldDataValue(query, &method.outType, dept)
 		ctx.currentReflectValueIdx--
-		return fieldVal, returnedOnErr
+		return
 	case valueTypeArray:
 		if (value.Kind() != reflect.Array && value.Kind() != reflect.Slice) || value.IsNil() {
-			return "null", false
+			ctx.result.WriteString("null")
+			return
 		}
 
 		if codeStructure.innerContent == nil {
 			ctx.addErr("server didn't expected an array")
-			return "null", true
+			ctx.result.WriteString("null")
+			return
 		}
 		codeStructure = codeStructure.innerContent
 
-		list := []string{}
+		ctx.result.WriteByte('[')
 		for i := 0; i < value.Len(); i++ {
 			ctx.path = append(ctx.path, fmt.Sprintf("%d", i))
 			ctx.currentReflectValueIdx++
 			ctx.reflectValues[ctx.currentReflectValueIdx] = value.Index(i)
-			res, _ := ctx.resolveFieldDataValue(query, codeStructure, dept)
+
+			ctx.resolveFieldDataValue(query, codeStructure, dept)
+			if i < value.Len()-1 {
+				ctx.result.WriteByte(',')
+			}
+
 			ctx.path = ctx.path[:len(ctx.path)-1]
 			ctx.currentReflectValueIdx--
-			list = append(list, res)
 		}
-		return fmt.Sprintf("[%s]", strings.Join(list, ",")), false
+		ctx.result.WriteByte(']')
+		return
 	case valueTypeObj, valueTypeObjRef:
 		if len(query.selection) == 0 {
 			ctx.addErr("must have a selection")
-			return "null", true
+			ctx.result.WriteString("null")
+			return
 		}
 
 		var ok bool
@@ -627,55 +636,71 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			codeStructure, ok = ctx.schema.types[codeStructure.typeName]
 			if !ok {
 				ctx.addErr("cannot have a selection")
-				return "null", true
+				ctx.result.WriteString("null")
+				return
 			}
 		}
 
-		val := ctx.resolveSelection(query.selection, codeStructure, dept)
-		return val, false
+		ctx.resolveSelection(query.selection, codeStructure, dept)
+		return
 	case valueTypeData:
 		if len(query.selection) > 0 {
 			ctx.addErr("cannot have a selection")
-			return "null", true
+			ctx.result.WriteString("null")
+			return
 		}
 		val, _ := valueToJson(value.Interface())
 		if codeStructure.isID && codeStructure.dataValueType != reflect.String {
 			// Graphql ID fields are always strings
-			val = `"` + val + `"`
+			ctx.result.WriteByte('"')
+			ctx.result.WriteString(val)
+			ctx.result.WriteByte('"')
+		} else {
+			ctx.result.WriteString(val)
 		}
-		return val, false
+
+		return
 	case valueTypePtr:
 		if value.Kind() != reflect.Ptr || value.IsNil() {
-			return "null", false
+			ctx.result.WriteString("null")
+			return
 		}
 
 		ctx.currentReflectValueIdx++
 		ctx.reflectValues[ctx.currentReflectValueIdx] = value.Elem()
-		fieldValue, returnedOnErr := ctx.resolveFieldDataValue(query, codeStructure.innerContent, dept)
+		ctx.resolveFieldDataValue(query, codeStructure.innerContent, dept)
 		ctx.currentReflectValueIdx--
-		return fieldValue, returnedOnErr
+		return
 	case valueTypeEnum:
 		enum := definedEnums[codeStructure.enumTypeName]
 
 		key := enum.valueKey.MapIndex(value)
 		if !key.IsValid() {
-			return "null", false
+			ctx.result.WriteString("null")
+			return
 		}
-		return `"` + key.Interface().(string) + `"`, false
+		ctx.result.WriteByte('"')
+		ctx.result.WriteString(key.Interface().(string))
+		ctx.result.WriteByte('"')
+		return
 	case valueTypeTime:
 		timeValue, ok := value.Interface().(time.Time)
 		if !ok {
-			return "null", false
+			ctx.result.WriteString("null")
+			return
 		}
 		timeString, _ := valueToJson(timeToString(timeValue))
-		return timeString, false
+		ctx.result.WriteString(timeString)
+		return
 	default:
 		ctx.addErr("has invalid data type")
-		return "null", true
+		ctx.result.WriteString("null")
+		return
 	}
 }
 
 func valueToJson(in interface{}) (string, error) {
+	// TODO this function is slow and eats memory
 	switch v := in.(type) {
 	case string:
 		return fmt.Sprintf("%q", v), nil

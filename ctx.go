@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -33,6 +34,7 @@ type Ctx struct {
 	prefRecordingStartTime time.Time
 	reflectValues          [256]reflect.Value
 	currentReflectValueIdx uint8
+	result                 bytes.Buffer
 }
 
 //
