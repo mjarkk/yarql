@@ -26,7 +26,10 @@ func BenchmarkResolve(b *testing.B) {
 
 	s, _ := ParseSchema(TestExecSchemaRequestWithFieldsData{}, M{}, nil)
 	for i := 0; i < b.N; i++ {
-		s.Resolve(schemaQuery, ResolveOptions{})
+		_, _, errs := s.Resolve(schemaQuery, ResolveOptions{})
+		for _, err := range errs {
+			panic(err)
+		}
 	}
 }
 

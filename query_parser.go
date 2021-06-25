@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"strconv"
-	"strings"
 	"unicode"
 )
 
@@ -142,22 +141,22 @@ func (i *iter) unexpectedEOF() *ErrorWLocation {
 	return i.err("unexpected EOF")
 }
 
-func (i *iter) checkC(nr uint64) (res rune, end bool) {
+func (i *iter) checkC(nr uint64) (res byte, end bool) {
 	if i.eof(nr) {
 		return 0, true
 	}
 	return i.c(nr), false
 }
 
-func (i *iter) c(nr uint64) rune {
-	return rune(i.data[nr])
+func (i *iter) c(nr uint64) byte {
+	return i.data[nr]
 }
 
 func (i *iter) eof(nr uint64) bool {
 	return nr >= uint64(len(i.data))
 }
 
-func (i *iter) currentC() rune {
+func (i *iter) currentC() byte {
 	return i.c(i.charNr)
 }
 
@@ -460,7 +459,7 @@ func (i *iter) parseString() (string, *ErrorWLocation) {
 						return "", i.unexpectedEOF()
 					}
 
-					if !unicode.Is(unicode.Hex_Digit, c) {
+					if !unicode.Is(unicode.Hex_Digit, rune(c)) {
 						res = append(res, 'u')
 						res = append(res, unicodeChars...)
 						break
@@ -556,14 +555,18 @@ func (i *iter) parseListValue(allowVariables bool) ([]value, *ErrorWLocation) {
 // https://spec.graphql.org/June2018/#FloatValue
 // https://spec.graphql.org/June2018/#IntValue
 func (i *iter) parseNumberValue() (value, *ErrorWLocation) {
-	toMap := func(list string) map[rune]bool {
-		res := map[rune]bool{}
-		for _, char := range list {
-			res[char] = true
-		}
-		return res
+	digit := map[byte]bool{
+		'0': true,
+		'1': true,
+		'2': true,
+		'3': true,
+		'4': true,
+		'5': true,
+		'6': true,
+		'7': true,
+		'8': true,
+		'9': true,
 	}
-	digit := toMap("0123456789")
 
 	resStr := ""
 	res := func(isFloat bool) (value, *ErrorWLocation) {
@@ -942,6 +945,7 @@ func (i *iter) parseField() (*field, *ErrorWLocation) {
 	if err != nil {
 		return nil, err
 	}
+
 	c, err := i.mightIgnoreNextTokens()
 	if err != nil {
 		return nil, err
@@ -1018,7 +1022,7 @@ func (i *iter) parseField() (*field, *ErrorWLocation) {
 // Parses object values and arguments as the only diffrents seems to be the wrappers around it
 // ObjectValues > https://spec.graphql.org/June2018/#ObjectValue
 // Arguments > https://spec.graphql.org/June2018/#Arguments
-func (i *iter) parseArgumentsOrObjectValues(closure rune) (arguments, *ErrorWLocation) {
+func (i *iter) parseArgumentsOrObjectValues(closure byte) (arguments, *ErrorWLocation) {
 	res := arguments{}
 
 	c, err := i.mightIgnoreNextTokens()
@@ -1134,47 +1138,34 @@ func (i *iter) parseDirective() (*directive, *ErrorWLocation) {
 
 // https://spec.graphql.org/June2018/#Name
 func (i *iter) parseName() (string, *ErrorWLocation) {
-	allowedChars := map[rune]bool{}
-
-	letters := "abcdefghijklmnopqrstuvwxyz"
-	numbers := "0123456789"
-	special := "_"
-	for _, allowedChar := range []byte(letters + strings.ToUpper(letters) + special) {
-		allowedChars[rune(allowedChar)] = true
-		allowedChars[rune(allowedChar)] = true
-	}
-	for _, notFirstAllowedChar := range []byte(numbers) {
-		allowedChars[rune(notFirstAllowedChar)] = false
-	}
-
-	name := ""
+	name := []byte{}
 	for {
 		c, eof := i.checkC(i.charNr)
 		if eof {
-			return name, i.unexpectedEOF()
+			return string(name), i.unexpectedEOF()
 		}
 
-		allowedAsFirstChar, ok := allowedChars[c]
+		allowedAsFirstChar, ok := allowedChars[bytes.ToLower([]byte{c})[0]]
 		if !ok {
-			return name, nil
+			return string(name), nil
 		}
 
-		if name == "" && !allowedAsFirstChar {
-			return name, nil
+		if len(name) == 0 && !allowedAsFirstChar {
+			return string(name), nil
 		}
 
-		name += string(c)
-
+		name = append(name, c)
 		i.charNr++
 	}
 }
 
 // https://spec.graphql.org/June2018/#sec-Source-Text.Ignored-Tokens
-func (i *iter) isIgnoredToken(c rune) bool {
-	return isUnicodeBom(c) || isWhiteSpace(c) || i.isLineTerminator() || i.isComment(true)
+func (i *iter) isIgnoredToken(c byte) bool {
+	// TODO support unicode bomb
+	return isWhiteSpace(c) || i.isLineTerminator() || i.isComment(true)
 }
 
-func (i *iter) mightIgnoreNextTokens() (rune, *ErrorWLocation) {
+func (i *iter) mightIgnoreNextTokens() (byte, *ErrorWLocation) {
 	for {
 		c, eof := i.checkC(i.charNr)
 		if eof {
@@ -1190,13 +1181,8 @@ func (i *iter) mightIgnoreNextTokens() (rune, *ErrorWLocation) {
 	}
 }
 
-// https://spec.graphql.org/June2018/#UnicodeBOM
-func isUnicodeBom(input rune) bool {
-	return input == '\uFEFF'
-}
-
 // https://spec.graphql.org/June2018/#WhiteSpace
-func isWhiteSpace(input rune) bool {
+func isWhiteSpace(input byte) bool {
 	return input == ' ' || input == '\t'
 }
 
@@ -1257,7 +1243,7 @@ func (i *iter) matches(oneOf ...string) string {
 
 		for key := range oneOfMap {
 			keyLen := uint64(len(key))
-			if offset >= keyLen || rune(key[offset]) != c {
+			if offset >= keyLen || key[offset] != c {
 				delete(oneOfMap, key)
 			} else if keyLen == offset+1 {
 				i.charNr++
