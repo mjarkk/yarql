@@ -302,17 +302,15 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 }
 
 func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAnalyzedData *input) error {
-	goFieldKind := goAnalyzedData.kind
 
 	if goAnalyzedData.isFile {
 		goAnalyzedData.kind = reflect.String
-		goFieldKind = goAnalyzedData.kind
 		if queryValue.isNull {
 			return nil
 		}
 	}
 
-	if goFieldKind == reflect.Ptr {
+	if goAnalyzedData.kind == reflect.Ptr {
 		if queryValue.isNull {
 			// Na mate just keep it at it's default
 			return nil
@@ -431,7 +429,7 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 	} else {
 		switch queryValue.valType {
 		case reflect.Int:
-			switch goFieldKind {
+			switch goAnalyzedData.kind {
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 				goField.SetInt(int64(queryValue.intValue))
 			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
@@ -445,17 +443,17 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 				return mismatchError()
 			}
 		case reflect.Float64:
-			switch goFieldKind {
+			switch goAnalyzedData.kind {
 			case reflect.Float32, reflect.Float64:
 				goField.SetFloat(queryValue.floatValue)
 			default:
 				return mismatchError()
 			}
 		case reflect.String:
-			if goFieldKind == reflect.String {
+			if goAnalyzedData.kind == reflect.String {
 				setString(queryValue.stringValue)
 			} else if goAnalyzedData.isID {
-				switch goFieldKind {
+				switch goAnalyzedData.kind {
 				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 					intValue, err := strconv.Atoi(queryValue.stringValue)
 					if err != nil {
@@ -478,18 +476,18 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 				return mismatchError()
 			}
 		case reflect.Bool:
-			if goFieldKind == reflect.Bool {
+			if goAnalyzedData.kind == reflect.Bool {
 				goField.SetBool(queryValue.booleanValue)
 			} else {
 				return mismatchError()
 			}
 		case reflect.Array:
-			if goFieldKind == reflect.Array {
+			if goAnalyzedData.kind == reflect.Array {
 				// TODO support this
 				return errors.New("fixed length arrays not supported")
 			}
 
-			if goFieldKind != reflect.Slice {
+			if goAnalyzedData.kind != reflect.Slice {
 				return mismatchError()
 			}
 
@@ -505,7 +503,7 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 
 			goField.Set(arr)
 		case reflect.Map:
-			if goFieldKind != reflect.Struct {
+			if goAnalyzedData.kind != reflect.Struct {
 				return mismatchError()
 			}
 
