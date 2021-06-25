@@ -28,6 +28,13 @@ func BenchmarkResolve(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		s.Resolve(schemaQuery, ResolveOptions{})
 	}
+}
+
+func BenchmarkResolveWithFormat(b *testing.B) {
+	s, _ := ParseSchema(TestExecSchemaRequestWithFieldsData{}, M{}, nil)
+	for i := 0; i < b.N; i++ {
+		GenerateResponse(s.Resolve(schemaQuery, ResolveOptions{}))
+	}
 
 	f, err := os.Create("memprofile")
 	if err != nil {

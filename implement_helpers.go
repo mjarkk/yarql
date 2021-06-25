@@ -1,46 +1,57 @@
 package graphql
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"mime/multipart"
+	"strconv"
 	"strings"
 
 	"github.com/valyala/fastjson"
 )
 
 func GenerateResponse(data string, extensions map[string]interface{}, errors []error) string {
-	res := `{"data":` + data
+	res := bytes.NewBufferString(`{"data":`)
+	res.WriteString(data)
+
 	if len(errors) > 0 {
-		res += `,"errors":[`
+		res.WriteString(`,"errors":[`)
 		for i, err := range errors {
 			if i > 0 {
-				res += ","
+				res.WriteByte(',')
 			}
+			res.WriteString(`{"message":`)
+			stringToJson([]byte(err.Error()), res, true)
 
-			meta := ""
 			errWPath, isErrWPath := err.(ErrorWPath)
 			if isErrWPath && len(errWPath.path) > 0 {
-				meta = fmt.Sprintf(`,"path":%s`, errWPath.path.toJson())
+				res.WriteString(`,"path":`)
+				errWPath.path.toJson(res)
 			}
 			errWLocation, isErrWLocation := err.(ErrorWLocation)
 			if isErrWLocation {
-				meta = fmt.Sprintf(`,"locations":[{"line":%d,"column":%d}]`, errWLocation.line, errWLocation.column)
+				res.WriteString(`,"locations":[{"line":`)
+				res.WriteString(strconv.FormatUint(uint64(errWLocation.line), 10))
+				res.WriteString(`,"column":`)
+				res.WriteString(strconv.FormatUint(uint64(errWLocation.column), 10))
+				res.WriteString(`}]`)
 			}
 
-			res += fmt.Sprintf(`{"message":%q%s}`, err.Error(), meta)
+			res.WriteByte('}')
 		}
-		res += "]"
+		res.WriteByte(']')
 	}
 	if len(extensions) > 0 {
 		extensionsJson, err := json.Marshal(extensions)
 		if err == nil {
-			res += `,"extensions":` + string(extensionsJson)
+			res.WriteString(`,"extensions":`)
+			res.WriteString(string(extensionsJson))
 		}
 	}
-	return res + "}"
+	res.WriteByte('}')
+	return res.String()
 }
 
 type RequestOptions struct {

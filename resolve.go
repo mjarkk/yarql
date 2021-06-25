@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -23,8 +24,10 @@ type ResolveOptions struct {
 
 type pathT []string
 
-func (p pathT) toJson() string {
-	return "[" + strings.Join(p, ",") + "]"
+func (p pathT) toJson(target *bytes.Buffer) {
+	target.WriteByte('[')
+	target.WriteString(strings.Join(p, ","))
+	target.WriteByte(']')
 }
 
 func (p pathT) copy() pathT {
@@ -267,11 +270,17 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 	ctx.result.WriteString(`":`)
 
 	defer ctx.finishTrace(func(t *tracer, offset, duration int64) {
+		path := bytes.NewBuffer(nil)
+		ctx.path.toJson(path)
+
+		returnType := bytes.NewBuffer(nil)
+		ctx.schema.objToQlTypeName(structItem, returnType)
+
 		t.Execution.Resolvers = append(t.Execution.Resolvers, tracerResolver{
-			Path:        json.RawMessage(ctx.path.toJson()),
+			Path:        json.RawMessage(path.String()),
 			ParentType:  codeStructure.typeName,
 			FieldName:   query.name,
-			ReturnType:  ctx.schema.objToQlTypeName(structItem),
+			ReturnType:  returnType.String(),
 			StartOffset: offset,
 			Duration:    duration,
 		})
@@ -843,25 +852,28 @@ func timeToString(t time.Time) string {
 	return t.Format("2006-01-02T15:04:05.000Z")
 }
 
-func (s *Schema) objToQlTypeName(item *obj) string {
-	suffix := ""
-	prefix := ""
+func (s *Schema) objToQlTypeName(item *obj, target *bytes.Buffer) {
+	suffix := []byte{}
 
 	qlType := wrapQLTypeInNonNull(s.objToQLType(item))
 
 	for {
 		switch qlType.Kind {
 		case typeKindList:
-			suffix = "]" + suffix
-			prefix += "["
+			target.WriteByte('[')
+			suffix = append(suffix, ']')
 		case typeKindNonNull:
-			suffix = "!" + suffix
+			suffix = append(suffix, '!')
 		default:
 			if qlType.Name != nil {
-				return prefix + *qlType.Name + suffix
+				target.WriteString(*qlType.Name)
 			} else {
-				return prefix + "Unknown" + suffix
+				target.WriteString("Unknown")
 			}
+			if len(suffix) > 0 {
+				target.Write(suffix)
+			}
+			return
 		}
 		qlType = qlType.OfType
 	}
