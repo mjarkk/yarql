@@ -11,6 +11,7 @@ Just a different approach to making graphql servers in Go
 - Only 1 dependency
 - Easy to implement, see the [gin](https://github.com/mjarkk/go-graphql/blob/main/examples/gin/main.go) and [viber](https://github.com/mjarkk/go-graphql/blob/main/examples/viber/main.go) examples
 - File upload support
+- [Apollo tracing](https://github.com/apollographql/apollo-tracing)
 
 _For further plans see the [/projects](https://github.com/mjarkk/go-graphql/projects) tab_
 
