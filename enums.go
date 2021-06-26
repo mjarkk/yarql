@@ -97,9 +97,9 @@ func registerEnumCheck(map_ interface{}) *enum {
 			panic("RegisterEnum input map cannot contain empty keys")
 		}
 
-		err := validGraphQlName(keyStr)
+		err := validGraphQlName([]byte(keyStr))
 		if err != nil {
-			panic(fmt.Sprintf("RegisterEnum map key must start with an alphabetic character (lower or upper) followed by the same or a \"_\", key given: %s", keyStr))
+			panic(`RegisterEnum map key must start with an alphabetic character (lower or upper) followed by the same or a "_", key given: ` + keyStr)
 		}
 
 		v := reflect.ValueOf(iter.Value().Interface())

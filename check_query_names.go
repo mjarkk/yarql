@@ -2,6 +2,7 @@ package graphql
 
 import (
 	"fmt"
+	"strconv"
 )
 
 func ParseQueryAndCheckNames(input string, ctx *Ctx) (fragments, operatorsMap map[string]operator, resErrors []error) {
@@ -18,9 +19,9 @@ func ParseQueryAndCheckNames(input string, ctx *Ctx) (fragments, operatorsMap ma
 		return
 	}
 	if ctx != nil {
-		ctx.finishTrace(func(t *tracer, offset, duration int64) {
-			t.Parsing.StartOffset = offset
-			t.Parsing.Duration = duration
+		ctx.finishTrace(func(offset, duration int64) {
+			ctx.tracing.Parsing.StartOffset = offset
+			ctx.tracing.Parsing.Duration = duration
 		})
 
 		ctx.startTrace()
@@ -35,13 +36,14 @@ func ParseQueryAndCheckNames(input string, ctx *Ctx) (fragments, operatorsMap ma
 			switch item.operationType {
 			case "query":
 				unknownQueries++
-				item.name = fmt.Sprintf("unknown_query_%d", unknownQueries)
+
+				item.name = "unknown_query_" + strconv.Itoa(unknownQueries)
 			case "mutation":
 				unknownMutations++
-				item.name = fmt.Sprintf("unknown_mutation_%d", unknownMutations)
+				item.name = "unknown_mutation_" + strconv.Itoa(unknownMutations)
 			case "subscription":
 				unknownSubscriptions++
-				item.name = fmt.Sprintf("unknown_subscription_%d", unknownSubscriptions)
+				item.name = "unknown_subscription_" + strconv.Itoa(unknownSubscriptions)
 			}
 			// "fragment" doesn't have to be handled here as it's required for those to have a name
 		}
@@ -66,9 +68,9 @@ func ParseQueryAndCheckNames(input string, ctx *Ctx) (fragments, operatorsMap ma
 	}
 
 	if ctx != nil {
-		ctx.finishTrace(func(t *tracer, offset, duration int64) {
-			t.Validation.StartOffset = offset
-			t.Validation.Duration = duration
+		ctx.finishTrace(func(offset, duration int64) {
+			ctx.tracing.Validation.StartOffset = offset
+			ctx.tracing.Validation.Duration = duration
 		})
 	}
 

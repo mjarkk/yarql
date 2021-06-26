@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"mime/multipart"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -42,11 +43,10 @@ type Schema struct {
 	MaxDepth        uint8 // Default 255
 
 	// Zero alloc variables
-	tracingEnabled   bool
-	tracing          tracer
 	ctx              Ctx
 	graphqlTypesMap  map[string]qlType
 	graphqlTypesList []qlType
+	graphqlObjFields map[string][]qlField
 }
 
 type valueType int
@@ -174,11 +174,17 @@ func newParseCtx() *parseCtx {
 
 func ParseSchema(queries interface{}, methods interface{}, options *SchemaOptions) (*Schema, error) {
 	res := Schema{
-		types:           types{},
-		inTypes:         inputMap{},
-		rootQueryValue:  reflect.ValueOf(queries),
-		rootMethodValue: reflect.ValueOf(methods),
-		MaxDepth:        255,
+		types:            types{},
+		inTypes:          inputMap{},
+		rootQueryValue:   reflect.ValueOf(queries),
+		rootMethodValue:  reflect.ValueOf(methods),
+		MaxDepth:         255,
+		graphqlObjFields: map[string][]qlField{},
+		ctx: Ctx{
+			result: []byte{},
+			errors: []error{},
+			path:   pathT{},
+		},
 	}
 
 	ctx := &parseCtx{
@@ -259,7 +265,7 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 			}
 		} else {
 			c.unknownTypesCount++
-			res.typeName = fmt.Sprintf("__UnknownType%d", c.unknownTypesCount)
+			res.typeName = "__UnknownType" + strconv.Itoa(c.unknownTypesCount)
 		}
 
 		res.objContents = map[string]*obj{}
@@ -469,7 +475,7 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type, hasIDTag bool) (input, err
 		structName := t.Name()
 		if len(structName) == 0 {
 			c.unknownInputsCount++
-			structName = fmt.Sprintf("__UnknownInput%d", c.unknownInputsCount)
+			structName = "__UnknownInput" + strconv.Itoa(c.unknownInputsCount)
 		} else {
 			newStructName, ok := renamedTypes[structName]
 			if ok {
@@ -676,7 +682,7 @@ func parseFieldTagGQ(field *reflect.StructField) (newName *string, ignore bool, 
 			ignore = true
 			return
 		}
-		err = validGraphQlName(nameArg)
+		err = validGraphQlName([]byte(nameArg))
 		newName = &nameArg
 	}
 
@@ -720,6 +726,32 @@ var validGraphQlNameAllowedChars = map[byte]bool{
 	'x': true,
 	'y': true,
 	'z': true,
+	'A': true,
+	'B': true,
+	'C': true,
+	'D': true,
+	'E': true,
+	'F': true,
+	'G': true,
+	'H': true,
+	'I': true,
+	'J': true,
+	'K': true,
+	'L': true,
+	'M': true,
+	'N': true,
+	'O': true,
+	'P': true,
+	'Q': true,
+	'R': true,
+	'S': true,
+	'T': true,
+	'U': true,
+	'V': true,
+	'W': true,
+	'X': true,
+	'Y': true,
+	'Z': true,
 	'1': false,
 	'2': false,
 	'3': false,
@@ -733,8 +765,9 @@ var validGraphQlNameAllowedChars = map[byte]bool{
 	'_': false,
 }
 
-func validGraphQlName(name string) error {
-	for i, char := range bytes.ToLower([]byte(name)) {
+func validGraphQlName(name []byte) error {
+	for i, char := range name {
+		// TODO check if checking if char is in char range of A-Z a-z 0-9
 		canUseAsFirst, ok := validGraphQlNameAllowedChars[char]
 		if !ok || (i == 0 && !canUseAsFirst) {
 			return errors.New("invalid graphql name")

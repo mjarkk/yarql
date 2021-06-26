@@ -1,7 +1,6 @@
 package graphql
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -26,15 +25,17 @@ type Ctx struct {
 	context             context.Context
 	getFormFile         func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
 	extensions          map[string]interface{}
-
-	// Public
-	Values map[string]interface{} // API User values, user can put all their shitty things in here like poems or tax papers
+	tracingEnabled      bool
+	tracing             *tracer
 
 	// zero alloc values
 	prefRecordingStartTime time.Time
 	reflectValues          [256]reflect.Value
 	currentReflectValueIdx uint8
-	result                 bytes.Buffer
+	result                 []byte
+
+	// Public
+	Values map[string]interface{} // API User values, user can put all their shitty things in here like poems or tax papers
 }
 
 //
@@ -85,6 +86,18 @@ func (ctx *Ctx) AddError(err error) {
 //
 // Internal
 //
+
+func (ctx *Ctx) writeString(val string) {
+	ctx.result = append(ctx.result, []byte(val)...)
+}
+
+func (ctx *Ctx) write(val []byte) {
+	ctx.result = append(ctx.result, val...)
+}
+
+func (ctx *Ctx) writeByte(val byte) {
+	ctx.result = append(ctx.result, val)
+}
 
 func (ctx *Ctx) value() reflect.Value {
 	return ctx.reflectValues[ctx.currentReflectValueIdx]

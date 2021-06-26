@@ -20,14 +20,15 @@ type ResolveOptions struct {
 	Values         map[string]interface{}                          // Passed directly to the request context
 	GetFormFile    func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
 	Tracing        bool                                            // https://github.com/apollographql/apollo-tracing
+	ReturnOnlyData bool
 }
 
 type pathT []string
 
-func (p pathT) toJson(target *bytes.Buffer) {
-	target.WriteByte('[')
-	target.WriteString(strings.Join(p, ","))
-	target.WriteByte(']')
+func (p pathT) toJson(target *[]byte) {
+	*target = append(*target, '[')
+	*target = append(*target, []byte(strings.Join(p, ","))...)
+	*target = append(*target, ']')
 }
 
 func (p pathT) copy() pathT {
@@ -39,13 +40,68 @@ func (p pathT) copy() pathT {
 	return res
 }
 
-func (s *Schema) Resolve(query string, options ResolveOptions) (data string, extensions map[string]interface{}, errs []error) {
+func (s *Schema) Resolve(query string, options ResolveOptions) ([]byte, []error) {
 	s.m.Lock()
 	defer s.m.Unlock()
 
-	s.tracingEnabled = options.Tracing
+	s.ctx.schema = s
+
+	s.ctx.Reset(
+		s,
+		options.GetFormFile,
+		options.Context,
+		options.Variables,
+		options.Tracing,
+	)
+
+	s.ctx.result = s.ctx.result[:0]
+	if !options.ReturnOnlyData {
+		s.ctx.writeString(`{"data":`)
+	}
+
+	sendEmptyResult := s.ResolveContent(query, &options)
 	if options.Tracing {
-		s.tracing = tracer{
+		s.ctx.tracing.finish()
+		s.ctx.extensions["tracing"] = s.ctx.tracing
+	}
+	if !options.ReturnOnlyData {
+		s.ctx.CompleteResult(sendEmptyResult, true, true)
+	}
+
+	return s.ctx.result, s.ctx.errors
+}
+
+func (ctx *Ctx) Reset(
+	schema *Schema,
+	getFormFile func(key string) (*multipart.FileHeader, error),
+	context context.Context,
+	jsonVariablesString string,
+	tracing bool,
+) {
+	*ctx = Ctx{
+		// Private
+		fragments:           ctx.fragments,
+		schema:              schema,
+		errors:              ctx.errors[:0],
+		operator:            ctx.operator,
+		jsonVariablesString: jsonVariablesString,
+		jsonVariables:       nil,
+		path:                ctx.path[:0],
+		context:             context,
+		getFormFile:         getFormFile,
+		extensions:          map[string]interface{}{},
+		tracingEnabled:      tracing,
+		tracing:             ctx.tracing,
+
+		// zero alloc values
+		reflectValues: ctx.reflectValues,
+		result:        ctx.result[:0],
+
+		Values: map[string]interface{}{},
+	}
+
+	if tracing {
+		ctx.tracing = &tracer{
 			Version:     1,
 			GoStartTime: time.Now(),
 			Execution: tracerExecution{
@@ -53,29 +109,58 @@ func (s *Schema) Resolve(query string, options ResolveOptions) (data string, ext
 			},
 		}
 	}
+}
 
-	s.ctx.schema = s
-	if s.ctx.errors == nil {
-		s.ctx.errors = []error{}
-	} else {
-		s.ctx.errors = s.ctx.errors[:0]
+func (ctx *Ctx) CompleteResult(sendEmptyResult, includeErrs, includeExtensions bool) {
+	if sendEmptyResult {
+		ctx.result = ctx.result[:0]
+		ctx.writeString(`{"data":{}`)
 	}
-	s.ctx.jsonVariablesString = options.Variables
-	s.ctx.jsonVariables = nil
-	if s.ctx.path == nil {
-		s.ctx.path = pathT{}
-	} else {
-		s.ctx.path = s.ctx.path[:0]
-	}
-	s.ctx.context = options.Context
-	s.ctx.getFormFile = options.GetFormFile
-	s.ctx.extensions = map[string]interface{}{}
-	s.ctx.Values = map[string]interface{}{}
-	s.ctx.result.Reset()
 
+	if includeErrs && len(ctx.errors) > 0 {
+		ctx.writeString(`,"errors":[`)
+		for i, err := range ctx.errors {
+			if i > 0 {
+				ctx.writeByte(',')
+			}
+			ctx.writeString(`{"message":`)
+			stringToJson([]byte(err.Error()), &ctx.result, true)
+
+			errWPath, isErrWPath := err.(ErrorWPath)
+			if isErrWPath && len(errWPath.path) > 0 {
+				ctx.writeString(`,"path":`)
+				errWPath.path.toJson(&ctx.result)
+			}
+			errWLocation, isErrWLocation := err.(ErrorWLocation)
+			if isErrWLocation {
+				ctx.writeString(`,"locations":[{"line":`)
+				ctx.writeString(strconv.FormatUint(uint64(errWLocation.line), 10))
+				ctx.writeString(`,"column":`)
+				ctx.writeString(strconv.FormatUint(uint64(errWLocation.column), 10))
+				ctx.writeString(`}]`)
+			}
+			ctx.writeByte('}')
+		}
+		ctx.writeByte(']')
+	}
+
+	if includeExtensions && len(ctx.extensions) > 0 {
+		extensionsJson, err := json.Marshal(ctx.extensions)
+		if err == nil {
+			ctx.writeString(`,"extensions":`)
+			ctx.writeString(string(extensionsJson))
+		}
+	}
+
+	strings.NewReader("some io.Reader stream to be read\n")
+
+	ctx.writeByte('}')
+}
+
+func (s *Schema) ResolveContent(query string, options *ResolveOptions) (treadResultAsEmpty bool) {
 	fragments, operatorsMap, errs := ParseQueryAndCheckNames(query, &s.ctx)
 	if len(errs) > 0 {
-		return "{}", nil, errs
+		return true
 	}
 
 	s.ctx.fragments = fragments
@@ -83,24 +168,17 @@ func (s *Schema) Resolve(query string, options ResolveOptions) (data string, ext
 		s.ctx.Values = options.Values
 	}
 
-	getExtensions := func() map[string]interface{} {
-		if options.Tracing {
-			s.tracing.finish()
-			s.ctx.extensions["tracing"] = s.tracing
-		}
-		return s.ctx.extensions
-	}
-
 	switch len(operatorsMap) {
 	case 0:
-		return "{}", getExtensions(), nil
+		return true
 	case 1:
 		for _, operator := range operatorsMap {
 			s.ctx.operator = &operator
 		}
 	default:
 		if options.OperatorTarget == "" {
-			return "{}", getExtensions(), []error{errors.New("multiple operators defined without target")}
+			s.ctx.errors = append(s.ctx.errors, errors.New("multiple operators defined without target"))
+			return true
 		}
 
 		operator, ok := operatorsMap[options.OperatorTarget]
@@ -109,13 +187,14 @@ func (s *Schema) Resolve(query string, options ResolveOptions) (data string, ext
 			for k := range operatorsMap {
 				operatorsList = append(operatorsList, k)
 			}
-			return "{}", getExtensions(), []error{fmt.Errorf("%s is not a valid operator, available operators: %s", options.OperatorTarget, strings.Join(operatorsList, ", "))}
+			s.ctx.errors = append(s.ctx.errors, errors.New(options.OperatorTarget+" is not a valid operator, available operators: "+strings.Join(operatorsList, ", ")))
+			return true
 		}
 		s.ctx.operator = &operator
 	}
 
 	s.ctx.start()
-	return s.ctx.result.String(), getExtensions(), s.ctx.errors
+	return false
 }
 
 func (ctx *Ctx) start() {
@@ -129,23 +208,23 @@ func (ctx *Ctx) start() {
 	case "subscription":
 		// TODO
 		ctx.addErr("subscription not suppored yet")
-		ctx.result.WriteString("{}")
+		ctx.writeString("{}")
 	default:
 		ctx.addErrf("%s cannot be used as operator", ctx.operator.operationType)
-		ctx.result.WriteString("{}")
+		ctx.writeString("{}")
 	}
 }
 
 func (ctx *Ctx) resolveSelection(selectionSet selectionSet, structType *obj, dept uint8) {
 	if dept >= ctx.schema.MaxDepth {
 		ctx.addErr("reached max dept")
-		ctx.result.WriteString("null")
+		ctx.writeString("null")
 		return
 	}
 
-	ctx.result.WriteString("{")
-	ctx.resolveSelectionContent(selectionSet, structType, dept, ctx.result.Len())
-	ctx.result.WriteString("}")
+	ctx.writeString("{")
+	ctx.resolveSelectionContent(selectionSet, structType, dept, len(ctx.result))
+	ctx.writeString("}")
 }
 
 func (ctx *Ctx) resolveSelectionContentDirectiveCheck(directives directives) (include bool, err error) {
@@ -196,7 +275,7 @@ func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, structType *o
 				}
 			}
 
-			ctx.resolveField(selection.field, structType, dept, ctx.result.Len() > startLen)
+			ctx.resolveField(selection.field, structType, dept, len(ctx.result) > startLen)
 		case "FragmentSpread":
 			if dept >= ctx.schema.MaxDepth {
 				continue
@@ -251,17 +330,19 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 	if query.name == "__typename" {
 		// TODO currently this isn't traced
 		if placeCommaInFront {
-			ctx.result.WriteByte(',')
+			ctx.writeByte(',')
 		}
-		ctx.result.WriteByte('"')
-		ctx.result.WriteString(name)
-		ctx.result.WriteString(`":"`)
-		ctx.result.WriteString(codeStructure.typeName)
-		ctx.result.WriteByte('"')
+		ctx.writeByte('"')
+		ctx.writeString(name)
+		ctx.writeString(`":"`)
+		ctx.writeString(codeStructure.typeName)
+		ctx.writeByte('"')
 		return
 	}
 
-	ctx.path = append(ctx.path, fmt.Sprintf("%q", name))
+	pathAppend := []byte{}
+	stringToJson([]byte(name), &pathAppend, true)
+	ctx.path = append(ctx.path, string(pathAppend))
 
 	structItem, ok := codeStructure.objContents[query.name]
 	if !ok {
@@ -270,15 +351,15 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 		return
 	}
 
-	defer ctx.finishTrace(func(t *tracer, offset, duration int64) {
-		path := bytes.NewBuffer(nil)
-		ctx.path.toJson(path)
+	defer ctx.finishTrace(func(offset, duration int64) {
+		path := []byte{}
+		ctx.path.toJson(&path)
 
 		returnType := bytes.NewBuffer(nil)
 		ctx.schema.objToQlTypeName(structItem, returnType)
 
-		t.Execution.Resolvers = append(t.Execution.Resolvers, tracerResolver{
-			Path:        json.RawMessage(path.String()),
+		ctx.tracing.Execution.Resolvers = append(ctx.tracing.Execution.Resolvers, tracerResolver{
+			Path:        json.RawMessage(string(path)),
 			ParentType:  codeStructure.typeName,
 			FieldName:   query.name,
 			ReturnType:  returnType.String(),
@@ -288,11 +369,11 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 	})
 
 	if placeCommaInFront {
-		ctx.result.WriteByte(',')
+		ctx.writeByte(',')
 	}
-	ctx.result.WriteByte('"')
-	ctx.result.WriteString(name)
-	ctx.result.WriteString(`":`)
+	ctx.writeByte('"')
+	ctx.writeString(name)
+	ctx.writeString(`":`)
 
 	value := ctx.value()
 	ctx.currentReflectValueIdx++
@@ -550,7 +631,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 		method := codeStructure.method
 
 		if !method.isTypeMethod && value.IsNil() {
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 			return
 		}
 
@@ -574,7 +655,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			err := ctx.matchInputValue(&queryValue, &goField, &inField.input)
 			if err != nil {
 				ctx.addErrf("%s, property: %s", err.Error(), queryKey)
-				ctx.result.WriteString("null")
+				ctx.writeString("null")
 				return
 			}
 		}
@@ -587,7 +668,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 				err, ok := errOut.Interface().(error)
 				if !ok {
 					ctx.addErr("returned a invalid kind of error")
-					ctx.result.WriteString("null")
+					ctx.writeString("null")
 					return
 				} else if err != nil {
 					ctx.addErr(err.Error())
@@ -600,7 +681,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			if err != nil {
 				// Context ended
 				ctx.addErr(err.Error())
-				ctx.result.WriteString("null")
+				ctx.writeString("null")
 				return
 			}
 		}
@@ -612,18 +693,18 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 		return
 	case valueTypeArray:
 		if (value.Kind() != reflect.Array && value.Kind() != reflect.Slice) || value.IsNil() {
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 			return
 		}
 
 		if codeStructure.innerContent == nil {
 			ctx.addErr("server didn't expected an array")
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 			return
 		}
 		codeStructure = codeStructure.innerContent
 
-		ctx.result.WriteByte('[')
+		ctx.writeByte('[')
 		for i := 0; i < value.Len(); i++ {
 			ctx.path = append(ctx.path, strconv.Itoa(i))
 			ctx.currentReflectValueIdx++
@@ -631,18 +712,18 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 
 			ctx.resolveFieldDataValue(query, codeStructure, dept)
 			if i < value.Len()-1 {
-				ctx.result.WriteByte(',')
+				ctx.writeByte(',')
 			}
 
 			ctx.path = ctx.path[:len(ctx.path)-1]
 			ctx.currentReflectValueIdx--
 		}
-		ctx.result.WriteByte(']')
+		ctx.writeByte(']')
 		return
 	case valueTypeObj, valueTypeObjRef:
 		if len(query.selection) == 0 {
 			ctx.addErr("must have a selection")
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 			return
 		}
 
@@ -651,7 +732,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			codeStructure, ok = ctx.schema.types[codeStructure.typeName]
 			if !ok {
 				ctx.addErr("cannot have a selection")
-				ctx.result.WriteString("null")
+				ctx.writeString("null")
 				return
 			}
 		}
@@ -661,15 +742,15 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 	case valueTypeData:
 		if len(query.selection) > 0 {
 			ctx.addErr("cannot have a selection")
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 			return
 		}
 
 		if codeStructure.isID && codeStructure.dataValueType != reflect.String {
 			// Graphql ID fields are always strings
-			ctx.result.WriteByte('"')
+			ctx.writeByte('"')
 			ctx.valueToJson(value.Interface())
-			ctx.result.WriteByte('"')
+			ctx.writeByte('"')
 		} else {
 			ctx.valueToJson(value.Interface())
 		}
@@ -677,7 +758,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 		return
 	case valueTypePtr:
 		if value.Kind() != reflect.Ptr || value.IsNil() {
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 			return
 		}
 
@@ -691,24 +772,24 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 
 		key := enum.valueKey.MapIndex(value)
 		if !key.IsValid() {
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 			return
 		}
-		ctx.result.WriteByte('"')
-		ctx.result.WriteString(key.Interface().(string))
-		ctx.result.WriteByte('"')
+		ctx.writeByte('"')
+		ctx.writeString(key.Interface().(string))
+		ctx.writeByte('"')
 		return
 	case valueTypeTime:
 		timeValue, ok := value.Interface().(time.Time)
 		if !ok {
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 			return
 		}
 		ctx.valueToJson(timeToString(timeValue))
 		return
 	default:
 		ctx.addErr("has invalid data type")
-		ctx.result.WriteString("null")
+		ctx.writeString("null")
 		return
 	}
 }
@@ -719,128 +800,128 @@ func (ctx *Ctx) valueToJson(in interface{}) {
 		stringToJson([]byte(v), &ctx.result, true)
 	case bool:
 		if v {
-			ctx.result.WriteString("true")
+			ctx.writeString("true")
 		} else {
-			ctx.result.WriteString("false")
+			ctx.writeString("false")
 		}
 	case int:
-		ctx.result.WriteString(strconv.Itoa(v))
+		ctx.writeString(strconv.Itoa(v))
 	case int8:
-		ctx.result.WriteString(strconv.Itoa(int(v)))
+		ctx.writeString(strconv.Itoa(int(v)))
 	case int16:
-		ctx.result.WriteString(strconv.Itoa(int(v)))
+		ctx.writeString(strconv.Itoa(int(v)))
 	case int32: // == rune
-		ctx.result.WriteString(strconv.Itoa(int(v)))
+		ctx.writeString(strconv.Itoa(int(v)))
 	case int64:
-		ctx.result.WriteString(strconv.FormatInt(v, 10))
+		ctx.writeString(strconv.FormatInt(v, 10))
 	case uint:
-		ctx.result.WriteString(strconv.FormatUint(uint64(v), 10))
+		ctx.writeString(strconv.FormatUint(uint64(v), 10))
 	case uint8: // == byte
-		ctx.result.WriteString(strconv.FormatUint(uint64(v), 10))
+		ctx.writeString(strconv.FormatUint(uint64(v), 10))
 	case uint16:
-		ctx.result.WriteString(strconv.FormatUint(uint64(v), 10))
+		ctx.writeString(strconv.FormatUint(uint64(v), 10))
 	case uint32:
-		ctx.result.WriteString(strconv.FormatUint(uint64(v), 10))
+		ctx.writeString(strconv.FormatUint(uint64(v), 10))
 	case uint64:
-		ctx.result.WriteString(strconv.FormatUint(v, 10))
+		ctx.writeString(strconv.FormatUint(v, 10))
 	case uintptr:
-		ctx.result.WriteString(strconv.FormatUint(uint64(v), 10))
+		ctx.writeString(strconv.FormatUint(uint64(v), 10))
 	case float32:
 		floatToJson(32, float64(v), &ctx.result)
 	case float64:
 		floatToJson(64, v, &ctx.result)
 	case *string:
 		if v == nil {
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *bool:
 		if v == nil {
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *int:
 		if v == nil {
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *int8:
 		if v == nil {
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *int16:
 		if v == nil {
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *int32: // = *rune
 		if v == nil {
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *int64:
 		if v == nil {
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *uint:
 		if v == nil {
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *uint8: // = *byte
 		if v == nil {
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *uint16:
 		if v == nil {
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *uint32:
 		if v == nil {
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *uint64:
 		if v == nil {
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *uintptr:
 		if v == nil {
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *float32:
 		if v == nil {
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *float64:
 		if v == nil {
-			ctx.result.WriteString("null")
+			ctx.writeString("null")
 		} else {
 			ctx.valueToJson(*v)
 		}
 	default:
-		ctx.result.WriteString("null")
+		ctx.writeString("null")
 	}
 }
 

@@ -65,8 +65,7 @@ func main() {
 			},
 		)
 
-		c.Header("Content-Type", "application/json")
-		c.String(200, res)
+		c.Data(200, "application/json", res)
 	})
 
 	r.Run()

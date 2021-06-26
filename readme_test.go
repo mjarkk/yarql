@@ -32,14 +32,14 @@ func TestReadmeExample(t *testing.T) {
 		log.Fatal(err)
 	}
 
-	out := GenerateResponse(s.Resolve(`
+	out, _ := s.Resolve(`
 		{
 			posts {
 				id
 				name
 			}
 		}
-	`, ResolveOptions{}))
+	`, ResolveOptions{})
 
-	Equal(t, `{"data":{"posts":[{"id":"1","name":"post 1"},{"id":"2","name":"post 2"},{"id":"3","name":"post 3"}]}}`, out)
+	Equal(t, `{"data":{"posts":[{"id":"1","name":"post 1"},{"id":"2","name":"post 2"},{"id":"3","name":"post 3"}]}}`, string(out))
 }

@@ -1,7 +1,6 @@
 package graphql
 
 import (
-	"bytes"
 	"unicode/utf8"
 )
 
@@ -13,10 +12,10 @@ import (
 // license that can be found in the LICENSE file.
 //
 // IMPORTANT the full license can be found in this repo: https://github.com/golang/go
-func stringToJson(s []byte, e *bytes.Buffer, escapeHTML bool) {
+func stringToJson(s []byte, e *[]byte, escapeHTML bool) {
 	const hex = "0123456789abcdef"
 
-	e.WriteByte('"')
+	*e = append(*e, '"')
 	start := 0
 	for i := 0; i < len(s); {
 		if b := s[i]; b < utf8.RuneSelf {
@@ -25,27 +24,27 @@ func stringToJson(s []byte, e *bytes.Buffer, escapeHTML bool) {
 				continue
 			}
 			if start < i {
-				e.Write(s[start:i])
+				*e = append(*e, s[start:i]...)
 			}
-			e.WriteByte('\\')
+			*e = append(*e, '\\')
 			switch b {
 			case '\\', '"':
-				e.WriteByte(b)
+				*e = append(*e, b)
 			case '\n':
-				e.WriteByte('n')
+				*e = append(*e, 'n')
 			case '\r':
-				e.WriteByte('r')
+				*e = append(*e, 'r')
 			case '\t':
-				e.WriteByte('t')
+				*e = append(*e, 't')
 			default:
 				// This encodes bytes < 0x20 except for \t, \n and \r.
 				// If escapeHTML is set, it also escapes <, >, and &
 				// because they can lead to security holes when
 				// user-controlled strings are rendered into JSON
 				// and served to some browsers.
-				e.WriteString(`u00`)
-				e.WriteByte(hex[b>>4])
-				e.WriteByte(hex[b&0xF])
+				*e = append(*e, []byte(`u00`)...)
+				*e = append(*e, hex[b>>4])
+				*e = append(*e, hex[b&0xF])
 			}
 			i++
 			start = i
@@ -54,9 +53,9 @@ func stringToJson(s []byte, e *bytes.Buffer, escapeHTML bool) {
 		c, size := utf8.DecodeRune(s[i:])
 		if c == utf8.RuneError && size == 1 {
 			if start < i {
-				e.Write(s[start:i])
+				*e = append(*e, s[start:i]...)
 			}
-			e.WriteString(`\ufffd`)
+			*e = append(*e, []byte(`\ufffd`)...)
 			i += size
 			start = i
 			continue
@@ -70,10 +69,10 @@ func stringToJson(s []byte, e *bytes.Buffer, escapeHTML bool) {
 		// See http://timelessrepo.com/json-isnt-a-javascript-subset for discussion.
 		if c == '\u2028' || c == '\u2029' {
 			if start < i {
-				e.Write(s[start:i])
+				*e = append(*e, s[start:i]...)
 			}
-			e.WriteString(`\u202`)
-			e.WriteByte(hex[c&0xF])
+			*e = append(*e, []byte(`\u202`)...)
+			*e = append(*e, hex[c&0xF])
 			i += size
 			start = i
 			continue
@@ -81,9 +80,9 @@ func stringToJson(s []byte, e *bytes.Buffer, escapeHTML bool) {
 		i += size
 	}
 	if start < len(s) {
-		e.Write(s[start:])
+		*e = append(*e, s[start:]...)
 	}
-	e.WriteByte('"')
+	*e = append(*e, '"')
 }
 
 // safeSet holds the value true if the ASCII character with the given array

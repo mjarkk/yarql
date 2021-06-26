@@ -3,56 +3,12 @@ package graphql
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"mime/multipart"
-	"strconv"
 	"strings"
 
 	"github.com/valyala/fastjson"
 )
-
-func GenerateResponse(data string, extensions map[string]interface{}, errors []error) string {
-	res := bytes.NewBufferString(`{"data":`)
-	res.WriteString(data)
-
-	if len(errors) > 0 {
-		res.WriteString(`,"errors":[`)
-		for i, err := range errors {
-			if i > 0 {
-				res.WriteByte(',')
-			}
-			res.WriteString(`{"message":`)
-			stringToJson([]byte(err.Error()), res, true)
-
-			errWPath, isErrWPath := err.(ErrorWPath)
-			if isErrWPath && len(errWPath.path) > 0 {
-				res.WriteString(`,"path":`)
-				errWPath.path.toJson(res)
-			}
-			errWLocation, isErrWLocation := err.(ErrorWLocation)
-			if isErrWLocation {
-				res.WriteString(`,"locations":[{"line":`)
-				res.WriteString(strconv.FormatUint(uint64(errWLocation.line), 10))
-				res.WriteString(`,"column":`)
-				res.WriteString(strconv.FormatUint(uint64(errWLocation.column), 10))
-				res.WriteString(`}]`)
-			}
-
-			res.WriteByte('}')
-		}
-		res.WriteByte(']')
-	}
-	if len(extensions) > 0 {
-		extensionsJson, err := json.Marshal(extensions)
-		if err == nil {
-			res.WriteString(`,"extensions":`)
-			res.WriteString(string(extensionsJson))
-		}
-	}
-	res.WriteByte('}')
-	return res.String()
-}
 
 type RequestOptions struct {
 	Context     context.Context                                 // Request context can be used to verify
@@ -68,12 +24,20 @@ func (s *Schema) HandleRequest(
 	getBody func() []byte, // get the request body
 	contentType string, // body content type, can be an empty string if method == "GET"
 	options *RequestOptions, // optional options
-) (string, []error) {
+) ([]byte, []error) {
 	method = strings.ToUpper(method)
 
-	errRes := func(errorMsg string) (string, []error) {
-		errs := []error{errors.New(errorMsg)}
-		return GenerateResponse("{}", nil, errs), errs
+	errRes := func(errorMsg string) ([]byte, []error) {
+		// TODO have some general way to easially create responses that is fast
+		s.m.Lock()
+		defer s.m.Unlock()
+
+		s.ctx.result = s.ctx.result[:0]
+		s.ctx.errors = append(s.ctx.errors[:0], errors.New(errorMsg))
+
+		s.ctx.CompleteResult(true, true, false)
+
+		return s.ctx.result, s.ctx.errors
 	}
 
 	if contentType == "application/json" || ((contentType == "text/plain" || contentType == "multipart/form-data") && method != "GET") {
@@ -81,7 +45,7 @@ func (s *Schema) HandleRequest(
 		if contentType == "multipart/form-data" {
 			value, err := getFormField("operations")
 			if err != nil {
-				return "{}", []error{err}
+				return []byte("{}"), []error{err}
 			}
 			body = []byte(value)
 		} else {
@@ -99,31 +63,35 @@ func (s *Schema) HandleRequest(
 		if v.Type() == fastjson.TypeArray {
 			// Handle batch query
 			responseErrs := []error{}
-			responses := []string{}
+			response := bytes.NewBuffer([]byte("["))
 			for _, item := range v.GetArray() {
 				// TODO potential speed improvement by executing all items at once
 				if item == nil {
 					continue
 				}
 
+				if response.Len() > 1 {
+					response.WriteByte(',')
+				}
+
 				query, operationName, variables, err := getBodyData(item)
-				var res string
-				var errs []error
 				if err != nil {
 					responseErrs = append(responseErrs, err)
-					responses = append(responses, "")
+					res, _ := errRes(err.Error())
+					response.Write(res)
 				} else {
-					res, errs = s.handleSingleRequest(
+					res, errs := s.handleSingleRequest(
 						query,
 						variables,
 						operationName,
 						options,
 					)
+					responseErrs = append(responseErrs, errs...)
+					response.Write(res)
 				}
-				responseErrs = append(responseErrs, errs...)
-				responses = append(responses, res)
 			}
-			return "[" + strings.Join(responses, ",") + "]", responseErrs
+			response.WriteByte(']')
+			return response.Bytes(), responseErrs
 		}
 
 		query, operationName, variables, err := getBodyData(v)
@@ -151,7 +119,7 @@ func (s *Schema) handleSingleRequest(
 	variables,
 	operationName string,
 	options *RequestOptions,
-) (string, []error) {
+) ([]byte, []error) {
 	resolveOptions := ResolveOptions{
 		OperatorTarget: operationName,
 		Variables:      variables,
@@ -169,8 +137,7 @@ func (s *Schema) handleSingleRequest(
 		resolveOptions.Tracing = options.Tracing
 	}
 
-	body, extensions, errs := s.Resolve(query, resolveOptions)
-	return GenerateResponse(body, extensions, errs), errs
+	return s.Resolve(query, resolveOptions)
 }
 
 func getBodyData(body *fastjson.Value) (query, operationName, variables string, err error) {

@@ -1,44 +1,12 @@
 package graphql
 
 import (
-	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
 
 	. "github.com/stretchr/testify/assert"
 )
-
-func checkValidJson(t *testing.T, in string) {
-	True(t, json.Valid([]byte(in)), in)
-}
-
-func TestGenerateResponse(t *testing.T) {
-	checkValidJson(t, GenerateResponse("{}", nil, nil))
-}
-
-func TestGenerateResponseWError(t *testing.T) {
-	checkValidJson(t, GenerateResponse("{}", nil, []error{errors.New("test")}))
-}
-
-func TestGenerateResponseWErrors(t *testing.T) {
-	checkValidJson(t, GenerateResponse("{}", nil, []error{errors.New("A"), errors.New("B")}))
-}
-
-func TestGenerateResponseWErrorWPath(t *testing.T) {
-	j := GenerateResponse("{}", nil, []error{ErrorWPath{err: errors.New("name invalid"), path: pathT{`"users"`, `2`, `"name"`}}})
-	checkValidJson(t, j)
-	True(t, strings.Contains(j, `"users"`))
-	True(t, strings.Contains(j, `2`))
-	True(t, strings.Contains(j, `"name"`))
-}
-
-func TestGenerateResponseWErrorWLocation(t *testing.T) {
-	j := GenerateResponse("{}", nil, []error{ErrorWLocation{err: errors.New("name invalid"), line: 4, column: 9}})
-	checkValidJson(t, j)
-	True(t, strings.Contains(j, "4"), "Contains the line number")
-	True(t, strings.Contains(j, "9"), "Contains the column number")
-}
 
 func TestHandleRequestRequestInURL(t *testing.T) {
 	s, err := ParseSchema(TestExecSchemaRequestWithFieldsData{A: TestExecSchemaRequestWithFieldsDataInnerStruct{Bar: "baz"}}, M{}, nil)
@@ -62,7 +30,7 @@ func TestHandleRequestRequestInURL(t *testing.T) {
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"data":{"a":{"bar":"baz"}}}`, res)
+	Equal(t, `{"data":{"a":{"bar":"baz"}}}`, string(res))
 }
 
 func TestHandleRequestRequestJsonBody(t *testing.T) {
@@ -101,7 +69,7 @@ func TestHandleRequestRequestJsonBody(t *testing.T) {
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"data":{"a":{"bar":"baz"}}}`, res)
+	Equal(t, `{"data":{"a":{"bar":"baz"}}}`, string(res))
 }
 
 func TestHandleRequestRequestForm(t *testing.T) {
@@ -144,7 +112,7 @@ func TestHandleRequestRequestForm(t *testing.T) {
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"data":{"a":{"bar":"baz"}}}`, res)
+	Equal(t, `{"data":{"a":{"bar":"baz"}}}`, string(res))
 }
 
 func TestHandleRequestRequestBatch(t *testing.T) {
@@ -190,5 +158,5 @@ func TestHandleRequestRequestBatch(t *testing.T) {
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `[{"data":{"a":{"bar":"baz"}}},{"data":{"a":{"foo":null}}}]`, res)
+	Equal(t, `[{"data":{"a":{"bar":"baz"}}},{"data":{"a":{"foo":null}}}]`, string(res))
 }

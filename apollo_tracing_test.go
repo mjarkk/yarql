@@ -2,7 +2,6 @@ package graphql
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	. "github.com/stretchr/testify/assert"
@@ -14,28 +13,34 @@ func TestApolloTracing(t *testing.T) {
 
 	query := `{a{bar}}`
 
-	_, extensions, errs := s.Resolve(query, ResolveOptions{Tracing: false})
+	data, errs := s.Resolve(query, ResolveOptions{Tracing: false})
 	for _, err := range errs {
 		panic(err)
 	}
-	_, ok := extensions["tracing"]
-	False(t, ok)
 
-	out, extensions, errs := s.Resolve(query, ResolveOptions{Tracing: true})
+	type ExtensionsFromData struct {
+		Extensions struct {
+			Tracing *tracer `json:"tracing"`
+		} `json:"extensions"`
+	}
+	parsedRes := ExtensionsFromData{}
+	json.Unmarshal(data, &parsedRes)
+
+	Nil(t, parsedRes.Extensions.Tracing)
+
+	data, errs = s.Resolve(query, ResolveOptions{Tracing: true})
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"a":{"bar":"baz"}}`, out)
-	tracingIntf, ok := extensions["tracing"]
-	True(t, ok, "tracing entity should exists")
 
-	tracing, ok := tracingIntf.(tracer)
-	True(t, ok, "tracing entity should be of type *tracer")
+	json.Unmarshal(data, &parsedRes)
+	tracing := parsedRes.Extensions.Tracing
+	NotNil(t, tracing)
 
 	Equal(t, uint8(1), tracing.Version)
 	NotEqual(t, "", tracing.StartTime)
 	NotEqual(t, "", tracing.EndTime)
-	fmt.Printf("%+v\n", len(tracing.Execution.Resolvers))
+	Greater(t, len(tracing.Execution.Resolvers), 0)
 	for _, item := range tracing.Execution.Resolvers {
 		True(t, json.Valid(item.Path))
 		NotEqual(t, "", item.ParentType)

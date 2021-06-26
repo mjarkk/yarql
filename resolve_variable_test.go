@@ -15,7 +15,7 @@ func TestResolveSimpleVariable(t *testing.T) {
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"bar":"foo"}`, out)
+	Equal(t, `{"data":{"bar":"foo"}}`, out)
 
 	// Default variable
 	variables = ``
@@ -23,7 +23,7 @@ func TestResolveSimpleVariable(t *testing.T) {
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"bar":"foo"}`, out)
+	Equal(t, `{"data":{"bar":"foo"}}`, out)
 
 	// Default variable and set variable
 	variables = `{"baz": "FOOBAR"}`
@@ -31,7 +31,7 @@ func TestResolveSimpleVariable(t *testing.T) {
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"bar":"FOOBAR"}`, out)
+	Equal(t, `{"data":{"bar":"FOOBAR"}}`, out)
 }
 
 type TestResolveOtherSimpleVariableData struct{}
@@ -68,7 +68,7 @@ func TestResolveOtherSimpleVariable(t *testing.T) {
 		for _, err := range errs {
 			panic(err)
 		}
-		Equal(t, fmt.Sprintf(`{"%s":%s}`, field, test.value), out)
+		Equal(t, fmt.Sprintf(`{"data":{"%s":%s}}`, field, test.value), out)
 
 		// Using default variable
 		query = fmt.Sprintf(`query($baz: %s = %s) {%s(a: $baz)}`, test.type_, test.value, field)
@@ -76,7 +76,7 @@ func TestResolveOtherSimpleVariable(t *testing.T) {
 		for _, err := range errs {
 			panic(err)
 		}
-		Equal(t, fmt.Sprintf(`{"%s":%s}`, field, test.value), out)
+		Equal(t, fmt.Sprintf(`{"data":{"%s":%s}}`, field, test.value), out)
 	}
 
 }
@@ -94,14 +94,14 @@ func TestResolveArrayVariable(t *testing.T) {
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"bar":[2,3]}`, out)
+	Equal(t, `{"data":{"bar":[2,3]}}`, out)
 
 	// Default variable
 	out, errs = parseAndTestWithOptions(t, `query($baz: [Int] = [2,3]) {bar(a: $baz)}`, TestResolveArrayVariableData{}, M{}, 255, ResolveOptions{})
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"bar":[2,3]}`, out)
+	Equal(t, `{"data":{"bar":[2,3]}}`, out)
 }
 
 type TestResolveEnumVariableData struct{}
@@ -117,14 +117,14 @@ func TestResolveEnumVariable(t *testing.T) {
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"bar":"UNION"}`, out)
+	Equal(t, `{"data":{"bar":"UNION"}}`, out)
 
 	// Default variable
 	out, errs = parseAndTestWithOptions(t, `query($baz: __TypeKind = UNION) {bar(a: $baz)}`, TestResolveEnumVariableData{}, M{}, 255, ResolveOptions{})
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"bar":"UNION"}`, out)
+	Equal(t, `{"data":{"bar":"UNION"}}`, out)
 }
 
 type TestResolveStructVariableData struct {
@@ -143,12 +143,12 @@ func TestResolveStructVariable(t *testing.T) {
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"bar":{"a":"foo","b":3}}`, out)
+	Equal(t, `{"data":{"bar":{"a":"foo","b":3}}}`, out)
 
 	// Default variable
 	out, errs = parseAndTestWithOptions(t, `query($baz: TestResolveStructVariableData__input = {a: "foo", b: 3}) {bar(a: $baz) {a b}}`, TestResolveStructVariableData{}, M{}, 255, ResolveOptions{})
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"bar":{"a":"foo","b":3}}`, out)
+	Equal(t, `{"data":{"bar":{"a":"foo","b":3}}}`, out)
 }

@@ -27,7 +27,7 @@ func TypeRename(type_ interface{}, newName string, force ...bool) string {
 	}
 
 	if len(force) == 0 || !force[0] {
-		err := validGraphQlName(newName)
+		err := validGraphQlName([]byte(newName))
 		if err != nil {
 			log.Panicf("GraphQl cannot rename typeof of %s with name %s to %s, err: %s", t.Kind().String(), originalName, newName, err.Error())
 		}

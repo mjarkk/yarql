@@ -41,17 +41,17 @@ func (t *tracer) finish() {
 	t.Duration = now.Sub(t.GoStartTime).Nanoseconds()
 }
 
-func (ctx *Ctx) finishTrace(report func(t *tracer, offset, duration int64)) {
-	if ctx.schema.tracingEnabled {
+func (ctx *Ctx) finishTrace(report func(offset, duration int64)) {
+	if ctx.tracingEnabled {
 		f := ctx.prefRecordingStartTime
-		offset := f.Sub(ctx.schema.tracing.GoStartTime).Nanoseconds()
+		offset := f.Sub(ctx.tracing.GoStartTime).Nanoseconds()
 		duration := time.Since(f).Nanoseconds()
-		report(&ctx.schema.tracing, offset, duration)
+		report(offset, duration)
 	}
 }
 
 func (ctx *Ctx) startTrace() {
-	if ctx.schema.tracingEnabled {
+	if ctx.tracingEnabled {
 		ctx.prefRecordingStartTime = time.Now()
 	}
 }

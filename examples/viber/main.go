@@ -30,7 +30,7 @@ func main() {
 		)
 
 		c.Response().Header.Set("Content-Type", "application/json")
-		return c.SendString(res)
+		return c.Send(res)
 	})
 
 	app.Listen(":3000")

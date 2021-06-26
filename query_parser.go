@@ -1163,6 +1163,32 @@ var parseNameAllowedChars = map[byte]bool{
 	'x': true,
 	'y': true,
 	'z': true,
+	'A': true,
+	'B': true,
+	'C': true,
+	'D': true,
+	'E': true,
+	'F': true,
+	'G': true,
+	'H': true,
+	'I': true,
+	'J': true,
+	'K': true,
+	'L': true,
+	'M': true,
+	'N': true,
+	'O': true,
+	'P': true,
+	'Q': true,
+	'R': true,
+	'S': true,
+	'T': true,
+	'U': true,
+	'V': true,
+	'W': true,
+	'X': true,
+	'Y': true,
+	'Z': true,
 	'1': false,
 	'2': false,
 	'3': false,
@@ -1178,6 +1204,7 @@ var parseNameAllowedChars = map[byte]bool{
 
 // https://spec.graphql.org/June2018/#Name
 func (i *iter) parseName() (string, *ErrorWLocation) {
+	// TODO check if checking if char is in char range of A-Z a-z 0-9
 	name := []byte{}
 	for {
 		c, eof := i.checkC(i.charNr)
@@ -1185,7 +1212,7 @@ func (i *iter) parseName() (string, *ErrorWLocation) {
 			return string(name), i.unexpectedEOF()
 		}
 
-		allowedAsFirstChar, ok := parseNameAllowedChars[bytes.ToLower([]byte{c})[0]]
+		allowedAsFirstChar, ok := parseNameAllowedChars[c]
 		if !ok {
 			return string(name), nil
 		}

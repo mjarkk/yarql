@@ -1,7 +1,6 @@
 package graphql
 
 import (
-	"bytes"
 	"math"
 	"strconv"
 )
@@ -14,9 +13,9 @@ import (
 // license that can be found in the LICENSE file.
 //
 // IMPORTANT the full license can be found in this repo: https://github.com/golang/go
-func floatToJson(bits int, f float64, e *bytes.Buffer) {
+func floatToJson(bits int, f float64, e *[]byte) {
 	if math.IsInf(f, 0) || math.IsNaN(f) {
-		e.WriteString("0.0")
+		*e = append(*e, []byte("0.0")...)
 		return
 	}
 
@@ -34,9 +33,10 @@ func floatToJson(bits int, f float64, e *bytes.Buffer) {
 		// clean up e-09 to e-9
 		n := len(b)
 		if n >= 4 && b[n-4:n-1] == "e-0" {
-			e.WriteString(b[:n-2] + b[n-1:])
+			*e = append(*e, b[:n-2]...)
+			*e = append(*e, b[n-1:]...)
 			return
 		}
 	}
-	e.WriteString(b)
+	*e = append(*e, b...)
 }

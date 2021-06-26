@@ -42,6 +42,11 @@ func (s *Schema) getQLSchema() qlSchema {
 			Name:        h.StrPtr(s.rootQuery.typeName),
 			Description: h.StrPtr(""),
 			Fields: func(isDeprecatedArgs) []qlField {
+				fields, ok := s.graphqlObjFields[s.rootQuery.typeName]
+				if ok {
+					return fields
+				}
+
 				res := []qlField{}
 				for key, item := range s.rootQuery.objContents {
 					res = append(res, qlField{
@@ -51,6 +56,8 @@ func (s *Schema) getQLSchema() qlSchema {
 					})
 				}
 				sort.Slice(res, func(a int, b int) bool { return res[a].Name < res[b].Name })
+
+				s.graphqlObjFields[s.rootQuery.typeName] = res
 				return res
 			},
 			Interfaces: []qlType{},
@@ -270,6 +277,11 @@ func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 			Name:        h.StrPtr(item.typeName),
 			Description: h.StrPtr(""),
 			Fields: func(args isDeprecatedArgs) []qlField {
+				fields, ok := s.graphqlObjFields[item.typeName]
+				if ok {
+					return fields
+				}
+
 				res := []qlField{}
 				for key, innerItem := range item.objContents {
 					res = append(res, qlField{
@@ -279,6 +291,8 @@ func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 					})
 				}
 				sort.Slice(res, func(a int, b int) bool { return res[a].Name < res[b].Name })
+
+				s.graphqlObjFields[item.typeName] = res
 				return res
 			},
 			Interfaces: []qlType{},

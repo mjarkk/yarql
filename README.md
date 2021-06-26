@@ -50,16 +50,16 @@ func main() {
 		log.Fatal(err)
 	}
 
-	out := graphql.GenerateResponse(s.Resolve(`
+	out, _ := s.Resolve(`
 		{
 			posts {
 				id
 				name
 			}
 		}
-	`, ""))
+	`, "")
 
-    fmt.Println(out)
+    fmt.Println(string(out))
     // {"data": {
     //   "posts": [
     //     {"id": "1", "name": "post 1"},
