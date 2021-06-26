@@ -1136,6 +1136,46 @@ func (i *iter) parseDirective() (*directive, *ErrorWLocation) {
 	return &res, nil
 }
 
+var parseNameAllowedChars = map[byte]bool{
+	'a': true,
+	'b': true,
+	'c': true,
+	'd': true,
+	'e': true,
+	'f': true,
+	'g': true,
+	'h': true,
+	'i': true,
+	'j': true,
+	'k': true,
+	'l': true,
+	'm': true,
+	'n': true,
+	'o': true,
+	'p': true,
+	'q': true,
+	'r': true,
+	's': true,
+	't': true,
+	'u': true,
+	'v': true,
+	'w': true,
+	'x': true,
+	'y': true,
+	'z': true,
+	'1': false,
+	'2': false,
+	'3': false,
+	'4': false,
+	'5': false,
+	'6': false,
+	'7': false,
+	'8': false,
+	'0': false,
+	'9': false,
+	'_': true,
+}
+
 // https://spec.graphql.org/June2018/#Name
 func (i *iter) parseName() (string, *ErrorWLocation) {
 	name := []byte{}
@@ -1145,7 +1185,7 @@ func (i *iter) parseName() (string, *ErrorWLocation) {
 			return string(name), i.unexpectedEOF()
 		}
 
-		allowedAsFirstChar, ok := allowedChars[bytes.ToLower([]byte{c})[0]]
+		allowedAsFirstChar, ok := parseNameAllowedChars[bytes.ToLower([]byte{c})[0]]
 		if !ok {
 			return string(name), nil
 		}

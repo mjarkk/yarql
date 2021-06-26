@@ -21,7 +21,7 @@ func (s *Schema) injectQLTypes(ctx *parseCtx) {
 
 	// Inject __type(name: String!): __Type
 	typeResolver := func(ctx *Ctx, args struct{ Name string }) *qlType {
-		return ctx.schema.getTypeByName(args.Name, true, true)
+		return ctx.schema.getTypeByName(args.Name)
 	}
 	typeResolverReflection := reflect.ValueOf(typeResolver)
 	functionObj, err := ctx.checkStructFieldFunc("__type", typeResolverReflection.Type(), false)
@@ -41,7 +41,7 @@ func (s *Schema) getQLSchema() qlSchema {
 			Kind:        typeKindObject,
 			Name:        h.StrPtr(s.rootQuery.typeName),
 			Description: h.StrPtr(""),
-			Fields: func(args isDeprecatedArgs) []qlField {
+			Fields: func(isDeprecatedArgs) []qlField {
 				res := []qlField{}
 				for key, item := range s.rootQuery.objContents {
 					res = append(res, qlField{
@@ -106,53 +106,47 @@ func (s *Schema) getDirectives() []qlDirective {
 }
 
 func (s *Schema) getAllQLTypes() []qlType {
-	res := []qlType{}
+	if s.graphqlTypesList == nil {
+		s.graphqlTypesList = make([]qlType, len(s.types)+len(s.inTypes)+len(definedEnums)+len(scalars))
+		idx := 0
 
-	for _, type_ := range s.types {
-		obj, _ := s.objToQLType(type_)
-		res = append(res, *obj)
+		for _, type_ := range s.types {
+			obj, _ := s.objToQLType(type_)
+			s.graphqlTypesList[idx] = *obj
+			idx++
+		}
+		for _, in := range s.inTypes {
+			obj, _ := s.inputToQLType(in)
+			s.graphqlTypesList[idx] = *obj
+			idx++
+		}
+		for _, enum := range definedEnums {
+			s.graphqlTypesList[idx] = enum.qlType
+			idx++
+		}
+		for _, scalar := range scalars {
+			s.graphqlTypesList[idx] = scalar
+			idx++
+		}
+		sort.Slice(s.graphqlTypesList, func(a int, b int) bool { return *s.graphqlTypesList[a].Name < *s.graphqlTypesList[b].Name })
 	}
-	for _, in := range s.inTypes {
-		obj, _ := s.inputToQLType(in)
-		res = append(res, *obj)
-	}
-	for _, enum := range definedEnums {
-		res = append(res, enumToQlType(enum))
-	}
-	for _, scalar := range scalars {
-		res = append(res, scalar)
-	}
-	sort.Slice(res, func(a int, b int) bool { return *res[a].Name < *res[b].Name })
 
-	return res
+	return s.graphqlTypesList
 }
 
-func (s *Schema) getTypeByName(name string, includeInputTypes, includeOutputTypes bool) *qlType {
-	// FIXME: Make one gigantic map on schema creation with all the types below so we don't have to re-calculate them every request
-	scalars, ok := scalars[name]
-	if ok {
-		return &scalars
-	}
-
-	enum, ok := definedEnums[name]
-	if ok {
-		res := enumToQlType(enum)
-		return &res
-	}
-
-	if includeOutputTypes {
-		type_, ok := s.types[name]
-		if ok {
-			res, _ := s.objToQLType(type_)
-			return res
+func (s *Schema) getTypeByName(name string) *qlType {
+	if s.graphqlTypesMap == nil {
+		// Build up s.graphqlTypesMap
+		s.graphqlTypesMap = map[string]qlType{}
+		all := s.getAllQLTypes()
+		for _, type_ := range all {
+			s.graphqlTypesMap[*type_.Name] = type_
 		}
 	}
-	if includeInputTypes {
-		inType, ok := s.inTypes[name]
-		if ok {
-			obj, _ := s.inputToQLType(inType)
-			return obj
-		}
+
+	type_, ok := s.graphqlTypesMap[name]
+	if ok {
+		return &type_
 	}
 	return nil
 }
@@ -291,7 +285,7 @@ func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 		}
 		return
 	case valueTypeEnum:
-		enumType := enumToQlType(definedEnums[item.enumTypeName])
+		enumType := definedEnums[item.enumTypeName].qlType
 		res = &enumType
 		return res, true
 	case valueTypePtr:
@@ -335,26 +329,4 @@ func resolveObjToScalar(item *obj) *qlType {
 		return &res
 	}
 	return nil
-}
-
-func enumToQlType(enum enum) qlType {
-	name := enum.contentType.Name()
-	return qlType{
-		Kind:        typeKindEnum,
-		Name:        &name,
-		Description: h.StrPtr(""),
-		EnumValues: func(args isDeprecatedArgs) []qlEnumValue {
-			res := []qlEnumValue{}
-			for key := range enum.keyValue {
-				res = append(res, qlEnumValue{
-					Name:              key,
-					Description:       h.StrPtr(""),
-					IsDeprecated:      false,
-					DeprecationReason: nil,
-				})
-			}
-			sort.Slice(res, func(a int, b int) bool { return res[a].Name < res[b].Name })
-			return res
-		},
-	}
 }

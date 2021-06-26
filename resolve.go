@@ -45,7 +45,13 @@ func (s *Schema) Resolve(query string, options ResolveOptions) (data string, ext
 
 	s.tracingEnabled = options.Tracing
 	if options.Tracing {
-		s.tracing = newTracer()
+		s.tracing = tracer{
+			Version:     1,
+			GoStartTime: time.Now(),
+			Execution: tracerExecution{
+				Resolvers: []tracerResolver{},
+			},
+		}
 	}
 
 	s.ctx.schema = s
@@ -79,7 +85,8 @@ func (s *Schema) Resolve(query string, options ResolveOptions) (data string, ext
 
 	getExtensions := func() map[string]interface{} {
 		if options.Tracing {
-			s.ctx.extensions["tracing"] = s.tracing.finish()
+			s.tracing.finish()
+			s.ctx.extensions["tracing"] = s.tracing
 		}
 		return s.ctx.extensions
 	}
@@ -242,6 +249,7 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 	}
 
 	if query.name == "__typename" {
+		// TODO currently this isn't traced
 		if placeCommaInFront {
 			ctx.result.WriteByte(',')
 		}
@@ -262,13 +270,6 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 		return
 	}
 
-	if placeCommaInFront {
-		ctx.result.WriteByte(',')
-	}
-	ctx.result.WriteByte('"')
-	ctx.result.WriteString(name)
-	ctx.result.WriteString(`":`)
-
 	defer ctx.finishTrace(func(t *tracer, offset, duration int64) {
 		path := bytes.NewBuffer(nil)
 		ctx.path.toJson(path)
@@ -285,6 +286,13 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 			Duration:    duration,
 		})
 	})
+
+	if placeCommaInFront {
+		ctx.result.WriteByte(',')
+	}
+	ctx.result.WriteByte('"')
+	ctx.result.WriteString(name)
+	ctx.result.WriteString(`":`)
 
 	value := ctx.value()
 	ctx.currentReflectValueIdx++

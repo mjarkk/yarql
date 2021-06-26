@@ -42,9 +42,11 @@ type Schema struct {
 	MaxDepth        uint8 // Default 255
 
 	// Zero alloc variables
-	tracingEnabled bool
-	tracing        *tracer
-	ctx            Ctx
+	tracingEnabled   bool
+	tracing          tracer
+	ctx              Ctx
+	graphqlTypesMap  map[string]qlType
+	graphqlTypesList []qlType
 }
 
 type valueType int
@@ -691,7 +693,7 @@ func parseFieldTagGQ(field *reflect.StructField) (newName *string, ignore bool, 
 	return
 }
 
-var allowedChars = map[byte]bool{
+var validGraphQlNameAllowedChars = map[byte]bool{
 	'a': true,
 	'b': true,
 	'c': true,
@@ -718,7 +720,6 @@ var allowedChars = map[byte]bool{
 	'x': true,
 	'y': true,
 	'z': true,
-	'_': true,
 	'1': false,
 	'2': false,
 	'3': false,
@@ -729,11 +730,12 @@ var allowedChars = map[byte]bool{
 	'8': false,
 	'0': false,
 	'9': false,
+	'_': false,
 }
 
 func validGraphQlName(name string) error {
 	for i, char := range bytes.ToLower([]byte(name)) {
-		canUseAsFirst, ok := allowedChars[char]
+		canUseAsFirst, ok := validGraphQlNameAllowedChars[char]
 		if !ok || (i == 0 && !canUseAsFirst) {
 			return errors.New("invalid graphql name")
 		}

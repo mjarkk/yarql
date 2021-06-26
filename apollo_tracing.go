@@ -34,22 +34,11 @@ type tracerResolver struct {
 	Duration    int64           `json:"duration"`
 }
 
-func newTracer() *tracer {
-	return &tracer{
-		Version:     1,
-		GoStartTime: time.Now(),
-		Execution: tracerExecution{
-			Resolvers: []tracerResolver{},
-		},
-	}
-}
-
-func (t *tracer) finish() *tracer {
+func (t *tracer) finish() {
 	t.StartTime = t.GoStartTime.Format(time.RFC3339Nano)
 	now := time.Now()
 	t.EndTime = now.Format(time.RFC3339Nano)
 	t.Duration = now.Sub(t.GoStartTime).Nanoseconds()
-	return t
 }
 
 func (ctx *Ctx) finishTrace(report func(t *tracer, offset, duration int64)) {
@@ -57,7 +46,7 @@ func (ctx *Ctx) finishTrace(report func(t *tracer, offset, duration int64)) {
 		f := ctx.prefRecordingStartTime
 		offset := f.Sub(ctx.schema.tracing.GoStartTime).Nanoseconds()
 		duration := time.Since(f).Nanoseconds()
-		report(ctx.schema.tracing, offset, duration)
+		report(&ctx.schema.tracing, offset, duration)
 	}
 }
 

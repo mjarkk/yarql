@@ -1,6 +1,8 @@
 package graphql
 
-import h "github.com/mjarkk/go-graphql/helpers"
+import (
+	h "github.com/mjarkk/go-graphql/helpers"
+)
 
 //
 // Types represent:

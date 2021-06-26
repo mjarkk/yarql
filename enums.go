@@ -3,6 +3,9 @@ package graphql
 import (
 	"fmt"
 	"reflect"
+	"sort"
+
+	h "github.com/mjarkk/go-graphql/helpers"
 )
 
 type enum struct {
@@ -10,6 +13,7 @@ type enum struct {
 	typeName    string
 	keyValue    map[string]reflect.Value
 	valueKey    reflect.Value
+	qlType      qlType
 }
 
 func getEnum(t reflect.Type) *enum {
@@ -106,10 +110,33 @@ func registerEnumCheck(map_ interface{}) *enum {
 		res[keyStr] = v
 	}
 
+	name := contentType.Name()
+
+	qlTypeEnumValues := []qlEnumValue{}
+	for key := range res {
+		qlTypeEnumValues = append(qlTypeEnumValues, qlEnumValue{
+			Name:              key,
+			Description:       h.StrPtr(""),
+			IsDeprecated:      false,
+			DeprecationReason: nil,
+		})
+	}
+	sort.Slice(qlTypeEnumValues, func(a int, b int) bool { return qlTypeEnumValues[a].Name < qlTypeEnumValues[b].Name })
+
+	qlType := qlType{
+		Kind:        typeKindEnum,
+		Name:        &name,
+		Description: h.StrPtr(""),
+		EnumValues: func(args isDeprecatedArgs) []qlEnumValue {
+			return qlTypeEnumValues
+		},
+	}
+
 	return &enum{
 		contentType: contentType,
 		keyValue:    res,
 		valueKey:    valueKeyMap,
-		typeName:    contentType.Name(),
+		typeName:    name,
+		qlType:      qlType,
 	}
 }
