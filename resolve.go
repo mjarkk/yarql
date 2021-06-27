@@ -752,7 +752,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			ctx.valueToJson(value.Interface())
 			ctx.writeByte('"')
 		} else {
-			ctx.valueToJson(value.Interface())
+			ctx.valueToJson(value.String())
 		}
 
 		return
@@ -776,7 +776,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			return
 		}
 		ctx.writeByte('"')
-		ctx.writeString(key.Interface().(string))
+		ctx.writeString(key.String())
 		ctx.writeByte('"')
 		return
 	case valueTypeTime:
