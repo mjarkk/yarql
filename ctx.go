@@ -33,6 +33,7 @@ type Ctx struct {
 	reflectValues          [256]reflect.Value
 	currentReflectValueIdx uint8
 	result                 []byte
+	funcInputs             []reflect.Value
 
 	// Public
 	Values map[string]interface{} // API User values, user can put all their shitty things in here like poems or tax papers

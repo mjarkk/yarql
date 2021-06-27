@@ -56,7 +56,7 @@ func (s *Schema) Resolve(query string, options ResolveOptions) ([]byte, []error)
 
 	s.ctx.result = s.ctx.result[:0]
 	if !options.ReturnOnlyData {
-		s.ctx.writeString(`{"data":`)
+		s.ctx.write([]byte(`{"data":`))
 	}
 
 	sendEmptyResult := s.ResolveContent(query, &options)
@@ -79,7 +79,6 @@ func (ctx *Ctx) Reset(
 	tracing bool,
 ) {
 	*ctx = Ctx{
-		// Private
 		fragments:           ctx.fragments,
 		schema:              schema,
 		errors:              ctx.errors[:0],
@@ -93,9 +92,9 @@ func (ctx *Ctx) Reset(
 		tracingEnabled:      tracing,
 		tracing:             ctx.tracing,
 
-		// zero alloc values
 		reflectValues: ctx.reflectValues,
 		result:        ctx.result[:0],
+		funcInputs:    ctx.funcInputs[:0],
 
 		Values: map[string]interface{}{},
 	}
@@ -114,30 +113,30 @@ func (ctx *Ctx) Reset(
 func (ctx *Ctx) CompleteResult(sendEmptyResult, includeErrs, includeExtensions bool) {
 	if sendEmptyResult {
 		ctx.result = ctx.result[:0]
-		ctx.writeString(`{"data":{}`)
+		ctx.write([]byte(`{"data":{}`))
 	}
 
 	if includeErrs && len(ctx.errors) > 0 {
-		ctx.writeString(`,"errors":[`)
+		ctx.write([]byte(`,"errors":[`))
 		for i, err := range ctx.errors {
 			if i > 0 {
 				ctx.writeByte(',')
 			}
-			ctx.writeString(`{"message":`)
+			ctx.write([]byte(`{"message":`))
 			stringToJson([]byte(err.Error()), &ctx.result)
 
 			errWPath, isErrWPath := err.(ErrorWPath)
 			if isErrWPath && len(errWPath.path) > 0 {
-				ctx.writeString(`,"path":`)
+				ctx.write([]byte(`,"path":`))
 				errWPath.path.toJson(&ctx.result)
 			}
 			errWLocation, isErrWLocation := err.(ErrorWLocation)
 			if isErrWLocation {
-				ctx.writeString(`,"locations":[{"line":`)
+				ctx.write([]byte(`,"locations":[{"line":`))
 				ctx.writeString(strconv.FormatUint(uint64(errWLocation.line), 10))
-				ctx.writeString(`,"column":`)
+				ctx.write([]byte(`,"column":`))
 				ctx.writeString(strconv.FormatUint(uint64(errWLocation.column), 10))
-				ctx.writeString(`}]`)
+				ctx.write([]byte(`}]`))
 			}
 			ctx.writeByte('}')
 		}
@@ -147,7 +146,7 @@ func (ctx *Ctx) CompleteResult(sendEmptyResult, includeErrs, includeExtensions b
 	if includeExtensions && len(ctx.extensions) > 0 {
 		extensionsJson, err := json.Marshal(ctx.extensions)
 		if err == nil {
-			ctx.writeString(`,"extensions":`)
+			ctx.write([]byte(`,"extensions":`))
 			ctx.writeString(string(extensionsJson))
 		}
 	}
@@ -208,17 +207,17 @@ func (ctx *Ctx) start() {
 	case "subscription":
 		// TODO
 		ctx.addErr("subscription not suppored yet")
-		ctx.writeString("{}")
+		ctx.write([]byte("{}"))
 	default:
 		ctx.addErrf("%s cannot be used as operator", ctx.operator.operationType)
-		ctx.writeString("{}")
+		ctx.write([]byte("{}"))
 	}
 }
 
 func (ctx *Ctx) resolveSelection(selectionSet selectionSet, structType *obj, dept uint8) {
 	if dept >= ctx.schema.MaxDepth {
 		ctx.addErr("reached max dept")
-		ctx.writeString("null")
+		ctx.write([]byte("null"))
 		return
 	}
 
@@ -334,7 +333,7 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 		}
 		ctx.writeByte('"')
 		ctx.writeString(name)
-		ctx.writeString(`":"`)
+		ctx.write([]byte(`":"`))
 		ctx.writeString(codeStructure.typeName)
 		ctx.writeByte('"')
 		return
@@ -373,7 +372,7 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 	}
 	ctx.writeByte('"')
 	ctx.writeString(name)
-	ctx.writeString(`":`)
+	ctx.write([]byte(`":`))
 
 	value := ctx.value()
 	ctx.currentReflectValueIdx++
@@ -631,16 +630,16 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 		method := codeStructure.method
 
 		if !method.isTypeMethod && value.IsNil() {
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 			return
 		}
 
-		inputs := []reflect.Value{}
+		ctx.funcInputs = ctx.funcInputs[:0]
 		for _, in := range method.ins {
 			if in.isCtx {
-				inputs = append(inputs, reflect.ValueOf(ctx))
+				ctx.funcInputs = append(ctx.funcInputs, reflect.ValueOf(ctx))
 			} else {
-				inputs = append(inputs, reflect.New(*in.type_).Elem())
+				ctx.funcInputs = append(ctx.funcInputs, reflect.New(*in.type_).Elem())
 			}
 		}
 
@@ -650,17 +649,17 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 				ctx.addErrf("undefined input: %s", queryKey)
 				continue
 			}
-			goField := inputs[inField.inputIdx].Field(inField.input.goFieldIdx)
+			goField := ctx.funcInputs[inField.inputIdx].Field(inField.input.goFieldIdx)
 
 			err := ctx.matchInputValue(&queryValue, &goField, &inField.input)
 			if err != nil {
 				ctx.addErrf("%s, property: %s", err.Error(), queryKey)
-				ctx.writeString("null")
+				ctx.write([]byte("null"))
 				return
 			}
 		}
 
-		outs := value.Call(inputs)
+		outs := value.Call(ctx.funcInputs)
 
 		if method.errorOutNr != nil {
 			errOut := outs[*method.errorOutNr]
@@ -668,7 +667,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 				err, ok := errOut.Interface().(error)
 				if !ok {
 					ctx.addErr("returned a invalid kind of error")
-					ctx.writeString("null")
+					ctx.write([]byte("null"))
 					return
 				} else if err != nil {
 					ctx.addErr(err.Error())
@@ -681,7 +680,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			if err != nil {
 				// Context ended
 				ctx.addErr(err.Error())
-				ctx.writeString("null")
+				ctx.write([]byte("null"))
 				return
 			}
 		}
@@ -693,13 +692,13 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 		return
 	case valueTypeArray:
 		if (value.Kind() != reflect.Array && value.Kind() != reflect.Slice) || value.IsNil() {
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 			return
 		}
 
 		if codeStructure.innerContent == nil {
 			ctx.addErr("server didn't expected an array")
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 			return
 		}
 		codeStructure = codeStructure.innerContent
@@ -723,7 +722,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 	case valueTypeObj, valueTypeObjRef:
 		if len(query.selection) == 0 {
 			ctx.addErr("must have a selection")
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 			return
 		}
 
@@ -732,7 +731,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			codeStructure, ok = ctx.schema.types[codeStructure.typeName]
 			if !ok {
 				ctx.addErr("cannot have a selection")
-				ctx.writeString("null")
+				ctx.write([]byte("null"))
 				return
 			}
 		}
@@ -742,18 +741,18 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 	case valueTypeData:
 		if len(query.selection) > 0 {
 			ctx.addErr("cannot have a selection")
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 			return
 		}
 
 		if codeStructure.isID {
 			// Graphql ID fields are always strings
-			if codeStructure.dataValueType != reflect.String {
+			if codeStructure.dataValueType == reflect.String {
+				ctx.valueToJson(value.String())
+			} else {
 				ctx.writeByte('"')
 				ctx.valueToJson(value.Interface())
 				ctx.writeByte('"')
-			} else {
-				ctx.valueToJson(value.String())
 			}
 		} else {
 			ctx.valueToJson(value.Interface())
@@ -762,7 +761,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 		return
 	case valueTypePtr:
 		if value.Kind() != reflect.Ptr || value.IsNil() {
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 			return
 		}
 
@@ -776,7 +775,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 
 		key := enum.valueKey.MapIndex(value)
 		if !key.IsValid() {
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 			return
 		}
 		ctx.writeByte('"')
@@ -786,14 +785,14 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 	case valueTypeTime:
 		timeValue, ok := value.Interface().(time.Time)
 		if !ok {
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 			return
 		}
 		ctx.valueToJson(timeToString(timeValue))
 		return
 	default:
 		ctx.addErr("has invalid data type")
-		ctx.writeString("null")
+		ctx.write([]byte("null"))
 		return
 	}
 }
@@ -804,9 +803,9 @@ func (ctx *Ctx) valueToJson(in interface{}) {
 		stringToJson([]byte(v), &ctx.result)
 	case bool:
 		if v {
-			ctx.writeString("true")
+			ctx.write([]byte("true"))
 		} else {
-			ctx.writeString("false")
+			ctx.write([]byte("false"))
 		}
 	case int:
 		ctx.writeString(strconv.Itoa(v))
@@ -836,96 +835,96 @@ func (ctx *Ctx) valueToJson(in interface{}) {
 		floatToJson(64, v, &ctx.result)
 	case *string:
 		if v == nil {
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *bool:
 		if v == nil {
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *int:
 		if v == nil {
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *int8:
 		if v == nil {
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *int16:
 		if v == nil {
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *int32: // = *rune
 		if v == nil {
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *int64:
 		if v == nil {
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *uint:
 		if v == nil {
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *uint8: // = *byte
 		if v == nil {
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *uint16:
 		if v == nil {
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *uint32:
 		if v == nil {
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *uint64:
 		if v == nil {
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *uintptr:
 		if v == nil {
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *float32:
 		if v == nil {
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 		} else {
 			ctx.valueToJson(*v)
 		}
 	case *float64:
 		if v == nil {
-			ctx.writeString("null")
+			ctx.write([]byte("null"))
 		} else {
 			ctx.valueToJson(*v)
 		}
 	default:
-		ctx.writeString("null")
+		ctx.write([]byte("null"))
 	}
 }
 
@@ -959,7 +958,7 @@ func (s *Schema) objToQlTypeName(item *obj, target *bytes.Buffer) {
 			if qlType.Name != nil {
 				target.WriteString(*qlType.Name)
 			} else {
-				target.WriteString("Unknown")
+				target.Write([]byte("Unknown"))
 			}
 			if len(suffix) > 0 {
 				target.Write(suffix)
