@@ -10,6 +10,7 @@ import (
 func BenchmarkCheckNames(b *testing.B) {
 	// On laptop
 	// BenchmarkCheckNames-12    	    2277	    480462 ns/op	  189581 B/op	    2343 allocs/op
+	// BenchmarkCheckNames-12    	   35962	     32972 ns/op	   17992 B/op	     339 allocs/op
 
 	// On desktop
 	// BenchmarkCheckNames-16    	   13941	     86455 ns/op	   23152 B/op	     993 allocs/op

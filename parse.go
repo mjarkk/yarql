@@ -699,79 +699,26 @@ func parseFieldTagGQ(field *reflect.StructField) (newName *string, ignore bool, 
 	return
 }
 
-var validGraphQlNameAllowedChars = map[byte]bool{
-	'a': true,
-	'b': true,
-	'c': true,
-	'd': true,
-	'e': true,
-	'f': true,
-	'g': true,
-	'h': true,
-	'i': true,
-	'j': true,
-	'k': true,
-	'l': true,
-	'm': true,
-	'n': true,
-	'o': true,
-	'p': true,
-	'q': true,
-	'r': true,
-	's': true,
-	't': true,
-	'u': true,
-	'v': true,
-	'w': true,
-	'x': true,
-	'y': true,
-	'z': true,
-	'A': true,
-	'B': true,
-	'C': true,
-	'D': true,
-	'E': true,
-	'F': true,
-	'G': true,
-	'H': true,
-	'I': true,
-	'J': true,
-	'K': true,
-	'L': true,
-	'M': true,
-	'N': true,
-	'O': true,
-	'P': true,
-	'Q': true,
-	'R': true,
-	'S': true,
-	'T': true,
-	'U': true,
-	'V': true,
-	'W': true,
-	'X': true,
-	'Y': true,
-	'Z': true,
-	'1': false,
-	'2': false,
-	'3': false,
-	'4': false,
-	'5': false,
-	'6': false,
-	'7': false,
-	'8': false,
-	'0': false,
-	'9': false,
-	'_': false,
-}
-
 func validGraphQlName(name []byte) error {
+	if len(name) == 0 {
+		return errors.New("invalid graphql name")
+	}
 	for i, char := range name {
-		// TODO check if checking if char is in char range of A-Z a-z 0-9
-		canUseAsFirst, ok := validGraphQlNameAllowedChars[char]
-		if !ok || (i == 0 && !canUseAsFirst) {
-			return errors.New("invalid graphql name")
+		if char >= 'A' && char <= 'Z' {
+			continue
 		}
+		if char >= 'a' && char <= 'z' {
+			continue
+		}
+		if i > 0 {
+			if char >= '0' && char <= '9' {
+				continue
+			}
+			if char == '_' {
+				continue
+			}
+		}
+		return errors.New("invalid graphql name")
 	}
 	return nil
 }
