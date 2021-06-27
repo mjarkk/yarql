@@ -746,13 +746,17 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			return
 		}
 
-		if codeStructure.isID && codeStructure.dataValueType != reflect.String {
+		if codeStructure.isID {
 			// Graphql ID fields are always strings
-			ctx.writeByte('"')
-			ctx.valueToJson(value.Interface())
-			ctx.writeByte('"')
+			if codeStructure.dataValueType != reflect.String {
+				ctx.writeByte('"')
+				ctx.valueToJson(value.Interface())
+				ctx.writeByte('"')
+			} else {
+				ctx.valueToJson(value.String())
+			}
 		} else {
-			ctx.valueToJson(value.String())
+			ctx.valueToJson(value.Interface())
 		}
 
 		return
