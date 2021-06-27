@@ -745,17 +745,13 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			return
 		}
 
-		if codeStructure.isID {
+		if codeStructure.isID && codeStructure.dataValueType != reflect.String {
 			// Graphql ID fields are always strings
-			if codeStructure.dataValueType == reflect.String {
-				ctx.reflectValueToJson(value, codeStructure.dataValueType)
-			} else {
-				ctx.writeByte('"')
-				ctx.reflectValueToJson(value, codeStructure.dataValueType)
-				ctx.writeByte('"')
-			}
+			ctx.writeByte('"')
+			ctx.valueToJson(value, codeStructure.dataValueType)
+			ctx.writeByte('"')
 		} else {
-			ctx.reflectValueToJson(value, codeStructure.dataValueType)
+			ctx.valueToJson(value, codeStructure.dataValueType)
 		}
 
 		return
@@ -788,7 +784,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			ctx.write([]byte("null"))
 			return
 		}
-		ctx.valueToJson(timeToString(timeValue))
+		stringToJson([]byte(timeToString(timeValue)), &ctx.result)
 		return
 	default:
 		ctx.addErr("has invalid data type")
@@ -797,138 +793,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 	}
 }
 
-func (ctx *Ctx) valueToJson(in interface{}) {
-	switch v := in.(type) {
-	case string:
-		stringToJson([]byte(v), &ctx.result)
-	case bool:
-		if v {
-			ctx.write([]byte("true"))
-		} else {
-			ctx.write([]byte("false"))
-		}
-	case int:
-		ctx.writeString(strconv.Itoa(v))
-	case int8:
-		ctx.writeString(strconv.Itoa(int(v)))
-	case int16:
-		ctx.writeString(strconv.Itoa(int(v)))
-	case int32: // == rune
-		ctx.writeString(strconv.Itoa(int(v)))
-	case int64:
-		ctx.writeString(strconv.FormatInt(v, 10))
-	case uint:
-		ctx.writeString(strconv.FormatUint(uint64(v), 10))
-	case uint8: // == byte
-		ctx.writeString(strconv.FormatUint(uint64(v), 10))
-	case uint16:
-		ctx.writeString(strconv.FormatUint(uint64(v), 10))
-	case uint32:
-		ctx.writeString(strconv.FormatUint(uint64(v), 10))
-	case uint64:
-		ctx.writeString(strconv.FormatUint(v, 10))
-	case uintptr:
-		ctx.writeString(strconv.FormatUint(uint64(v), 10))
-	case float32:
-		floatToJson(32, float64(v), &ctx.result)
-	case float64:
-		floatToJson(64, v, &ctx.result)
-	case *string:
-		if v == nil {
-			ctx.write([]byte("null"))
-		} else {
-			ctx.valueToJson(*v)
-		}
-	case *bool:
-		if v == nil {
-			ctx.write([]byte("null"))
-		} else {
-			ctx.valueToJson(*v)
-		}
-	case *int:
-		if v == nil {
-			ctx.write([]byte("null"))
-		} else {
-			ctx.valueToJson(*v)
-		}
-	case *int8:
-		if v == nil {
-			ctx.write([]byte("null"))
-		} else {
-			ctx.valueToJson(*v)
-		}
-	case *int16:
-		if v == nil {
-			ctx.write([]byte("null"))
-		} else {
-			ctx.valueToJson(*v)
-		}
-	case *int32: // = *rune
-		if v == nil {
-			ctx.write([]byte("null"))
-		} else {
-			ctx.valueToJson(*v)
-		}
-	case *int64:
-		if v == nil {
-			ctx.write([]byte("null"))
-		} else {
-			ctx.valueToJson(*v)
-		}
-	case *uint:
-		if v == nil {
-			ctx.write([]byte("null"))
-		} else {
-			ctx.valueToJson(*v)
-		}
-	case *uint8: // = *byte
-		if v == nil {
-			ctx.write([]byte("null"))
-		} else {
-			ctx.valueToJson(*v)
-		}
-	case *uint16:
-		if v == nil {
-			ctx.write([]byte("null"))
-		} else {
-			ctx.valueToJson(*v)
-		}
-	case *uint32:
-		if v == nil {
-			ctx.write([]byte("null"))
-		} else {
-			ctx.valueToJson(*v)
-		}
-	case *uint64:
-		if v == nil {
-			ctx.write([]byte("null"))
-		} else {
-			ctx.valueToJson(*v)
-		}
-	case *uintptr:
-		if v == nil {
-			ctx.write([]byte("null"))
-		} else {
-			ctx.valueToJson(*v)
-		}
-	case *float32:
-		if v == nil {
-			ctx.write([]byte("null"))
-		} else {
-			ctx.valueToJson(*v)
-		}
-	case *float64:
-		if v == nil {
-			ctx.write([]byte("null"))
-		} else {
-			ctx.valueToJson(*v)
-		}
-	default:
-		ctx.write([]byte("null"))
-	}
-}
-
-func (ctx *Ctx) reflectValueToJson(in reflect.Value, kind reflect.Kind) {
+func (ctx *Ctx) valueToJson(in reflect.Value, kind reflect.Kind) {
 	switch kind {
 	case reflect.String:
 		stringToJson([]byte(in.String()), &ctx.result)
@@ -951,7 +816,7 @@ func (ctx *Ctx) reflectValueToJson(in reflect.Value, kind reflect.Kind) {
 			ctx.write([]byte("null"))
 		} else {
 			element := in.Elem()
-			ctx.reflectValueToJson(element, element.Kind())
+			ctx.valueToJson(element, element.Kind())
 		}
 	default:
 		ctx.write([]byte("null"))

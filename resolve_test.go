@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"mime/multipart"
+	"reflect"
 	"testing"
 	"time"
 
@@ -66,7 +67,7 @@ func TestValueToJson(t *testing.T) {
 		{uint16_, "8"},
 		{uint32_, "9"},
 		{uint64_, "10"},
-		{uintptr_, "11"},
+		{uintptr_, "null"}, // We do not support this datavalue
 		{float32_, "12"},
 		{float64_, "13"},
 		{float64WExponent, "1e-98"},
@@ -84,7 +85,7 @@ func TestValueToJson(t *testing.T) {
 		{&uint16_, "8"},
 		{&uint32_, "9"},
 		{&uint64_, "10"},
-		{&uintptr_, "11"},
+		{&uintptr_, "null"}, // We do not support this datavalue
 		{&float32_, "12"},
 		{&float64_, "13"},
 
@@ -110,7 +111,8 @@ func TestValueToJson(t *testing.T) {
 		c := &Ctx{
 			result: []byte{},
 		}
-		c.valueToJson(option.value)
+		v := reflect.ValueOf(option.value)
+		c.valueToJson(v, v.Kind())
 		Equal(t, option.expect, string(c.result))
 	}
 }
