@@ -748,14 +748,14 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 		if codeStructure.isID {
 			// Graphql ID fields are always strings
 			if codeStructure.dataValueType == reflect.String {
-				ctx.valueToJson(value.String())
+				ctx.reflectValueToJson(value, codeStructure.dataValueType)
 			} else {
 				ctx.writeByte('"')
-				ctx.valueToJson(value.Interface())
+				ctx.reflectValueToJson(value, codeStructure.dataValueType)
 				ctx.writeByte('"')
 			}
 		} else {
-			ctx.valueToJson(value.Interface())
+			ctx.reflectValueToJson(value, codeStructure.dataValueType)
 		}
 
 		return
@@ -922,6 +922,36 @@ func (ctx *Ctx) valueToJson(in interface{}) {
 			ctx.write([]byte("null"))
 		} else {
 			ctx.valueToJson(*v)
+		}
+	default:
+		ctx.write([]byte("null"))
+	}
+}
+
+func (ctx *Ctx) reflectValueToJson(in reflect.Value, kind reflect.Kind) {
+	switch kind {
+	case reflect.String:
+		stringToJson([]byte(in.String()), &ctx.result)
+	case reflect.Bool:
+		if in.Bool() {
+			ctx.write([]byte("true"))
+		} else {
+			ctx.write([]byte("false"))
+		}
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		ctx.writeString(strconv.FormatInt(in.Int(), 10))
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		ctx.writeString(strconv.FormatUint(in.Uint(), 10))
+	case reflect.Float32:
+		floatToJson(32, in.Float(), &ctx.result)
+	case reflect.Float64:
+		floatToJson(64, in.Float(), &ctx.result)
+	case reflect.Ptr:
+		if in.IsNil() {
+			ctx.write([]byte("null"))
+		} else {
+			element := in.Elem()
+			ctx.reflectValueToJson(element, element.Kind())
 		}
 	default:
 		ctx.write([]byte("null"))
