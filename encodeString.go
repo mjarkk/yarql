@@ -49,8 +49,7 @@ func stringToJson(s []byte, e *[]byte) {
 				// user-controlled strings are rendered into JSON
 				// and served to some browsers.
 				*e = append(*e, []byte(`u00`)...)
-				*e = append(*e, hex[b>>4])
-				*e = append(*e, hex[b&0xF])
+				*e = append(*e, hex[b>>4], hex[b&0xF])
 			}
 			i++
 			start = i

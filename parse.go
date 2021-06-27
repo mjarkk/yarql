@@ -74,7 +74,7 @@ type obj struct {
 	customObjValue *reflect.Value // Mainly Graphql internal values like __schema
 
 	// Value is inside struct
-	structFieldName string
+	structFieldIdx int
 
 	// Value type == valueTypeArray || type == valueTypePtr
 	innerContent *obj
@@ -134,7 +134,7 @@ type input struct {
 	isFile       bool
 	isTime       bool
 
-	goFieldName string
+	goFieldIdx  int
 	gqFieldName string
 
 	// kind == Slice, Array or Ptr
@@ -276,7 +276,7 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
-			customName, obj, err := c.checkStructField(field)
+			customName, obj, err := c.checkStructField(field, i)
 			if err != nil {
 				return nil, err
 			}
@@ -325,8 +325,7 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 	if res.valueType == valueTypeObj {
 		for i := 0; i < t.NumMethod(); i++ {
 			method := t.Method(i)
-			methodName := method.Name
-			methodObj, name, err := c.checkFunction(methodName, method.Type, true, false)
+			methodObj, name, err := c.checkFunction(method.Name, method.Type, true, false)
 			if err != nil {
 				return nil, err
 			} else if methodObj == nil {
@@ -334,10 +333,10 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 			}
 
 			res.objContents[name] = &obj{
-				valueType:       valueTypeMethod,
-				pkgPath:         method.PkgPath,
-				structFieldName: methodName,
-				method:          methodObj,
+				valueType:      valueTypeMethod,
+				pkgPath:        method.PkgPath,
+				structFieldIdx: i,
+				method:         methodObj,
 			}
 		}
 
@@ -348,7 +347,7 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 	return &res, nil
 }
 
-func (c *parseCtx) checkStructField(field reflect.StructField) (customName *string, obj *obj, err error) {
+func (c *parseCtx) checkStructField(field reflect.StructField, idx int) (customName *string, obj *obj, err error) {
 	if field.Anonymous {
 		return nil, nil, nil
 	}
@@ -360,18 +359,18 @@ func (c *parseCtx) checkStructField(field reflect.StructField) (customName *stri
 	}
 
 	if field.Type.Kind() == reflect.Func {
-		obj, err = c.checkStructFieldFunc(field.Name, field.Type, isID)
+		obj, err = c.checkStructFieldFunc(field.Name, field.Type, isID, idx)
 	} else {
 		obj, err = c.check(field.Type, isID)
 	}
 
 	if obj != nil {
-		obj.structFieldName = field.Name
+		obj.structFieldIdx = idx
 	}
 	return
 }
 
-func (c *parseCtx) checkStructFieldFunc(fieldName string, type_ reflect.Type, hasIDTag bool) (*obj, error) {
+func (c *parseCtx) checkStructFieldFunc(fieldName string, type_ reflect.Type, hasIDTag bool, idx int) (*obj, error) {
 	methodObj, _, err := c.checkFunction(fieldName, type_, false, hasIDTag)
 	if err != nil {
 		return nil, err
@@ -379,9 +378,9 @@ func (c *parseCtx) checkStructFieldFunc(fieldName string, type_ reflect.Type, ha
 		return nil, nil
 	}
 	return &obj{
-		valueType:       valueTypeMethod,
-		method:          methodObj,
-		structFieldName: fieldName,
+		valueType:      valueTypeMethod,
+		method:         methodObj,
+		structFieldIdx: idx,
 	}, nil
 }
 
@@ -391,7 +390,7 @@ func isCtx(t reflect.Type) bool {
 	return t.Kind() == reflect.Struct && simpleCtx.Name() == t.Name() && simpleCtx.PkgPath() == t.PkgPath()
 }
 
-func (c *parseCtx) checkFunctionInputStruct(field *reflect.StructField) (res input, skipThisField bool, err error) {
+func (c *parseCtx) checkFunctionInputStruct(field *reflect.StructField, idx int) (res input, skipThisField bool, err error) {
 	wrapErr := func(err error) error {
 		return fmt.Errorf("%s, struct field: %s", err.Error(), field.Name)
 	}
@@ -420,7 +419,7 @@ func (c *parseCtx) checkFunctionInputStruct(field *reflect.StructField) (res inp
 		return input{}, false, wrapErr(err)
 	}
 
-	res.goFieldName = field.Name
+	res.goFieldIdx = idx
 	res.gqFieldName = qlFieldName
 
 	return
@@ -498,7 +497,7 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type, hasIDTag bool) (input, err
 			res.structContent = map[string]input{}
 			for i := 0; i < t.NumField(); i++ {
 				field := t.Field(i)
-				input, skip, err := c.checkFunctionInputStruct(&field)
+				input, skip, err := c.checkFunctionInputStruct(&field, i)
 				if skip {
 					continue
 				}
@@ -630,7 +629,7 @@ func (c *parseCtx) checkFunctionIns(method *objMethod) error {
 			input.type_ = &type_
 			for i := 0; i < type_.NumField(); i++ {
 				field := type_.Field(i)
-				input, skip, err := c.checkFunctionInputStruct(&field)
+				input, skip, err := c.checkFunctionInputStruct(&field, i)
 				if skip {
 					continue
 				}

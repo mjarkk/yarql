@@ -24,7 +24,7 @@ func (s *Schema) injectQLTypes(ctx *parseCtx) {
 		return ctx.schema.getTypeByName(args.Name)
 	}
 	typeResolverReflection := reflect.ValueOf(typeResolver)
-	functionObj, err := ctx.checkStructFieldFunc("__type", typeResolverReflection.Type(), false)
+	functionObj, err := ctx.checkStructFieldFunc("__type", typeResolverReflection.Type(), false, -1)
 	if err != nil {
 		log.Fatal(err)
 	}

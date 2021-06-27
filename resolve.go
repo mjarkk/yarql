@@ -222,9 +222,9 @@ func (ctx *Ctx) resolveSelection(selectionSet selectionSet, structType *obj, dep
 		return
 	}
 
-	ctx.writeString("{")
+	ctx.writeByte('{')
 	ctx.resolveSelectionContent(selectionSet, structType, dept, len(ctx.result))
-	ctx.writeString("}")
+	ctx.writeByte('}')
 }
 
 func (ctx *Ctx) resolveSelectionContentDirectiveCheck(directives directives) (include bool, err error) {
@@ -380,9 +380,9 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 	if structItem.customObjValue != nil {
 		ctx.reflectValues[ctx.currentReflectValueIdx] = *structItem.customObjValue
 	} else if structItem.valueType == valueTypeMethod && structItem.method.isTypeMethod {
-		ctx.reflectValues[ctx.currentReflectValueIdx] = value.MethodByName(structItem.structFieldName)
+		ctx.reflectValues[ctx.currentReflectValueIdx] = value.Method(structItem.structFieldIdx)
 	} else {
-		ctx.reflectValues[ctx.currentReflectValueIdx] = value.FieldByName(structItem.structFieldName)
+		ctx.reflectValues[ctx.currentReflectValueIdx] = value.Field(structItem.structFieldIdx)
 	}
 
 	ctx.resolveFieldDataValue(query, structItem, dept)
@@ -610,7 +610,7 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 					return fmt.Errorf("undefined property %s", queryKey)
 				}
 
-				field := goField.FieldByName(structItemMeta.goFieldName)
+				field := goField.Field(structItemMeta.goFieldIdx)
 				err := ctx.matchInputValue(&arg, &field, &structItemMeta)
 				if err != nil {
 					return fmt.Errorf("%s, property: %s", err.Error(), queryKey)
@@ -650,7 +650,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 				ctx.addErrf("undefined input: %s", queryKey)
 				continue
 			}
-			goField := inputs[inField.inputIdx].FieldByName(inField.input.goFieldName)
+			goField := inputs[inField.inputIdx].Field(inField.input.goFieldIdx)
 
 			err := ctx.matchInputValue(&queryValue, &goField, &inField.input)
 			if err != nil {
