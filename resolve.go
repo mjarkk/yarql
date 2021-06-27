@@ -784,7 +784,9 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			ctx.write([]byte("null"))
 			return
 		}
-		stringToJson([]byte(timeToString(timeValue)), &ctx.result)
+		ctx.writeByte('"')
+		timeToString(&ctx.result, timeValue)
+		ctx.writeByte('"')
 		return
 	default:
 		ctx.addErr("has invalid data type")
@@ -833,8 +835,8 @@ func parseTime(val string) (time.Time, error) {
 	return parsedTime, nil
 }
 
-func timeToString(t time.Time) string {
-	return t.Format("2006-01-02T15:04:05.000Z")
+func timeToString(target *[]byte, t time.Time) {
+	*target = t.AppendFormat(*target, "2006-01-02T15:04:05.000Z")
 }
 
 func (s *Schema) objToQlTypeName(item *obj, target *bytes.Buffer) {

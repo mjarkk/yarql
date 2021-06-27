@@ -703,15 +703,17 @@ func (TestExecTimeIOData) ResolveFoo(args struct{ T time.Time }) time.Time {
 
 func TestExecTimeIO(t *testing.T) {
 	now := time.Now()
-	testTimeInput := timeToString(now)
+	testTimeInput := []byte{}
+	timeToString(&testTimeInput, now)
 
-	out, errs := parseAndTest(t, `{foo(t: "`+testTimeInput+`")}`, TestExecTimeIOData{}, M{})
+	out, errs := parseAndTest(t, `{foo(t: "`+string(testTimeInput)+`")}`, TestExecTimeIOData{}, M{})
 	for _, err := range errs {
 		panic(err)
 	}
 
-	exectedOutTime := timeToString(now.AddDate(3, 2, 1).Add(time.Hour + time.Second))
-	Equal(t, `{"foo":"`+exectedOutTime+`"}`, out)
+	exectedOutTime := []byte{}
+	timeToString(&exectedOutTime, now.AddDate(3, 2, 1).Add(time.Hour+time.Second))
+	Equal(t, `{"foo":"`+string(exectedOutTime)+`"}`, out)
 }
 
 func TestExecInputIDInvalidArguments(t *testing.T) {
