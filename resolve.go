@@ -124,7 +124,7 @@ func (ctx *Ctx) CompleteResult(sendEmptyResult, includeErrs, includeExtensions b
 				ctx.writeByte(',')
 			}
 			ctx.writeString(`{"message":`)
-			stringToJson([]byte(err.Error()), &ctx.result, true)
+			stringToJson([]byte(err.Error()), &ctx.result)
 
 			errWPath, isErrWPath := err.(ErrorWPath)
 			if isErrWPath && len(errWPath.path) > 0 {
@@ -341,7 +341,7 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 	}
 
 	pathAppend := []byte{}
-	stringToJson([]byte(name), &pathAppend, true)
+	stringToJson([]byte(name), &pathAppend)
 	ctx.path = append(ctx.path, string(pathAppend))
 
 	structItem, ok := codeStructure.objContents[query.name]
@@ -797,7 +797,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 func (ctx *Ctx) valueToJson(in interface{}) {
 	switch v := in.(type) {
 	case string:
-		stringToJson([]byte(v), &ctx.result, true)
+		stringToJson([]byte(v), &ctx.result)
 	case bool:
 		if v {
 			ctx.writeString("true")

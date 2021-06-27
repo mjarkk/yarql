@@ -12,17 +12,23 @@ import (
 // license that can be found in the LICENSE file.
 //
 // IMPORTANT the full license can be found in this repo: https://github.com/golang/go
-func stringToJson(s []byte, e *[]byte, escapeHTML bool) {
+func stringToJson(s []byte, e *[]byte) {
 	const hex = "0123456789abcdef"
 
 	*e = append(*e, '"')
 	start := 0
 	for i := 0; i < len(s); {
 		if b := s[i]; b < utf8.RuneSelf {
-			if htmlSafeSet[b] || (!escapeHTML && safeSet[b]) {
+			if b >= ' ' && b <= '}' && b != '\\' && b != '"' {
 				i++
 				continue
 			}
+
+			if b == '\u007f' {
+				i++
+				continue
+			}
+
 			if start < i {
 				*e = append(*e, s[start:i]...)
 			}
@@ -83,215 +89,4 @@ func stringToJson(s []byte, e *[]byte, escapeHTML bool) {
 		*e = append(*e, s[start:]...)
 	}
 	*e = append(*e, '"')
-}
-
-// safeSet holds the value true if the ASCII character with the given array
-// position can be represented inside a JSON string without any further
-// escaping.
-//
-// All values are true except for the ASCII control characters (0-31), the
-// double quote ("), and the backslash character ("\").
-var safeSet = [utf8.RuneSelf]bool{
-	' ':      true,
-	'!':      true,
-	'"':      false,
-	'#':      true,
-	'$':      true,
-	'%':      true,
-	'&':      true,
-	'\'':     true,
-	'(':      true,
-	')':      true,
-	'*':      true,
-	'+':      true,
-	',':      true,
-	'-':      true,
-	'.':      true,
-	'/':      true,
-	'0':      true,
-	'1':      true,
-	'2':      true,
-	'3':      true,
-	'4':      true,
-	'5':      true,
-	'6':      true,
-	'7':      true,
-	'8':      true,
-	'9':      true,
-	':':      true,
-	';':      true,
-	'<':      true,
-	'=':      true,
-	'>':      true,
-	'?':      true,
-	'@':      true,
-	'A':      true,
-	'B':      true,
-	'C':      true,
-	'D':      true,
-	'E':      true,
-	'F':      true,
-	'G':      true,
-	'H':      true,
-	'I':      true,
-	'J':      true,
-	'K':      true,
-	'L':      true,
-	'M':      true,
-	'N':      true,
-	'O':      true,
-	'P':      true,
-	'Q':      true,
-	'R':      true,
-	'S':      true,
-	'T':      true,
-	'U':      true,
-	'V':      true,
-	'W':      true,
-	'X':      true,
-	'Y':      true,
-	'Z':      true,
-	'[':      true,
-	'\\':     false,
-	']':      true,
-	'^':      true,
-	'_':      true,
-	'`':      true,
-	'a':      true,
-	'b':      true,
-	'c':      true,
-	'd':      true,
-	'e':      true,
-	'f':      true,
-	'g':      true,
-	'h':      true,
-	'i':      true,
-	'j':      true,
-	'k':      true,
-	'l':      true,
-	'm':      true,
-	'n':      true,
-	'o':      true,
-	'p':      true,
-	'q':      true,
-	'r':      true,
-	's':      true,
-	't':      true,
-	'u':      true,
-	'v':      true,
-	'w':      true,
-	'x':      true,
-	'y':      true,
-	'z':      true,
-	'{':      true,
-	'|':      true,
-	'}':      true,
-	'~':      true,
-	'\u007f': true,
-}
-
-// htmlSafeSet holds the value true if the ASCII character with the given
-// array position can be safely represented inside a JSON string, embedded
-// inside of HTML <script> tags, without any additional escaping.
-//
-// All values are true except for the ASCII control characters (0-31), the
-// double quote ("), the backslash character ("\"), HTML opening and closing
-// tags ("<" and ">"), and the ampersand ("&").
-var htmlSafeSet = [utf8.RuneSelf]bool{
-	' ':      true,
-	'!':      true,
-	'"':      false,
-	'#':      true,
-	'$':      true,
-	'%':      true,
-	'&':      false,
-	'\'':     true,
-	'(':      true,
-	')':      true,
-	'*':      true,
-	'+':      true,
-	',':      true,
-	'-':      true,
-	'.':      true,
-	'/':      true,
-	'0':      true,
-	'1':      true,
-	'2':      true,
-	'3':      true,
-	'4':      true,
-	'5':      true,
-	'6':      true,
-	'7':      true,
-	'8':      true,
-	'9':      true,
-	':':      true,
-	';':      true,
-	'<':      false,
-	'=':      true,
-	'>':      false,
-	'?':      true,
-	'@':      true,
-	'A':      true,
-	'B':      true,
-	'C':      true,
-	'D':      true,
-	'E':      true,
-	'F':      true,
-	'G':      true,
-	'H':      true,
-	'I':      true,
-	'J':      true,
-	'K':      true,
-	'L':      true,
-	'M':      true,
-	'N':      true,
-	'O':      true,
-	'P':      true,
-	'Q':      true,
-	'R':      true,
-	'S':      true,
-	'T':      true,
-	'U':      true,
-	'V':      true,
-	'W':      true,
-	'X':      true,
-	'Y':      true,
-	'Z':      true,
-	'[':      true,
-	'\\':     false,
-	']':      true,
-	'^':      true,
-	'_':      true,
-	'`':      true,
-	'a':      true,
-	'b':      true,
-	'c':      true,
-	'd':      true,
-	'e':      true,
-	'f':      true,
-	'g':      true,
-	'h':      true,
-	'i':      true,
-	'j':      true,
-	'k':      true,
-	'l':      true,
-	'm':      true,
-	'n':      true,
-	'o':      true,
-	'p':      true,
-	'q':      true,
-	'r':      true,
-	's':      true,
-	't':      true,
-	'u':      true,
-	'v':      true,
-	'w':      true,
-	'x':      true,
-	'y':      true,
-	'z':      true,
-	'{':      true,
-	'|':      true,
-	'}':      true,
-	'~':      true,
-	'\u007f': true,
 }

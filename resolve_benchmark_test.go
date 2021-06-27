@@ -28,6 +28,9 @@ func BenchmarkResolve(b *testing.B) {
 	// BenchmarkResolve-12    	     886	   1308011 ns/op	  782452 B/op	   10379 allocs/op // Use array for value
 	// BenchmarkResolve-12    	    1202	    998317 ns/op	  313687 B/op	    6064 allocs/op // Reduced a lot of string usage
 	// BenchmarkResolve-12    	    1294	    898636 ns/op	  307930 B/op	    5686 allocs/op // Change value formatting to allocate less
+	// BenchmarkResolve-12    	    3206	    345997 ns/op	   57292 B/op	    3686 allocs/op
+	// BenchmarkResolve-12    	    3452	    320228 ns/op	   57235 B/op	    3686 allocs/op
+	// BenchmarkResolve-12    	    3250	    311136 ns/op	   57281 B/op	    3686 allocs/op
 
 	// On desktop
 	// BenchmarkResolve-16    	    2259	    503592 ns/op	   62823 B/op	    4340 allocs/op
@@ -51,5 +54,22 @@ func BenchmarkResolve(b *testing.B) {
 		for _, err := range errs {
 			panic(err)
 		}
+	}
+}
+
+func BenchmarkEncodeString(b *testing.B) {
+	// BenchmarkEncodeString-12    	 7684732	       151.1 ns/op	       0 B/op	       0 allocs/op
+	// BenchmarkEncodeString-12    	 9391905	       121.1 ns/op	       0 B/op	       0 allocs/op
+
+	inputString1 := []byte("abc")
+	inputString2 := []byte("Some long string that includes spaces  and a .")
+	inputString3 := []byte(`Wow this includes \\ and && and <> and ""`)
+	out := []byte{}
+
+	for i := 0; i < b.N; i++ {
+		stringToJson(inputString1, &out)
+		stringToJson(inputString2, &out)
+		stringToJson(inputString3, &out)
+		out = out[:0]
 	}
 }
