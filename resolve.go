@@ -319,10 +319,6 @@ func (ctx *Ctx) resolveSelectionContent(selectionIdx int, structType *obj, dept 
 
 func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, placeCommaInFront bool) {
 	ctx.startTrace()
-	name := query.name
-	if len(query.alias) > 0 {
-		name = query.alias
-	}
 
 	if query.name == "__typename" {
 		// TODO currently this isn't traced
@@ -330,7 +326,11 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 			ctx.writeByte(',')
 		}
 		ctx.writeByte('"')
-		ctx.writeString(name)
+		if len(query.alias) > 0 {
+			ctx.writeString(query.alias)
+		} else {
+			ctx.writeString(query.name)
+		}
 		ctx.write([]byte(`":"`))
 		ctx.writeString(codeStructure.typeName)
 		ctx.writeByte('"')
@@ -339,15 +339,29 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 
 	prefPathLen := len(ctx.path)
 	ctx.path = append(ctx.path, []byte(`,"`)...)
-	ctx.path = append(ctx.path, []byte(name)...)
-	ctx.path = append(ctx.path, '"')
+	// Note that depending of the result below the path might be appended differently
+	// This is to avoid converting a string to bytes in almost all queries
 
 	structItem, ok := codeStructure.objContents[query.name]
 	if !ok {
+		name := query.name
+		if len(query.alias) > 0 {
+			name = query.alias
+		}
+		ctx.path = append(ctx.path, []byte(name)...)
+		ctx.path = append(ctx.path, '"')
+
 		ctx.addErrf("%s does not exists on %s", query.name, codeStructure.typeName)
-		ctx.path = ctx.path[:prefPathLen]
 		return
 	}
+
+	name := structItem.qlFieldName
+	if len(query.alias) > 0 {
+		name = []byte(query.alias)
+	}
+
+	ctx.path = append(ctx.path, name...)
+	ctx.path = append(ctx.path, '"')
 
 	defer ctx.finishTrace(func(offset, duration int64) {
 		returnType := bytes.NewBuffer(nil)
@@ -367,7 +381,7 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 		ctx.writeByte(',')
 	}
 	ctx.writeByte('"')
-	ctx.writeString(name)
+	ctx.write(name)
 	ctx.write([]byte(`":`))
 
 	value := ctx.value()

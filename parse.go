@@ -66,9 +66,10 @@ const (
 )
 
 type obj struct {
-	valueType valueType
-	typeName  string
-	pkgPath   string
+	valueType   valueType
+	typeName    string
+	pkgPath     string
+	qlFieldName []byte
 
 	// Value type == valueTypeObj
 	objContents    map[string]*obj
@@ -296,6 +297,7 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 				if customName != nil {
 					name = *customName
 				}
+				obj.qlFieldName = []byte(name)
 				res.objContents[name] = obj
 			}
 		}
@@ -344,6 +346,7 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 			}
 
 			res.objContents[name] = &obj{
+				qlFieldName:    []byte(name),
 				valueType:      valueTypeMethod,
 				pkgPath:        method.PkgPath,
 				structFieldIdx: i,

@@ -17,6 +17,8 @@ func (s *Schema) injectQLTypes(ctx *parseCtx) {
 
 	contents := reflect.ValueOf(s.getQLSchema())
 	ref.customObjValue = &contents
+	ref.qlFieldName = []byte("__schema")
+
 	s.rootQuery.objContents["__schema"] = ref
 
 	// Inject __type(name: String!): __Type
@@ -30,6 +32,7 @@ func (s *Schema) injectQLTypes(ctx *parseCtx) {
 	}
 
 	functionObj.customObjValue = &typeResolverReflection
+	functionObj.qlFieldName = []byte("__type")
 	s.rootQuery.objContents["__type"] = functionObj
 }
 
