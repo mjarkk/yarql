@@ -37,6 +37,8 @@ func BenchmarkQueryParser(b *testing.B) {
 }
 
 func BenchmarkResolve(b *testing.B) {
+	// TODO add benchmark without pprof it's faster and already goes above 10.000 :)
+
 	// On laptop
 	// BenchmarkResolve-12    	     854	   1383447 ns/op	  833377 B/op	   11670 allocs/op // First ran
 	// BenchmarkResolve-12    	     852	   1379526 ns/op	  833150 B/op	   11668 allocs/op

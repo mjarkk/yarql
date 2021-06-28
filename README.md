@@ -253,6 +253,8 @@ _Based on [graphql-multipart-request-spec #55](https://github.com/jaydenseric/gr
 
 Below shows a benchmark of fetching the graphql schema
 
+_Note: This benchmark also profiles the cpu and that effects the score by a bit_
+
 ```sh
 # go test -benchmem -bench "^(BenchmarkResolve)\$"
 goos: darwin
