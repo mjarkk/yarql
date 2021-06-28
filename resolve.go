@@ -62,7 +62,7 @@ func (s *Schema) Resolve(query string, options ResolveOptions) ([]byte, []error)
 	sendEmptyResult := s.ResolveContent(query, &options)
 	if options.Tracing {
 		s.ctx.tracing.finish()
-		s.ctx.extensions["tracing"] = s.ctx.tracing
+		s.ctx.SetExtension("tracing", s.ctx.tracing)
 	}
 	if !options.ReturnOnlyData {
 		s.ctx.CompleteResult(sendEmptyResult, true, true)
@@ -87,7 +87,6 @@ func (ctx *Ctx) Reset(
 		path:                ctx.path[:0],
 		context:             context,
 		getFormFile:         getFormFile,
-		extensions:          map[string]interface{}{},
 		tracingEnabled:      tracing,
 		tracing:             ctx.tracing,
 
@@ -514,21 +513,33 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 			return fmt.Errorf("expected type %s but got %s", enum.typeName, *queryValue.qlTypeName)
 		}
 
-		value, ok := enum.keyValue[queryValue.enumValue]
-		if !ok {
-			return fmt.Errorf("unknown enum value %s for enum %s", queryValue.enumValue, enum.typeName)
-		}
-
-		switch value.Kind() {
+		switch enum.contentKind {
 		case reflect.String:
-			setString(value.String())
+			for _, entry := range enum.entries {
+				if entry.key == queryValue.enumValue {
+					setString(entry.value.String())
+					return nil
+				}
+			}
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			goField.SetInt(value.Int())
+			for _, entry := range enum.entries {
+				if entry.key == queryValue.enumValue {
+					goField.SetInt(entry.value.Int())
+					return nil
+				}
+			}
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			goField.SetUint(value.Uint())
+			for _, entry := range enum.entries {
+				if entry.key == queryValue.enumValue {
+					goField.SetUint(entry.value.Uint())
+					return nil
+				}
+			}
 		default:
 			return errors.New("internal error, type missmatch on enum")
 		}
+
+		return fmt.Errorf("unknown enum value %s for enum %s", queryValue.enumValue, enum.typeName)
 	} else {
 		switch queryValue.valType {
 		case reflect.Int:
@@ -783,15 +794,40 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 		return
 	case valueTypeEnum:
 		enum := definedEnums[codeStructure.enumTypeIndex]
-
-		key := enum.valueKey.MapIndex(value) // FIXME: This is slow
-		if !key.IsValid() {
-			ctx.write([]byte("null"))
-			return
+		switch enum.contentKind {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			underlayingValue := value.Int()
+			for _, entry := range enum.entries {
+				if entry.value.Int() == underlayingValue {
+					ctx.writeByte('"')
+					ctx.writeString(entry.key)
+					ctx.writeByte('"')
+					return
+				}
+			}
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			underlayingValue := value.Uint()
+			for _, entry := range enum.entries {
+				if entry.value.Uint() == underlayingValue {
+					ctx.writeByte('"')
+					ctx.writeString(entry.key)
+					ctx.writeByte('"')
+					return
+				}
+			}
+		case reflect.String:
+			underlayingValue := value.String()
+			for _, entry := range enum.entries {
+				if entry.value.String() == underlayingValue {
+					ctx.writeByte('"')
+					ctx.writeString(entry.key)
+					ctx.writeByte('"')
+					return
+				}
+			}
 		}
-		ctx.writeByte('"')
-		ctx.writeString(key.String())
-		ctx.writeByte('"')
+
+		ctx.write([]byte(`null`))
 		return
 	case valueTypeTime:
 		timeValue, ok := value.Interface().(time.Time)

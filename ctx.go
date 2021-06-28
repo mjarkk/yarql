@@ -43,11 +43,17 @@ type Ctx struct {
 //
 
 func (ctx *Ctx) GetExtension(key string) (value interface{}, ok bool) {
+	if ctx.extensions == nil {
+		return nil, false
+	}
 	value, ok = ctx.extensions[key]
 	return
 }
 
 func (ctx *Ctx) SetExtension(key string, value interface{}) {
+	if ctx.extensions == nil {
+		ctx.extensions = map[string]interface{}{}
+	}
 	ctx.extensions[key] = value
 }
 

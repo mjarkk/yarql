@@ -10,10 +10,15 @@ import (
 
 type enum struct {
 	contentType reflect.Type
+	contentKind reflect.Kind
 	typeName    string
-	keyValue    map[string]reflect.Value
-	valueKey    reflect.Value
+	entries     []enumEntry
 	qlType      qlType
+}
+
+type enumEntry struct {
+	key   string
+	value reflect.Value
 }
 
 func getEnum(t reflect.Type) (int, *enum) {
@@ -87,10 +92,10 @@ func registerEnumCheck(map_ interface{}) *enum {
 		return nil
 	}
 
-	res := map[string]reflect.Value{}
-	valueKeyMap := reflect.MakeMapWithSize(reflect.MapOf(contentType, reflect.TypeOf("")), inputLen)
+	entries := make([]enumEntry, inputLen)
 
 	iter := mapReflection.MapRange()
+	i := 0
 	for iter.Next() {
 		k := iter.Key()
 		keyStr := k.Interface().(string)
@@ -103,20 +108,19 @@ func registerEnumCheck(map_ interface{}) *enum {
 			panic(`RegisterEnum map key must start with an alphabetic character (lower or upper) followed by the same or a "_", key given: ` + keyStr)
 		}
 
-		v := reflect.ValueOf(iter.Value().Interface())
-		if valueKeyMap.MapIndex(v).IsValid() {
-			panic(fmt.Sprintf("RegisterEnum input map cannot have duplicated values, value: %+v", v.Interface()))
+		entries[i] = enumEntry{
+			key:   keyStr,
+			value: iter.Value(),
 		}
-		valueKeyMap.SetMapIndex(v, reflect.ValueOf(keyStr))
-		res[keyStr] = v
+		i++
 	}
 
 	name := contentType.Name()
 
 	qlTypeEnumValues := []qlEnumValue{}
-	for key := range res {
+	for _, entry := range entries {
 		qlTypeEnumValues = append(qlTypeEnumValues, qlEnumValue{
-			Name:              key,
+			Name:              entry.key,
 			Description:       h.StrPtr(""),
 			IsDeprecated:      false,
 			DeprecationReason: nil,
@@ -135,8 +139,8 @@ func registerEnumCheck(map_ interface{}) *enum {
 
 	return &enum{
 		contentType: contentType,
-		keyValue:    res,
-		valueKey:    valueKeyMap,
+		contentKind: contentType.Kind(),
+		entries:     entries,
 		typeName:    name,
 		qlType:      qlType,
 	}

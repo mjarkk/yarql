@@ -55,6 +55,7 @@ func BenchmarkResolve(b *testing.B) {
 	// BenchmarkResolve-16    	    2306	    454063 ns/op	   57633 B/op	    3686 allocs/op
 	// BenchmarkResolve-16    	    3400	    305631 ns/op	   50040 B/op	    2817 allocs/op
 	// BenchmarkResolve-16    	    3860	    303078 ns/op	   46153 B/op	    2544 allocs/op
+	// BenchmarkResolve-16    	    4406	    265315 ns/op	   40399 B/op	    2326 allocs/op
 
 	s, _ := ParseSchema(TestExecSchemaRequestWithFieldsData{}, M{}, nil)
 
