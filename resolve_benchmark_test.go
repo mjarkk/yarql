@@ -12,6 +12,7 @@ func BenchmarkQueryParser(b *testing.B) {
 	// BenchmarkQueryParser-12    	   35697	     33170 ns/op	   17536 B/op	     331 allocs/op
 	// BenchmarkQueryParser-12    	   37735	     30622 ns/op	   17488 B/op	     329 allocs/op
 	// BenchmarkQueryParser-12    	   35721	     30887 ns/op	   10793 B/op	     273 allocs/op
+	// BenchmarkQueryParser-12    	   51865	     19334 ns/op	   10770 B/op	     273 allocs/op
 
 	f, err := os.Create("memprofile")
 	if err != nil {

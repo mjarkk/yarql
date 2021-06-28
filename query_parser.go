@@ -1279,11 +1279,7 @@ func (i *iterT) parseComment() {
 func (i *iterT) matches(oneOf ...string) string {
 	startIdx := i.charNr
 
-	oneOfMap := map[string]bool{}
-	for _, val := range oneOf {
-		oneOfMap[val] = true
-	}
-
+	lastChecked := ""
 	for {
 		c, eof := i.checkC(i.charNr)
 		if eof {
@@ -1292,17 +1288,22 @@ func (i *iterT) matches(oneOf ...string) string {
 		}
 		offset := i.charNr - startIdx
 
-		for key := range oneOfMap {
+		for idx, key := range oneOf {
 			keyLen := uint64(len(key))
-			if offset >= keyLen || key[offset] != c {
-				delete(oneOfMap, key)
-			} else if keyLen == offset+1 {
-				i.charNr++
-				return key
+			if offset < keyLen {
+				if key[offset] != c {
+					// Nullify value so we won't check it again
+					oneOf[idx] = ""
+				} else if keyLen == offset+1 {
+					i.charNr++
+					return key
+				} else {
+					lastChecked = key
+				}
 			}
 		}
 
-		if len(oneOfMap) == 0 {
+		if lastChecked == "" {
 			i.charNr = startIdx
 			return ""
 		}

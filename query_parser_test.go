@@ -807,3 +807,24 @@ func TestQueryParserReportsErrors(t *testing.T) {
 	Equal(t, 2, len(operators))
 	Equal(t, 1, len(fragments))
 }
+
+func TestQueryParserMatches(t *testing.T) {
+	cases := []struct {
+		data    string
+		oneOf   []string
+		matches string
+	}{
+		{"foo", []string{"foo"}, "foo"},
+		{"foo", []string{"bar", "foo", "baz"}, "foo"},
+		{"foo", []string{"bar"}, ""},
+		{"foo", []string{" bar", " foo", " baz"}, ""},
+		{"foo", []string{"bar ", "foo ", "baz "}, ""},
+		{"a longer string than one of the items", []string{"bar", "foo", "baz"}, ""},
+		{"a longer string than one of the items", []string{"than"}, ""},
+	}
+
+	for _, case_ := range cases {
+		i := iterT{data: case_.data}
+		Equal(t, case_.matches, i.matches(case_.matches), case_)
+	}
+}
