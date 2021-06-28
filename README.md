@@ -257,7 +257,7 @@ Below shows a benchmark of fetching the graphql schema
 # go test -benchmem -bench "^(BenchmarkResolve)\$"
 goos: darwin
 cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
-BenchmarkResolve-12    	    4497	    246012 ns/op	   46837 B/op	    2602 allocs/op
+BenchmarkResolve-12    	    8949	    123498 ns/op	   17482 B/op	     309 allocs/op
 ```
 
 ## Alternatives
