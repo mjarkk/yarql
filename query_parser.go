@@ -11,7 +11,7 @@ import (
 type operator struct {
 	operationType       string // "query" || "mutation" || "subscription" || "fragment"
 	name                string // "" = no name given, note: fragments always have a name
-	selection           selectionSet
+	selectionIdx        int
 	directives          directives
 	variableDefinitions variableDefinitions
 	fragment            *inlineFragment // defined if: operationType == "fragment"
@@ -27,11 +27,11 @@ type selection struct {
 }
 
 type field struct {
-	name       string
-	alias      string       // Optional
-	selection  selectionSet // Optional
-	directives directives   // Optional
-	arguments  arguments    // Optional
+	name         string
+	alias        string     // Optional
+	selectionIdx int        // Optional
+	directives   directives // Optional
+	arguments    arguments  // Optional
 }
 
 type fragmentSpread struct {
@@ -40,7 +40,7 @@ type fragmentSpread struct {
 }
 
 type inlineFragment struct {
-	selection           selectionSet
+	selectionIdx        int
 	onTypeConditionName string     // Optional
 	directives          directives // Optional
 }
@@ -82,6 +82,8 @@ type iterT struct {
 	fragments            map[string]operator
 	operatorsMap         map[string]operator
 	resErrors            []ErrorWLocation
+	selections           []selectionSet
+	selectionSetIdx      int
 }
 
 type ErrorWLocation struct {
@@ -100,6 +102,7 @@ func (i *iterT) parseQuery(input string) {
 		resErrors:    i.resErrors[:0],
 		fragments:    map[string]operator{},
 		operatorsMap: map[string]operator{},
+		selections:   i.selections,
 	}
 
 	for {
@@ -171,10 +174,9 @@ func (i *iterT) currentC() byte {
 func (i *iterT) parseOperatorOrFragment() bool {
 	res := operator{
 		operationType:       "query",
-		name:                "",
-		selection:           selectionSet{},
 		directives:          directives{},
 		variableDefinitions: variableDefinitions{},
+		selectionIdx:        -1,
 	}
 
 	c, eof := i.mightIgnoreNextTokens()
@@ -263,11 +265,12 @@ func (i *iterT) parseOperatorOrFragment() bool {
 	}
 
 	i.charNr++
-	selection, criticalErr := i.parseSelectionSets()
+	var criticalErr bool
+	res.selectionIdx, criticalErr = i.parseSelectionSets()
+
 	if criticalErr {
 		return criticalErr
 	}
-	res.selection = selection
 
 	if res.name == "" {
 		switch res.operationType {
@@ -286,6 +289,7 @@ func (i *iterT) parseOperatorOrFragment() bool {
 		i.err("operator name can only be used once (name = \"" + res.name + "\")")
 		return false // the above is not a critical parsing error
 	}
+
 	i.operatorsMap[res.name] = res
 	return false
 }
@@ -834,29 +838,36 @@ func (i *iterT) parseVariable(alreadyParsedIdentifier bool) (string, bool) {
 }
 
 // https://spec.graphql.org/June2018/#sec-Selection-Sets
-func (i *iterT) parseSelectionSets() (selectionSet, bool) {
-	res := selectionSet{}
+func (i *iterT) parseSelectionSets() (int, bool) {
+	setIdx := i.selectionSetIdx
+	if setIdx >= len(i.selections) {
+		i.selections = append(i.selections, []selection{})
+	} else {
+		i.selections[setIdx] = i.selections[setIdx][:0]
+	}
+	i.selectionSetIdx++
 
 	for {
 		c, eof := i.mightIgnoreNextTokens()
 		if eof {
-			return nil, i.unexpectedEOF()
+			return setIdx, i.unexpectedEOF()
 		}
 
 		if c == '}' {
 			i.charNr++
-			return res, false
+			return setIdx, false
 		}
 
 		selection, criticalErr := i.parseSelection()
 		if criticalErr {
-			return nil, criticalErr
+			return setIdx, criticalErr
 		}
-		res = append(res, selection)
+
+		i.selections[setIdx] = append(i.selections[setIdx], selection)
 
 		c, eof = i.mightIgnoreNextTokens()
 		if eof {
-			return nil, i.unexpectedEOF()
+			return setIdx, i.unexpectedEOF()
 		}
 
 		switch c {
@@ -864,7 +875,7 @@ func (i *iterT) parseSelectionSets() (selectionSet, bool) {
 			i.charNr++
 		case '}':
 			i.charNr++
-			return res, false
+			return setIdx, false
 		}
 	}
 }
@@ -913,7 +924,9 @@ func (i *iterT) parseSelection() (selection, bool) {
 
 // https://spec.graphql.org/June2018/#InlineFragment
 func (i *iterT) parseInlineFragment(hasTypeCondition bool) (*inlineFragment, bool) {
-	res := inlineFragment{}
+	res := inlineFragment{
+		selectionIdx: -1,
+	}
 	if hasTypeCondition {
 		_, eof := i.mightIgnoreNextTokens()
 		if eof {
@@ -953,7 +966,7 @@ func (i *iterT) parseInlineFragment(hasTypeCondition bool) (*inlineFragment, boo
 	}
 	i.charNr++
 	var criticalErr bool
-	res.selection, criticalErr = i.parseSelectionSets()
+	res.selectionIdx, criticalErr = i.parseSelectionSets()
 	return &res, criticalErr
 }
 
@@ -978,7 +991,9 @@ func (i *iterT) parseFragmentSpread(name string) (*fragmentSpread, bool) {
 
 // https://spec.graphql.org/June2018/#Field
 func (i *iterT) parseField() (*field, bool) {
-	res := field{}
+	res := field{
+		selectionIdx: -1,
+	}
 
 	// Parse name (and alias if pressent)
 	nameOrAlias, criticalErr := i.parseName()
@@ -1049,11 +1064,10 @@ func (i *iterT) parseField() (*field, bool) {
 	}
 	if c == '{' {
 		i.charNr++
-		selection, criticalErr := i.parseSelectionSets()
+		res.selectionIdx, criticalErr = i.parseSelectionSets()
 		if criticalErr {
 			return nil, criticalErr
 		}
-		res.selection = selection
 	}
 
 	return &res, false

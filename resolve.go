@@ -156,7 +156,24 @@ func (ctx *Ctx) CompleteResult(sendEmptyResult, includeErrs, includeExtensions b
 }
 
 func (s *Schema) ResolveContent(query string, options *ResolveOptions) (treadResultAsEmpty bool) {
-	s.iter.ParseQueryAndCheckNames(query, &s.ctx)
+	s.ctx.startTrace()
+	s.iter.parseQuery(query)
+	if len(s.iter.resErrors) > 0 {
+		return
+	}
+
+	s.ctx.finishTrace(func(offset, duration int64) {
+		s.ctx.tracing.Parsing.StartOffset = offset
+		s.ctx.tracing.Parsing.Duration = duration
+	})
+
+	// TODO simply the code below to only set the StartOffset as the duration is 0
+	s.ctx.startTrace()
+	s.ctx.finishTrace(func(offset, duration int64) {
+		s.ctx.tracing.Validation.StartOffset = offset
+		s.ctx.tracing.Validation.Duration = duration
+	})
+
 	if len(s.iter.resErrors) > 0 {
 		return true
 	}
@@ -198,10 +215,10 @@ func (ctx *Ctx) start() {
 	switch ctx.operator.operationType {
 	case "query":
 		ctx.reflectValues[0] = ctx.schema.rootQueryValue
-		ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootQuery, 0)
+		ctx.resolveSelection(ctx.operator.selectionIdx, ctx.schema.rootQuery, 0)
 	case "mutation":
 		ctx.reflectValues[0] = ctx.schema.rootMethodValue
-		ctx.resolveSelection(ctx.operator.selection, ctx.schema.rootMethod, 0)
+		ctx.resolveSelection(ctx.operator.selectionIdx, ctx.schema.rootMethod, 0)
 	case "subscription":
 		// TODO
 		ctx.addErr("subscription not suppored yet")
@@ -212,7 +229,7 @@ func (ctx *Ctx) start() {
 	}
 }
 
-func (ctx *Ctx) resolveSelection(selectionSet selectionSet, structType *obj, dept uint8) {
+func (ctx *Ctx) resolveSelection(selectionIdx int, structType *obj, dept uint8) {
 	if dept >= ctx.schema.MaxDepth {
 		ctx.addErr("reached max dept")
 		ctx.write([]byte("null"))
@@ -220,7 +237,7 @@ func (ctx *Ctx) resolveSelection(selectionSet selectionSet, structType *obj, dep
 	}
 
 	ctx.writeByte('{')
-	ctx.resolveSelectionContent(selectionSet, structType, dept, len(ctx.result))
+	ctx.resolveSelectionContent(selectionIdx, structType, dept, len(ctx.result))
 	ctx.writeByte('}')
 }
 
@@ -255,10 +272,10 @@ loop:
 	return
 }
 
-func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, structType *obj, dept uint8, startLen int) {
+func (ctx *Ctx) resolveSelectionContent(selectionIdx int, structType *obj, dept uint8, startLen int) {
 	dept = dept + 1
 
-	for _, selection := range selectionSet {
+	for _, selection := range ctx.schema.iter.selections[selectionIdx] {
 		switch selection.selectionType {
 		case "Field":
 			if len(selection.field.directives) > 0 {
@@ -295,7 +312,7 @@ func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, structType *o
 				continue
 			}
 
-			ctx.resolveSelectionContent(operator.fragment.selection, structType, dept, startLen)
+			ctx.resolveSelectionContent(operator.fragment.selectionIdx, structType, dept, startLen)
 		case "InlineFragment":
 			if dept >= ctx.schema.MaxDepth {
 				continue
@@ -312,7 +329,7 @@ func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, structType *o
 				}
 			}
 
-			ctx.resolveSelectionContent(selection.inlineFragment.selection, structType, dept, startLen)
+			ctx.resolveSelectionContent(selection.inlineFragment.selectionIdx, structType, dept, startLen)
 		}
 	}
 }
@@ -718,7 +735,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 		ctx.writeByte(']')
 		return
 	case valueTypeObj, valueTypeObjRef:
-		if len(query.selection) == 0 {
+		if query.selectionIdx == -1 || len(ctx.schema.iter.selections[query.selectionIdx]) == 0 {
 			ctx.addErr("must have a selection")
 			ctx.write([]byte("null"))
 			return
@@ -734,10 +751,10 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			}
 		}
 
-		ctx.resolveSelection(query.selection, codeStructure, dept)
+		ctx.resolveSelection(query.selectionIdx, codeStructure, dept)
 		return
 	case valueTypeData:
-		if len(query.selection) > 0 {
+		if query.selectionIdx >= 0 && len(ctx.schema.iter.selections[query.selectionIdx]) != 0 {
 			ctx.addErr("cannot have a selection")
 			ctx.write([]byte("null"))
 			return

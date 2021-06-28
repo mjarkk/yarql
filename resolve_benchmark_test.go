@@ -8,13 +8,29 @@ import (
 	"time"
 )
 
-func BenchmarkCheckNames(b *testing.B) {
-	// BenchmarkCheckNames-12    	   35697	     33170 ns/op	   17536 B/op	     331 allocs/op
-	// BenchmarkCheckNames-12    	   37735	     30622 ns/op	   17488 B/op	     329 allocs/op
+func BenchmarkQueryParser(b *testing.B) {
+	// BenchmarkQueryParser-12    	   35697	     33170 ns/op	   17536 B/op	     331 allocs/op
+	// BenchmarkQueryParser-12    	   37735	     30622 ns/op	   17488 B/op	     329 allocs/op
+	// BenchmarkQueryParser-12    	   35721	     30887 ns/op	   10793 B/op	     273 allocs/op
 
-	iter := &iterT{resErrors: []ErrorWLocation{}}
+	f, err := os.Create("memprofile")
+	if err != nil {
+		log.Fatal("could not create memory profile: ", err)
+	}
+	defer f.Close()
+
+	if err := pprof.StartCPUProfile(f); err != nil {
+		log.Fatal("could not start CPU profile: ", err)
+	}
+	defer pprof.StopCPUProfile()
+
+	iter := &iterT{resErrors: []ErrorWLocation{}, selections: make([]selectionSet, 100)}
+	for i := range iter.selections {
+		iter.selections[i] = make(selectionSet, 5)
+	}
+
 	for i := 0; i < b.N; i++ {
-		iter.ParseQueryAndCheckNames(schemaQuery, nil)
+		iter.parseQuery(schemaQuery)
 	}
 }
 

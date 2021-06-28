@@ -188,8 +188,14 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 			funcInputs: []reflect.Value{},
 		},
 		iter: iterT{
-			resErrors: []ErrorWLocation{},
+			resErrors:  []ErrorWLocation{},
+			selections: make([]selectionSet, 100),
 		},
+	}
+
+	// Preserve the memory for the selections
+	for i, _ := range res.iter.selections {
+		res.iter.selections[i] = make(selectionSet, 5)
 	}
 
 	ctx := &parseCtx{
