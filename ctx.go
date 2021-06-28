@@ -197,18 +197,7 @@ func (ctx *Ctx) resolveVariableFromJson(jsonValue *fastjson.Value, expectedValue
 		return nil
 	}
 
-	_, ok := definedEnums[expectedValueType.name]
-	if ok {
-		val.isEnum = true
-		strVal, err := jsonValue.StringBytes()
-		if err != nil {
-			return errors.New("expected enum value as string but got " + jsonValue.Type().String())
-		}
-		val.enumValue = string(strVal)
-		return nil
-	}
-
-	_, ok = ctx.schema.inTypes[expectedValueType.name]
+	_, ok := ctx.schema.inTypes[expectedValueType.name]
 	if ok {
 		jsonObject, err := jsonValue.Object()
 		if err != nil {
@@ -226,6 +215,19 @@ func (ctx *Ctx) resolveVariableFromJson(jsonValue *fastjson.Value, expectedValue
 		val.valType = reflect.Map
 		val.objectValue = objectContent
 		return nil
+	}
+
+	// FIXME this is slow
+	for _, enum := range definedEnums {
+		if enum.typeName == expectedValueType.name {
+			val.isEnum = true
+			strVal, err := jsonValue.StringBytes()
+			if err != nil {
+				return errors.New("expected enum value as string but got " + jsonValue.Type().String())
+			}
+			val.enumValue = string(strVal)
+			return nil
+		}
 	}
 
 	return errors.New("Unknown input type " + expectedValueType.name)
@@ -264,17 +266,7 @@ func (ctx *Ctx) resolveVariableFromDefault(defaultValue value, expectedValueType
 		return val.setToValueOfAndExpect(defaultValue, reflect.String)
 	}
 
-	_, ok := definedEnums[expectedValueType.name]
-	if ok {
-		if !defaultValue.isEnum {
-			return errors.New("exected default value to be of kind enum")
-		}
-		val.isEnum = true
-		val.enumValue = defaultValue.enumValue
-		return nil
-	}
-
-	_, ok = ctx.schema.inTypes[expectedValueType.name]
+	_, ok := ctx.schema.inTypes[expectedValueType.name]
 	if ok {
 		if defaultValue.valType != reflect.Map {
 			return errors.New("exected default value to be of kind object")
@@ -282,6 +274,18 @@ func (ctx *Ctx) resolveVariableFromDefault(defaultValue value, expectedValueType
 		val.valType = reflect.Map
 		val.objectValue = defaultValue.objectValue
 		return nil
+	}
+
+	// FIXME this is slow
+	for _, enum := range definedEnums {
+		if enum.typeName == expectedValueType.name {
+			if !defaultValue.isEnum {
+				return errors.New("exected default value to be of kind enum")
+			}
+			val.isEnum = true
+			val.enumValue = defaultValue.enumValue
+			return nil
+		}
 	}
 
 	return errors.New("Unknown input type " + expectedValueType.name)

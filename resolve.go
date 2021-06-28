@@ -509,14 +509,14 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 			return mismatchError()
 		}
 
-		if queryValue.qlTypeName != nil && *queryValue.qlTypeName != goAnalyzedData.enumTypeName {
-			return fmt.Errorf("expected type %s but got %s", goAnalyzedData.enumTypeName, *queryValue.qlTypeName)
+		enum := definedEnums[goAnalyzedData.enumTypeIndex]
+		if queryValue.qlTypeName != nil && *queryValue.qlTypeName != enum.typeName {
+			return fmt.Errorf("expected type %s but got %s", enum.typeName, *queryValue.qlTypeName)
 		}
 
-		enum := definedEnums[goAnalyzedData.enumTypeName]
 		value, ok := enum.keyValue[queryValue.enumValue]
 		if !ok {
-			return fmt.Errorf("unknown enum value %s for enum %s", queryValue.enumValue, goAnalyzedData.enumTypeName)
+			return fmt.Errorf("unknown enum value %s for enum %s", queryValue.enumValue, enum.typeName)
 		}
 
 		switch value.Kind() {
@@ -782,9 +782,9 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 		ctx.currentReflectValueIdx--
 		return
 	case valueTypeEnum:
-		enum := definedEnums[codeStructure.enumTypeName]
+		enum := definedEnums[codeStructure.enumTypeIndex]
 
-		key := enum.valueKey.MapIndex(value)
+		key := enum.valueKey.MapIndex(value) // FIXME: This is slow
 		if !key.IsValid() {
 			ctx.write([]byte("null"))
 			return
@@ -821,9 +821,9 @@ func (ctx *Ctx) valueToJson(in reflect.Value, kind reflect.Kind) {
 			ctx.write([]byte("false"))
 		}
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		ctx.writeString(strconv.FormatInt(in.Int(), 10))
+		ctx.result = strconv.AppendInt(ctx.result, in.Int(), 10)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		ctx.writeString(strconv.FormatUint(in.Uint(), 10))
+		ctx.result = strconv.AppendUint(ctx.result, in.Uint(), 10)
 	case reflect.Float32:
 		floatToJson(32, in.Float(), &ctx.result)
 	case reflect.Float64:

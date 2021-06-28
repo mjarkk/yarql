@@ -299,7 +299,7 @@ func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 		}
 		return
 	case valueTypeEnum:
-		enumType := definedEnums[item.enumTypeName].qlType
+		enumType := definedEnums[item.enumTypeIndex].qlType
 		res = &enumType
 		return res, true
 	case valueTypePtr:

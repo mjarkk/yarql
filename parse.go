@@ -88,7 +88,7 @@ type obj struct {
 	method *objMethod
 
 	// Value type == valueTypeEnum
-	enumTypeName string
+	enumTypeIndex int
 }
 
 func (o *obj) getRef() obj {
@@ -129,11 +129,11 @@ type input struct {
 	kind reflect.Kind
 
 	// Is this a custom type?
-	isEnum       bool
-	enumTypeName string
-	isID         bool
-	isFile       bool
-	isTime       bool
+	isEnum        bool
+	enumTypeIndex int
+	isID          bool
+	isFile        bool
+	isTime        bool
 
 	goFieldIdx  int
 	gqFieldName string
@@ -315,10 +315,10 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 	case reflect.Func, reflect.Map, reflect.Chan, reflect.Invalid, reflect.Uintptr, reflect.Complex64, reflect.Complex128, reflect.Interface, reflect.UnsafePointer:
 		return nil, fmt.Errorf("unsupported value type %s", t.Kind().String())
 	default:
-		enum := getEnum(t)
+		enumIndex, enum := getEnum(t)
 		if enum != nil {
 			res.valueType = valueTypeEnum
-			res.enumTypeName = enum.typeName
+			res.enumTypeIndex = enumIndex
 		} else {
 			res.valueType = valueTypeData
 			res.dataValueType = t.Kind()
@@ -444,10 +444,10 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type, hasIDTag bool) (input, err
 
 	switch kind {
 	case reflect.String, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64:
-		enum := getEnum(t)
+		enumIndex, enum := getEnum(t)
 		if enum != nil {
 			res.isEnum = true
-			res.enumTypeName = enum.typeName
+			res.enumTypeIndex = enumIndex
 		} else if hasIDTag {
 			res.isID = true
 			err := checkValidIDKind(res.kind)

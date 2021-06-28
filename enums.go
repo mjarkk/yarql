@@ -16,17 +16,18 @@ type enum struct {
 	qlType      qlType
 }
 
-func getEnum(t reflect.Type) *enum {
+func getEnum(t reflect.Type) (int, *enum) {
 	if len(t.PkgPath()) == 0 || len(t.Name()) == 0 || !validEnumType(t) {
-		return nil
+		return -1, nil
 	}
 
-	enum, ok := definedEnums[t.Name()]
-	if !ok {
-		return nil
+	for i, enum := range definedEnums {
+		if enum.typeName == t.Name() {
+			return i, &enum
+		}
 	}
 
-	return &enum
+	return -1, nil
 }
 
 func validEnumType(t reflect.Type) bool {
@@ -45,7 +46,7 @@ func validEnumType(t reflect.Type) bool {
 	}
 }
 
-var definedEnums = map[string]enum{}
+var definedEnums = []enum{}
 
 func RegisterEnum(map_ interface{}) bool {
 	enum := registerEnumCheck(map_)
@@ -53,7 +54,7 @@ func RegisterEnum(map_ interface{}) bool {
 		return false
 	}
 
-	definedEnums[enum.typeName] = *enum
+	definedEnums = append(definedEnums, *enum)
 	return true
 }
 
