@@ -145,17 +145,14 @@ func (s *Schema) ResolveContent(query string, options *ResolveOptions) (treadRes
 		return
 	}
 
-	s.ctx.finishTrace(func(offset, duration int64) {
-		s.ctx.tracing.Parsing.StartOffset = offset
-		s.ctx.tracing.Parsing.Duration = duration
-	})
+	if s.ctx.tracingEnabled {
+		s.ctx.finishTrace(func(offset, duration int64) {
+			s.ctx.tracing.Parsing.StartOffset = offset
+			s.ctx.tracing.Parsing.Duration = duration
+		})
 
-	// TODO simply the code below to only set the StartOffset as the duration is 0
-	s.ctx.startTrace()
-	s.ctx.finishTrace(func(offset, duration int64) {
-		s.ctx.tracing.Validation.StartOffset = offset
-		s.ctx.tracing.Validation.Duration = duration
-	})
+		s.ctx.tracing.Validation.StartOffset = s.ctx.prefRecordingStartTime.Sub(time.Now()).Nanoseconds()
+	}
 
 	if len(s.iter.resErrors) > 0 {
 		return true
