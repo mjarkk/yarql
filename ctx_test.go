@@ -9,9 +9,9 @@ import (
 
 func TestContextPath(t *testing.T) {
 	ctx := Ctx{}
-	Equal(t, []string(nil), ctx.Path())
-	ctx.path = pathT{"a", "b"}
-	Equal(t, []string{"a", "b"}, ctx.Path())
+	Equal(t, `[]`, ctx.Path())
+	ctx.path = []byte(`,"a","b"`)
+	Equal(t, `["a","b"]`, ctx.Path())
 }
 
 func TestContextHasErrors(t *testing.T) {

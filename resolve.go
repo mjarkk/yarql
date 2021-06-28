@@ -23,23 +23,6 @@ type ResolveOptions struct {
 	ReturnOnlyData bool
 }
 
-type pathT []string
-
-func (p pathT) toJson(target *[]byte) {
-	*target = append(*target, '[')
-	*target = append(*target, []byte(strings.Join(p, ","))...)
-	*target = append(*target, ']')
-}
-
-func (p pathT) copy() pathT {
-	if p == nil {
-		return nil
-	}
-	res := make(pathT, len(p))
-	copy(res, p)
-	return res
-}
-
 func (s *Schema) Resolve(query string, options ResolveOptions) ([]byte, []error) {
 	s.m.Lock()
 	defer s.m.Unlock()
@@ -125,8 +108,9 @@ func (ctx *Ctx) CompleteResult(sendEmptyResult, includeErrs, includeExtensions b
 
 			errWPath, isErrWPath := err.(ErrorWPath)
 			if isErrWPath && len(errWPath.path) > 0 {
-				ctx.write([]byte(`,"path":`))
-				errWPath.path.toJson(&ctx.result)
+				ctx.write([]byte(`,"path":[`))
+				ctx.write(errWPath.path)
+				ctx.writeByte(']')
 			}
 			errWLocation, isErrWLocation := err.(ErrorWLocation)
 			if isErrWLocation {
@@ -353,26 +337,24 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 		return
 	}
 
-	pathAppend := []byte{}
-	stringToJson([]byte(name), &pathAppend)
-	ctx.path = append(ctx.path, string(pathAppend))
+	prefPathLen := len(ctx.path)
+	ctx.path = append(ctx.path, []byte(`,"`)...)
+	ctx.path = append(ctx.path, []byte(name)...)
+	ctx.path = append(ctx.path, '"')
 
 	structItem, ok := codeStructure.objContents[query.name]
 	if !ok {
 		ctx.addErrf("%s does not exists on %s", query.name, codeStructure.typeName)
-		ctx.path = ctx.path[:len(ctx.path)-1]
+		ctx.path = ctx.path[:prefPathLen]
 		return
 	}
 
 	defer ctx.finishTrace(func(offset, duration int64) {
-		path := []byte{}
-		ctx.path.toJson(&path)
-
 		returnType := bytes.NewBuffer(nil)
 		ctx.schema.objToQlTypeName(structItem, returnType)
 
 		ctx.tracing.Execution.Resolvers = append(ctx.tracing.Execution.Resolvers, tracerResolver{
-			Path:        json.RawMessage(string(path)),
+			Path:        json.RawMessage(ctx.Path()),
 			ParentType:  codeStructure.typeName,
 			FieldName:   query.name,
 			ReturnType:  returnType.String(),
@@ -399,7 +381,7 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 	}
 
 	ctx.resolveFieldDataValue(query, structItem, dept)
-	ctx.path = ctx.path[:len(ctx.path)-1]
+	ctx.path = ctx.path[:prefPathLen]
 	ctx.currentReflectValueIdx--
 }
 
@@ -731,7 +713,10 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 
 		ctx.writeByte('[')
 		for i := 0; i < value.Len(); i++ {
-			ctx.path = append(ctx.path, strconv.Itoa(i))
+			prefPathLen := len(ctx.path)
+			ctx.path = append(ctx.path, ',')
+			ctx.path = strconv.AppendInt(ctx.path, int64(i), 10)
+
 			ctx.currentReflectValueIdx++
 			ctx.reflectValues[ctx.currentReflectValueIdx] = value.Index(i)
 
@@ -740,7 +725,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 				ctx.writeByte(',')
 			}
 
-			ctx.path = ctx.path[:len(ctx.path)-1]
+			ctx.path = ctx.path[:prefPathLen]
 			ctx.currentReflectValueIdx--
 		}
 		ctx.writeByte(']')

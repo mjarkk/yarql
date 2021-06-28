@@ -14,7 +14,7 @@ type TestPathStaysCorrectData struct {
 	FooBar []TestPathStaysCorrectDataBar
 }
 
-func (TestPathStaysCorrectData) ResolvePath(c *Ctx) []string {
+func (TestPathStaysCorrectData) ResolvePath(c *Ctx) string {
 	return c.Path()
 }
 
@@ -22,7 +22,7 @@ type TestPathStaysCorrectDataFoo struct {
 	Bar TestPathStaysCorrectDataBar
 }
 
-func (TestPathStaysCorrectDataFoo) ResolvePath(c *Ctx) []string {
+func (TestPathStaysCorrectDataFoo) ResolvePath(c *Ctx) string {
 	return c.Path()
 }
 
@@ -30,7 +30,7 @@ type TestPathStaysCorrectDataBar struct {
 	Foo []TestPathStaysCorrectDataFoo
 }
 
-func (TestPathStaysCorrectDataBar) ResolvePath(c *Ctx) []string {
+func (TestPathStaysCorrectDataBar) ResolvePath(c *Ctx) string {
 	return c.Path()
 }
 
@@ -105,48 +105,48 @@ func TestPathStaysCorrect(t *testing.T) {
 	}
 
 	expectedOut := `{
-		"path": [
-			"\"path\""
-		],
+		"path": "[
+			\"path\"
+		]",
 		"bar": {
-			"path": [
-				"\"bar\"",
-				"\"path\""
-			],
+			"path": "[
+				\"bar\",
+				\"path\"
+			]",
 			"foo": [
 				{
-					"path": [
-						"\"bar\"",
-						"\"foo\"",
-						"0",
-						"\"path\""
-					],
+					"path": "[
+						\"bar\",
+						\"foo\",
+						0,
+						\"path\"
+					]",
 					"bar": {
-						"path": [
-							"\"bar\"",
-							"\"foo\"",
-							"0",
-							"\"bar\"",
-							"\"path\""
-						],
+						"path": "[
+							\"bar\",
+							\"foo\",
+							0,
+							\"bar\",
+							\"path\"
+						]",
 						"foo": null
 					}
 				},
 				{
-					"path": [
-						"\"bar\"",
-						"\"foo\"",
-						"1",
-						"\"path\""
-					],
+					"path": "[
+						\"bar\",
+						\"foo\",
+						1,
+						\"path\"
+					]",
 					"bar": {
-						"path": [
-							"\"bar\"",
-							"\"foo\"",
-							"1",
-							"\"bar\"",
-							"\"path\""
-						],
+						"path": "[
+							\"bar\",
+							\"foo\",
+							1,
+							\"bar\",
+							\"path\"
+						]",
 						"foo": null
 					}
 				}
@@ -154,77 +154,77 @@ func TestPathStaysCorrect(t *testing.T) {
 		},
 		"foo": [
 			{
-				"path": [
-					"\"foo\"",
-					"0",
-					"\"path\""
-				],
+				"path": "[
+					\"foo\",
+					0,
+					\"path\"
+				]",
 				"bar": {
-					"path": [
-						"\"foo\"",
-						"0",
-						"\"bar\"",
-						"\"path\""
-					],
+					"path": "[
+						\"foo\",
+						0,
+						\"bar\",
+						\"path\"
+					]",
 					"foo": null
 				}
 			},
 			{
-				"path": [
-					"\"foo\"",
-					"1",
-					"\"path\""
-				],
+				"path": "[
+					\"foo\",
+					1,
+					\"path\"
+				]",
 				"bar": {
-					"path": [
-						"\"foo\"",
-						"1",
-						"\"bar\"",
-						"\"path\""
-					],
+					"path": "[
+						\"foo\",
+						1,
+						\"bar\",
+						\"path\"
+					]",
 					"foo": null
 				}
 			}
 		],
 		"baz": {
-			"path": [
-				"\"baz\"",
-				"\"path\""
-			],
+			"path": "[
+				\"baz\",
+				\"path\"
+			]",
 			"foo": [
 				{
-					"path": [
-						"\"baz\"",
-						"\"foo\"",
-						"0",
-						"\"path\""
-					],
+					"path": "[
+						\"baz\",
+						\"foo\",
+						0,
+						\"path\"
+					]",
 					"bar": {
-						"path": [
-							"\"baz\"",
-							"\"foo\"",
-							"0",
-							"\"bar\"",
-							"\"path\""
-						],
+						"path": "[
+							\"baz\",
+							\"foo\",
+							0,
+							\"bar\",
+							\"path\"
+						]",
 						"foo": null
 					}
 				},
 				{
-					"path": [
-						"\"baz\"",
-						"\"foo\"",
-						"1",
-						"\"path\""
-					],
+					"path": "[
+						\"baz\",
+						\"foo\",
+						1,
+						\"path\"
+					]",
 					"bar": {
-						"path": [
-							"\"baz\"",
-							"\"foo\"",
-							"1",
-							"\"bar\"",
-							"\"path\""
-						],
+						"path": "[
+							\"baz\",
+							\"foo\",
+							1,
+							\"bar\",
+							\"path\"
+						]",
 						"foo": null
 					}
 				}
@@ -232,19 +232,19 @@ func TestPathStaysCorrect(t *testing.T) {
 		},
 		"fooBar": [
 			{
-				"path": [
-					"\"fooBar\"",
-					"0",
-					"\"path\""
-				],
+				"path": "[
+					\"fooBar\",
+					0,
+					\"path\"
+				]",
 				"foo": []
 			},
 			{
-				"path": [
-					"\"fooBar\"",
-					"1",
-					"\"path\""
-				],
+				"path": "[
+					\"fooBar\",
+					1,
+					\"path\"
+				]",
 				"foo": []
 			}
 		]

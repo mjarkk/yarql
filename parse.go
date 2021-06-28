@@ -184,7 +184,7 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 		ctx: Ctx{
 			result:     make([]byte, 2048),
 			errors:     []error{},
-			path:       pathT{},
+			path:       []byte{},
 			funcInputs: []reflect.Value{},
 		},
 		iter: iterT{

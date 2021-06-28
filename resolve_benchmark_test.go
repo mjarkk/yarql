@@ -56,6 +56,7 @@ func BenchmarkResolve(b *testing.B) {
 	// BenchmarkResolve-16    	    3400	    305631 ns/op	   50040 B/op	    2817 allocs/op
 	// BenchmarkResolve-16    	    3860	    303078 ns/op	   46153 B/op	    2544 allocs/op
 	// BenchmarkResolve-16    	    4406	    265315 ns/op	   40399 B/op	    2326 allocs/op
+	// BenchmarkResolve-16    	    8398	    150171 ns/op	   17443 B/op	     306 allocs/op
 
 	s, _ := ParseSchema(TestExecSchemaRequestWithFieldsData{}, M{}, nil)
 
@@ -82,13 +83,14 @@ func BenchmarkEncodeString(b *testing.B) {
 	inputString1 := []byte("abc")
 	inputString2 := []byte("Some long string that includes spaces  and a .")
 	inputString3 := []byte(`Wow this includes \\ and && and <> and ""`)
+	inputString4 := []byte("The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.")
 	out := []byte{}
 
 	for i := 0; i < b.N; i++ {
 		stringToJson(inputString1, &out)
 		stringToJson(inputString2, &out)
 		stringToJson(inputString3, &out)
-		out = out[:0]
+		stringToJson(inputString4, &out)
 	}
 }
 

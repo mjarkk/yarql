@@ -20,7 +20,7 @@ type Ctx struct {
 	operator            *operator       // Part of query to execute
 	jsonVariablesString string          // Raw query variables
 	jsonVariables       *fastjson.Value // Parsed query variables
-	path                pathT
+	path                []byte
 	context             context.Context
 	getFormFile         func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
 	extensions          map[string]interface{}
@@ -62,9 +62,12 @@ func (ctx *Ctx) Context() context.Context {
 	return ctx.context
 }
 
-// Path to the current method, path elements are encoded in json format
-func (ctx *Ctx) Path() []string {
-	return ctx.path
+// Path to the current method encoded as json
+func (ctx *Ctx) Path() string {
+	if len(ctx.path) == 0 {
+		return `[]`
+	}
+	return `[` + string(ctx.path[1:]) + `]`
 }
 
 // HasErrors checks if the query has errors till this current point of execution
@@ -83,10 +86,17 @@ func (ctx *Ctx) Errors() []error {
 
 // AddError add an error to the query
 func (ctx *Ctx) AddError(err error) {
-	ctx.errors = append(ctx.errors, ErrorWPath{
-		err:  err,
-		path: ctx.path.copy(),
-	})
+	if len(ctx.path) == 0 {
+		ctx.errors = append(ctx.errors, err)
+	} else {
+		copiedPath := make([]byte, len(ctx.path)-1)
+		copy(copiedPath, ctx.path[1:])
+
+		ctx.errors = append(ctx.errors, ErrorWPath{
+			err:  err,
+			path: copiedPath,
+		})
+	}
 }
 
 //
@@ -110,17 +120,31 @@ func (ctx *Ctx) value() reflect.Value {
 }
 
 func (ctx *Ctx) addErr(err string) {
-	ctx.errors = append(ctx.errors, ErrorWPath{
-		err:  errors.New(err),
-		path: ctx.path.copy(),
-	})
+	if len(ctx.path) == 0 {
+		ctx.errors = append(ctx.errors, errors.New(err))
+	} else {
+		copiedPath := make([]byte, len(ctx.path)-1)
+		copy(copiedPath, ctx.path[1:])
+
+		ctx.errors = append(ctx.errors, ErrorWPath{
+			err:  errors.New(err),
+			path: copiedPath,
+		})
+	}
 }
 
 func (ctx *Ctx) addErrf(err string, args ...interface{}) {
-	ctx.errors = append(ctx.errors, ErrorWPath{
-		err:  fmt.Errorf(err, args...),
-		path: ctx.path.copy(),
-	})
+	if len(ctx.path) == 0 {
+		ctx.errors = append(ctx.errors, fmt.Errorf(err, args...))
+	} else {
+		copiedPath := make([]byte, len(ctx.path)-1)
+		copy(copiedPath, ctx.path[1:])
+
+		ctx.errors = append(ctx.errors, ErrorWPath{
+			err:  fmt.Errorf(err, args...),
+			path: copiedPath,
+		})
+	}
 }
 
 // getVariable tries to resolve a variable and places it inside the value argument
@@ -355,7 +379,7 @@ func jsonValueToValue(jsonValue *fastjson.Value) value {
 
 type ErrorWPath struct {
 	err  error
-	path pathT
+	path []byte // a json representation of the path without the [] around it
 }
 
 func (e ErrorWPath) Error() string {
