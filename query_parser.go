@@ -28,7 +28,7 @@ type selection struct {
 
 type field struct {
 	name         string
-	alias        string     // Optional
+	alias        []byte     // Optional
 	selectionIdx int        // Optional
 	directives   directives // Optional
 	arguments    arguments  // Optional
@@ -204,10 +204,10 @@ func (i *iterT) parseOperatorOrFragment() bool {
 			if criticalErr {
 				return criticalErr
 			}
-			if name == "" {
+			if len(name) == 0 {
 				return i.err("expected name but got \"" + string(i.currentC()) + "\"")
 			}
-			res.name = name
+			res.name = string(name)
 
 			c, eof = i.mightIgnoreNextTokens()
 			if eof {
@@ -416,15 +416,18 @@ func (i *iterT) parseValue(allowVariables bool) (value, bool) {
 		if criticalErr {
 			return value{}, criticalErr
 		}
-		switch name {
+		strName := string(name)
+		switch strName {
 		case "null":
 			return makeNullValue(), false
-		case "true", "false":
-			return makeBooleanValue(name == "true"), false
+		case "true":
+			return makeBooleanValue(true), false
+		case "false":
+			return makeBooleanValue(false), false
 		case "":
 			return value{}, i.err("invalid value")
 		default:
-			return makeEnumValue(name), false
+			return makeEnumValue(strName), false
 		}
 	}
 }
@@ -792,10 +795,10 @@ func (i *iterT) parseType() (*typeReference, bool) {
 		if criticalErr {
 			return nil, criticalErr
 		}
-		if name == "" {
+		if len(name) == 0 {
 			return nil, i.err("type name missing or invalid type name")
 		}
-		res.name = name
+		res.name = string(name)
 	}
 
 	c, eof := i.mightIgnoreNextTokens()
@@ -827,14 +830,15 @@ func (i *iterT) parseVariable(alreadyParsedIdentifier bool) (string, bool) {
 	if criticalErr {
 		return "", criticalErr
 	}
-	if name == "" {
+	if len(name) == 0 {
 		return "", i.err("cannot have empty variable name")
 	}
-	if name == "null" {
+	strName := string(name)
+	if strName == "null" {
 		return "", i.err("null is a illegal variable name")
 	}
 
-	return name, false
+	return strName, false
 }
 
 // https://spec.graphql.org/June2018/#sec-Selection-Sets
@@ -890,10 +894,11 @@ func (i *iterT) parseSelection() (selection, bool) {
 			return res, i.unexpectedEOF()
 		}
 
-		name, criticalErr := i.parseName()
+		byteName, criticalErr := i.parseName()
 		if criticalErr {
 			return res, criticalErr
 		}
+		name := string(byteName)
 
 		if name == "on" || name == "" {
 			inlineFragment, criticalErr := i.parseInlineFragment(name == "on")
@@ -933,8 +938,8 @@ func (i *iterT) parseInlineFragment(hasTypeCondition bool) (*inlineFragment, boo
 			return nil, i.unexpectedEOF()
 		}
 
-		var criticalErr bool
-		res.onTypeConditionName, criticalErr = i.parseName()
+		name, criticalErr := i.parseName()
+		res.onTypeConditionName = string(name)
 		if criticalErr {
 			return nil, criticalErr
 		}
@@ -1005,7 +1010,7 @@ func (i *iterT) parseField() (field, bool) {
 	}
 
 	if c == ':' {
-		if nameOrAlias == "" {
+		if len(nameOrAlias) == 0 {
 			return res, i.err("field alias should have a name")
 		}
 		res.alias = nameOrAlias
@@ -1014,18 +1019,19 @@ func (i *iterT) parseField() (field, bool) {
 		if eof {
 			return res, i.unexpectedEOF()
 		}
-		res.name, criticalErr = i.parseName()
+		name, criticalErr := i.parseName()
 		if criticalErr {
 			return res, criticalErr
 		}
+		res.name = string(name)
 		if res.name == "" {
 			return res, i.err("field should have a name")
 		}
 	} else {
-		if nameOrAlias == "" {
+		if len(nameOrAlias) == 0 {
 			return res, i.err("field should have a name")
 		}
-		res.name = nameOrAlias
+		res.name = string(nameOrAlias)
 	}
 
 	// Parse Arguments if present
@@ -1092,7 +1098,7 @@ func (i *iterT) parseArgumentsOrObjectValues(closure byte) (res arguments, criti
 		if criticalErr {
 			return nil, criticalErr
 		}
-		if name == "" {
+		if len(name) == 0 {
 			return nil, i.err("argument name must be defined")
 		}
 
@@ -1115,7 +1121,7 @@ func (i *iterT) parseArgumentsOrObjectValues(closure byte) (res arguments, criti
 		if criticalErr {
 			return nil, criticalErr
 		}
-		res[name] = value
+		res[string(name)] = value
 
 		c, eof = i.mightIgnoreNextTokens()
 		if eof {
@@ -1166,10 +1172,10 @@ func (i *iterT) parseDirective() (*directive, bool) {
 	if criticalErr {
 		return nil, criticalErr
 	}
-	if name == "" {
+	if len(name) == 0 {
 		return nil, i.err("directive must have a name")
 	}
-	res := directive{name: name}
+	res := directive{name: string(name)}
 
 	// Parse optional Arguments
 	c, eof := i.mightIgnoreNextTokens()
@@ -1189,14 +1195,14 @@ func (i *iterT) parseDirective() (*directive, bool) {
 }
 
 // https://spec.graphql.org/June2018/#Name
-func (i *iterT) parseName() (string, bool) {
+func (i *iterT) parseName() ([]byte, bool) {
 	nameLen := 64
 	name := make([]byte, nameLen)
 	len := 0
 	for {
 		c, eof := i.checkC(i.charNr)
 		if eof {
-			return string(name[:len]), i.unexpectedEOF()
+			return name[:len], i.unexpectedEOF()
 		}
 
 		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || (len != 0 && c >= '0' && c <= '9') {
@@ -1213,7 +1219,7 @@ func (i *iterT) parseName() (string, bool) {
 			continue
 		}
 
-		return string(name[:len]), false
+		return name[:len], false
 	}
 }
 

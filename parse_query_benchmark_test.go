@@ -18,7 +18,7 @@ func BenchmarkParseName(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		v, _ := validName.parseName()
-		if v != "_Banana" {
+		if string(v) != "_Banana" {
 			panic("parseName did not return expected value \"_Banana\"")
 		}
 		invalidValidName.parseName()

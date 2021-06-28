@@ -115,9 +115,9 @@ func (ctx *Ctx) CompleteResult(sendEmptyResult, includeErrs, includeExtensions b
 			errWLocation, isErrWLocation := err.(ErrorWLocation)
 			if isErrWLocation {
 				ctx.write([]byte(`,"locations":[{"line":`))
-				ctx.writeString(strconv.FormatUint(uint64(errWLocation.line), 10))
+				ctx.result = strconv.AppendUint(ctx.result, uint64(errWLocation.line), 10)
 				ctx.write([]byte(`,"column":`))
-				ctx.writeString(strconv.FormatUint(uint64(errWLocation.column), 10))
+				ctx.result = strconv.AppendUint(ctx.result, uint64(errWLocation.column), 10)
 				ctx.write([]byte(`}]`))
 			}
 			ctx.writeByte('}')
@@ -129,7 +129,7 @@ func (ctx *Ctx) CompleteResult(sendEmptyResult, includeErrs, includeExtensions b
 		extensionsJson, err := json.Marshal(ctx.extensions)
 		if err == nil {
 			ctx.write([]byte(`,"extensions":`))
-			ctx.writeString(string(extensionsJson))
+			ctx.write(extensionsJson)
 		}
 	}
 
@@ -327,12 +327,12 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 		}
 		ctx.writeByte('"')
 		if len(query.alias) > 0 {
-			ctx.writeString(query.alias)
+			ctx.write(query.alias)
 		} else {
 			ctx.writeString(query.name)
 		}
 		ctx.write([]byte(`":"`))
-		ctx.writeString(codeStructure.typeName)
+		ctx.write(codeStructure.typeNameBytes)
 		ctx.writeByte('"')
 		return
 	}
@@ -344,11 +344,11 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 
 	structItem, ok := codeStructure.objContents[query.name]
 	if !ok {
-		name := query.name
 		if len(query.alias) > 0 {
-			name = query.alias
+			ctx.path = append(ctx.path, query.alias...)
+		} else {
+			ctx.path = append(ctx.path, []byte(query.name)...)
 		}
-		ctx.path = append(ctx.path, []byte(name)...)
 		ctx.path = append(ctx.path, '"')
 
 		ctx.addErrf("%s does not exists on %s", query.name, codeStructure.typeName)
@@ -357,7 +357,7 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 
 	name := structItem.qlFieldName
 	if len(query.alias) > 0 {
-		name = []byte(query.alias)
+		name = query.alias
 	}
 
 	ctx.path = append(ctx.path, name...)
@@ -799,7 +799,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			for _, entry := range enum.entries {
 				if entry.value.Int() == underlayingValue {
 					ctx.writeByte('"')
-					ctx.writeString(entry.key)
+					ctx.write(entry.keyBytes)
 					ctx.writeByte('"')
 					return
 				}
@@ -809,7 +809,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			for _, entry := range enum.entries {
 				if entry.value.Uint() == underlayingValue {
 					ctx.writeByte('"')
-					ctx.writeString(entry.key)
+					ctx.write(entry.keyBytes)
 					ctx.writeByte('"')
 					return
 				}
@@ -819,7 +819,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			for _, entry := range enum.entries {
 				if entry.value.String() == underlayingValue {
 					ctx.writeByte('"')
-					ctx.writeString(entry.key)
+					ctx.write(entry.keyBytes)
 					ctx.writeByte('"')
 					return
 				}

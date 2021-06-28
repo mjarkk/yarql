@@ -17,8 +17,9 @@ type enum struct {
 }
 
 type enumEntry struct {
-	key   string
-	value reflect.Value
+	keyBytes []byte
+	key      string
+	value    reflect.Value
 }
 
 func getEnum(t reflect.Type) (int, *enum) {
@@ -93,6 +94,7 @@ func registerEnumCheck(map_ interface{}) *enum {
 	}
 
 	entries := make([]enumEntry, inputLen)
+	qlTypeEnumValues := make([]qlEnumValue, inputLen)
 
 	iter := mapReflection.MapRange()
 	i := 0
@@ -109,25 +111,21 @@ func registerEnumCheck(map_ interface{}) *enum {
 		}
 
 		entries[i] = enumEntry{
-			key:   keyStr,
-			value: iter.Value(),
+			keyBytes: []byte(keyStr),
+			key:      keyStr,
+			value:    iter.Value(),
 		}
-		i++
-	}
-
-	name := contentType.Name()
-
-	qlTypeEnumValues := []qlEnumValue{}
-	for _, entry := range entries {
-		qlTypeEnumValues = append(qlTypeEnumValues, qlEnumValue{
-			Name:              entry.key,
+		qlTypeEnumValues[i] = qlEnumValue{
+			Name:              keyStr,
 			Description:       h.StrPtr(""),
 			IsDeprecated:      false,
 			DeprecationReason: nil,
-		})
+		}
+		i++
 	}
 	sort.Slice(qlTypeEnumValues, func(a int, b int) bool { return qlTypeEnumValues[a].Name < qlTypeEnumValues[b].Name })
 
+	name := contentType.Name()
 	qlType := qlType{
 		Kind:        typeKindEnum,
 		Name:        &name,

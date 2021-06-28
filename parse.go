@@ -66,10 +66,11 @@ const (
 )
 
 type obj struct {
-	valueType   valueType
-	typeName    string
-	pkgPath     string
-	qlFieldName []byte
+	valueType     valueType
+	typeName      string
+	typeNameBytes []byte
+	pkgPath       string
+	qlFieldName   []byte
 
 	// Value type == valueTypeObj
 	objContents    map[string]*obj
@@ -98,8 +99,9 @@ func (o *obj) getRef() obj {
 	}
 
 	return obj{
-		valueType: valueTypeObjRef,
-		typeName:  o.typeName,
+		valueType:     valueTypeObjRef,
+		typeName:      o.typeName,
+		typeNameBytes: []byte(o.typeName),
 	}
 }
 
@@ -247,8 +249,9 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 
 func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 	res := obj{
-		typeName: t.Name(),
-		pkgPath:  t.PkgPath(),
+		typeNameBytes: []byte(t.Name()),
+		typeName:      t.Name(),
+		pkgPath:       t.PkgPath(),
 	}
 
 	if res.pkgPath == "time" && res.typeName == "Time" {
@@ -264,6 +267,7 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 			newName, ok := renamedTypes[res.typeName]
 			if ok {
 				res.typeName = newName
+				res.typeNameBytes = []byte(newName)
 			}
 
 			v, ok := c.types.Get(res.typeName)
@@ -278,6 +282,7 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 		} else {
 			c.unknownTypesCount++
 			res.typeName = "__UnknownType" + strconv.Itoa(c.unknownTypesCount)
+			res.typeNameBytes = []byte(res.typeName)
 		}
 
 		res.objContents = map[string]*obj{}
