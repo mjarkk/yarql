@@ -251,14 +251,14 @@ _Based on [graphql-multipart-request-spec #55](https://github.com/jaydenseric/gr
 
 ## Performance
 
-Below shows a benchmark of fetching the graphql schema
+Below shows a benchmark of fetching the graphql schema (query parsing + data fetching)
 
 _Note: This benchmark also profiles the cpu and that effects the score by a bit_
 
 ```sh
 # go test -benchmem -bench "^(BenchmarkResolve)\$"
-goos: darwin
-cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+# goos: darwin
+# cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
 BenchmarkResolve-12    	    8949	    123498 ns/op	   17482 B/op	     309 allocs/op
 ```
 
