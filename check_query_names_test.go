@@ -6,8 +6,14 @@ import (
 	. "github.com/stretchr/testify/assert"
 )
 
+func parseQueryAndCheckNamesTestWrapper(query string) (fragments, operatorsMap map[string]operator, resErrors []ErrorWLocation) {
+	iter := &iterT{resErrors: []ErrorWLocation{}}
+	iter.ParseQueryAndCheckNames(query, nil)
+	return iter.fragments, iter.operatorsMap, iter.resErrors
+}
+
 func TestParseQueryAndCheckNamesSimple(t *testing.T) {
-	fragments, operators, errs := ParseQueryAndCheckNames(`{}`, nil)
+	fragments, operators, errs := parseQueryAndCheckNamesTestWrapper(`{}`)
 	NotNil(t, fragments)
 	NotNil(t, operators)
 	NotNil(t, errs)
@@ -17,7 +23,7 @@ func TestParseQueryAndCheckNamesSimple(t *testing.T) {
 }
 
 func TestParseQueryAndCheckNamesWithFragment(t *testing.T) {
-	fragments, operators, errs := ParseQueryAndCheckNames(`
+	fragments, operators, errs := parseQueryAndCheckNamesTestWrapper(`
 		query QueryThoseHumans {}
 
 		fragment Human on Character {
@@ -27,7 +33,7 @@ func TestParseQueryAndCheckNamesWithFragment(t *testing.T) {
 				name
 			}
 		}
-	`, nil)
+	`)
 	Equal(t, 0, len(errs))
 	Equal(t, 1, len(operators))
 	Equal(t, 1, len(fragments))
@@ -39,13 +45,13 @@ func TestParseQueryAndCheckNamesWithFragment(t *testing.T) {
 }
 
 func TestParseQueryAndCheckNamesUnnamed(t *testing.T) {
-	fragments, operators, errs := ParseQueryAndCheckNames(`
+	fragments, operators, errs := parseQueryAndCheckNamesTestWrapper(`
 		query {}
 		query {}
 		query {}
 		mutation {}
 		subscription {}
-	`, nil)
+	`)
 
 	Equal(t, 0, len(errs))
 	Equal(t, 0, len(fragments))
@@ -65,7 +71,7 @@ func TestParseQueryAndCheckNamesUnnamed(t *testing.T) {
 
 func TestParseQueryAndCheckNamesReportErrors(t *testing.T) {
 	// Invalid query
-	fragments, operators, errs := ParseQueryAndCheckNames(`this is not a query and should fail`, nil)
+	fragments, operators, errs := parseQueryAndCheckNamesTestWrapper(`this is not a query and should fail`)
 	NotNil(t, fragments)
 	NotNil(t, operators)
 	NotNil(t, errs)
@@ -74,7 +80,7 @@ func TestParseQueryAndCheckNamesReportErrors(t *testing.T) {
 	Equal(t, 0, len(fragments))
 
 	// Multiple items with same name
-	fragments, operators, errs = ParseQueryAndCheckNames(`
+	fragments, operators, errs = parseQueryAndCheckNamesTestWrapper(`
 		query foo {}
 		query foo {}
 
@@ -83,7 +89,7 @@ func TestParseQueryAndCheckNamesReportErrors(t *testing.T) {
 
 		fragment baz on Character {}
 		fragment baz on Character {}
-	`, nil)
+	`)
 	Equal(t, 3, len(errs))
 	Equal(t, 2, len(operators))
 	Equal(t, 1, len(fragments))

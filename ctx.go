@@ -15,12 +15,11 @@ import (
 // Ctx contains all the request information and responses
 type Ctx struct {
 	// Private
-	fragments           map[string]operator // Query fragments
-	schema              *Schema             // The Go code schema (graphql schema)
-	errors              []error             // Query errors
-	operator            *operator           // Part of query to execute
-	jsonVariablesString string              // Raw query variables
-	jsonVariables       *fastjson.Value     // Parsed query variables
+	schema              *Schema         // The Go code schema (graphql schema)
+	errors              []error         // Query errors
+	operator            *operator       // Part of query to execute
+	jsonVariablesString string          // Raw query variables
+	jsonVariables       *fastjson.Value // Parsed query variables
 	path                pathT
 	context             context.Context
 	getFormFile         func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading

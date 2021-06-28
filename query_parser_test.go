@@ -3,6 +3,7 @@ package graphql
 import (
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
@@ -18,13 +19,24 @@ func checkErrorHaveLocation(err *ErrorWLocation) {
 	}
 }
 
+func parseQuery(query string) (fragments, operators map[string]operator, err *ErrorWLocation) {
+	i := &iterT{resErrors: []ErrorWLocation{}}
+	i.parseQuery(query)
+	if len(i.resErrors) > 0 {
+		err = &i.resErrors[0]
+	}
+	return i.fragments, i.operatorsMap, err
+}
+
 func TestQueryParserEmptyQuery(t *testing.T) {
-	res, err := parseQuery(``)
-	Equal(t, 0, len(res))
+	fragments, operators, err := parseQuery(``)
+	Equal(t, 0, len(fragments))
+	Equal(t, 0, len(operators))
 	Nil(t, err)
 
-	res, err = parseQuery(`  `)
-	Equal(t, 0, len(res))
+	fragments, operators, err = parseQuery(`  `)
+	Equal(t, 0, len(fragments))
+	Equal(t, 0, len(operators))
 	Nil(t, err)
 }
 
@@ -52,14 +64,24 @@ func TestQueryParserEmptyBracesQuery(t *testing.T) {
 	}
 
 	for _, option := range options {
-		res, err := parseQuery(option.query)
+		fragments, operators, err := parseQuery(option.query)
+		Equal(t, 0, len(fragments))
 		if option.shouldFail {
 			NotNil(t, err, option.query)
 		} else {
-			Equal(t, 1, len(res), option.query)
+			Equal(t, 1, len(operators), option.query)
 			Nil(t, err, option.query)
-			Equal(t, option.expectedOperationType, res[0].operationType, option.query)
-			Equal(t, "", res[0].name, option.query)
+			for _, operator := range operators {
+				Equal(t, option.expectedOperationType, operator.operationType, option.query)
+				switch option.expectedOperationType {
+				case "query":
+					True(t, strings.Contains(operator.name, "unknown_query_"), option.query)
+				case "mutation":
+					True(t, strings.Contains(operator.name, "unknown_mutation_"), option.query)
+				case "subscription":
+					True(t, strings.Contains(operator.name, "unknown_subscription_"), option.query)
+				}
+			}
 		}
 	}
 }
@@ -75,36 +97,42 @@ func TestQueryParserEmptyBracesQueryWithName(t *testing.T) {
 	}
 
 	for _, option := range options {
-		res, err := parseQuery(option.query)
-		Equal(t, 1, len(res), option.query)
+		fragments, operators, err := parseQuery(option.query)
+		Equal(t, 0, len(fragments), option.query)
+		Equal(t, 1, len(operators), option.query)
 		Nil(t, err, option.query)
-		Equal(t, option.expectedOperationType, res[0].operationType, option.query)
-		Equal(t, "name_here", res[0].name, option.query)
+		operator, ok := operators["name_here"]
+		True(t, ok)
+		Equal(t, option.expectedOperationType, operator.operationType, option.query)
 	}
 }
 
 func TestQueryParsingQueryDirectives(t *testing.T) {
-	res, err := parseQuery(`query foo @bar {}`)
-	Equal(t, 1, len(res))
+	fragments, operators, err := parseQuery(`query foo @bar {}`)
+	Equal(t, 0, len(fragments))
+	Equal(t, 1, len(operators))
 	Nil(t, err)
 
-	res, err = parseQuery(`query @bar {}`)
-	Equal(t, 1, len(res))
+	fragments, operators, err = parseQuery(`query @bar {}`)
+	Equal(t, 0, len(fragments))
+	Equal(t, 1, len(operators))
 	Nil(t, err)
 }
 
 func TestQueryParserMultipleQueries(t *testing.T) {
-	res, err := parseQuery(`
+	fragments, operators, err := parseQuery(`
 		query a {}
 		query b {}
 		query c {}
 		query d {}
 	`)
-	Equal(t, 4, len(res))
+	Equal(t, 0, len(fragments))
+	Equal(t, 4, len(operators))
 	Nil(t, err)
 
-	for i, expectedName := range []string{"a", "b", "c", "d"} {
-		Equal(t, expectedName, res[i].name)
+	for _, expectedName := range []string{"a", "b", "c", "d"} {
+		_, ok := operators[expectedName]
+		True(t, ok)
 	}
 }
 
@@ -123,25 +151,32 @@ func TestQueryParsingTypes(t *testing.T) {
 	}
 
 	for _, item := range toTest {
-		res, err := parseQuery(item.query)
-		Equal(t, item.expectedLen, len(res[0].variableDefinitions), item.query)
+		fragments, operators, err := parseQuery(item.query)
+		Equal(t, 0, len(fragments), item.query)
+		Equal(t, 1, len(operators), item.query)
+		for _, operator := range operators {
+			Equal(t, item.expectedLen, len(operator.variableDefinitions), item.query)
+		}
 		Nil(t, err, item.query)
 	}
 
-	res, err := parseQuery(`query query_name( $a : String $b:Boolean) {}`)
-	Equal(t, 1, len(res))
+	fragments, operators, err := parseQuery(`query query_name( $a : String $b:Boolean) {}`)
+	Equal(t, 0, len(fragments))
+	Equal(t, 1, len(operators))
 	Nil(t, err)
-	Equal(t, 2, len(res[0].variableDefinitions))
-	item1 := res[0].variableDefinitions["a"]
-	item2 := res[0].variableDefinitions["b"]
-	Equal(t, "String", item1.varType.name)
-	Equal(t, "Boolean", item2.varType.name)
-	Nil(t, item1.defaultValue)
-	Nil(t, item2.defaultValue)
+	for _, operator := range operators {
+		Equal(t, 2, len(operator.variableDefinitions))
+		item1 := operator.variableDefinitions["a"]
+		item2 := operator.variableDefinitions["b"]
+		Equal(t, "String", item1.varType.name)
+		Equal(t, "Boolean", item2.varType.name)
+		Nil(t, item1.defaultValue)
+		Nil(t, item2.defaultValue)
+	}
 }
 
 func TestQueryParsingInvalidVariableDefinition(t *testing.T) {
-	_, err := parseQuery(`query query_name($a: String = $b) {}`)
+	_, _, err := parseQuery(`query query_name($a: String = $b) {}`)
 	Error(t, err)
 	Equal(t, "variables not allowed within this context", err.Error())
 
@@ -176,20 +211,23 @@ func TestQueryParserNumbers(t *testing.T) {
 		}
 
 		query := `query ($b: ` + name + ` = ` + option.input + `) {}`
-		res, err := parseQuery(query)
-		Equal(t, 1, len(res), option.input)
+		fragments, operators, err := parseQuery(query)
+		Equal(t, 0, len(fragments), option.input)
+		Equal(t, 1, len(operators), option.input)
 		Nil(t, err, option.input)
 
-		item := res[0].variableDefinitions["b"]
+		for _, operator := range operators {
+			item := operator.variableDefinitions["b"]
 
-		if option.isInt {
-			Equal(t, reflect.Int, item.defaultValue.valType, option.input)
-			n, _ := strconv.Atoi(option.input)
-			Equal(t, n, item.defaultValue.intValue, option.input)
-		} else {
-			Equal(t, reflect.Float64, item.defaultValue.valType, option.input)
-			f, _ := strconv.ParseFloat(option.input, 64)
-			Equal(t, f, item.defaultValue.floatValue, option.input)
+			if option.isInt {
+				Equal(t, reflect.Int, item.defaultValue.valType, option.input)
+				n, _ := strconv.Atoi(option.input)
+				Equal(t, n, item.defaultValue.intValue, option.input)
+			} else {
+				Equal(t, reflect.Float64, item.defaultValue.valType, option.input)
+				f, _ := strconv.ParseFloat(option.input, 64)
+				Equal(t, f, item.defaultValue.floatValue, option.input)
+			}
 		}
 
 		injectCodeSurviveTest(query, `+`, `.`, `e`)
@@ -221,21 +259,24 @@ func TestQueryParserStrings(t *testing.T) {
 
 	for _, option := range options {
 		query := `query ($b: String = ` + option.input + `) {}`
-		res, err := parseQuery(query)
-		Equal(t, 1, len(res), option.input)
+		fragments, operators, err := parseQuery(query)
+		Equal(t, 0, len(fragments))
+		Equal(t, 1, len(operators), option.input)
 		Nil(t, err, option.input)
 
-		item := res[0].variableDefinitions["b"]
+		for _, operator := range operators {
+			item := operator.variableDefinitions["b"]
 
-		Equal(t, reflect.String, item.defaultValue.valType, option.input)
-		Equal(t, option.output, item.defaultValue.stringValue)
+			Equal(t, reflect.String, item.defaultValue.valType, option.input)
+			Equal(t, option.output, item.defaultValue.stringValue)
+		}
 
 		injectCodeSurviveTest(query, `\u`, `"`, `\`, "\n")
 	}
 }
 
 func TestQueryParserSimpleInvalid(t *testing.T) {
-	_, err := parseQuery(`This should not get parsed`)
+	_, _, err := parseQuery(`This should not get parsed`)
 	NotNil(t, err)
 }
 
@@ -257,22 +298,25 @@ func TestQueryParserSimpleQuery(t *testing.T) {
 	}
 
 	for _, option := range options {
-		res, err := parseQuery(option)
-		Equal(t, 1, len(res), option)
+		fragments, operators, err := parseQuery(option)
+		Equal(t, 0, len(fragments), option)
+		Equal(t, 1, len(operators), option)
 		Nil(t, err, option)
 
-		Equal(t, 3, len(res[0].selection), "Should have 3 properties")
+		for _, operator := range operators {
+			Equal(t, 3, len(operator.selection), "Should have 3 properties")
 
-		selectionMap := map[string]field{}
-		for _, item := range res[0].selection {
-			Equal(t, "Field", item.selectionType)
-			NotNil(t, item.field)
-			selectionMap[item.field.name] = *item.field
+			selectionMap := map[string]field{}
+			for _, item := range operator.selection {
+				Equal(t, "Field", item.selectionType)
+				NotNil(t, item.field)
+				selectionMap[item.field.name] = *item.field
+			}
+
+			Contains(t, selectionMap, "a")
+			Contains(t, selectionMap, "b")
+			Contains(t, selectionMap, "d")
 		}
-
-		Contains(t, selectionMap, "a")
-		Contains(t, selectionMap, "b")
-		Contains(t, selectionMap, "d")
 
 		injectCodeSurviveTest(option)
 	}
@@ -290,43 +334,46 @@ func TestQueryParserInvalidQuery(t *testing.T) {
 	}
 
 	for _, option := range options {
-		_, err := parseQuery(option)
+		_, _, err := parseQuery(option)
 		NotNil(t, err, option)
 		checkErrorHaveLocation(err)
 	}
 }
 
 func TestQueryParserSelectionInSelection(t *testing.T) {
-	res, err := parseQuery(`{
+	fragments, operators, err := parseQuery(`{
 		baz {
 			foo
 			bar
 		}
 	}`)
 	Nil(t, err)
-	Equal(t, 1, len(res))
+	Equal(t, 0, len(fragments))
+	Equal(t, 1, len(operators))
 
-	NotEmpty(t, res[0].selection)
-	selection := res[0].selection[0]
-	field := selection.field
+	for _, operator := range operators {
+		NotEmpty(t, operator.selection)
+		selection := operator.selection[0]
+		field := selection.field
 
-	Equal(t, "Field", selection.selectionType)
+		Equal(t, "Field", selection.selectionType)
 
-	NotNil(t, field)
-	Equal(t, "baz", field.name)
-	NotNil(t, field.selection)
-	Equal(t, 2, len(field.selection))
+		NotNil(t, field)
+		Equal(t, "baz", field.name)
+		NotNil(t, field.selection)
+		Equal(t, 2, len(field.selection))
 
-	selection = field.selection[0]
-	NotNil(t, selection.field)
-	Equal(t, "foo", selection.field.name)
+		selection = field.selection[0]
+		NotNil(t, selection.field)
+		Equal(t, "foo", selection.field.name)
 
-	selection = field.selection[1]
-	Equal(t, "bar", selection.field.name)
+		selection = field.selection[1]
+		Equal(t, "bar", selection.field.name)
+	}
 }
 
 func TestQueryParserFragmentSpread(t *testing.T) {
-	res, err := parseQuery(`{
+	fragments, operators, err := parseQuery(`{
 		baz {
 			foo
 			...fooBar
@@ -335,26 +382,29 @@ func TestQueryParserFragmentSpread(t *testing.T) {
 		}
 	}`)
 	Nil(t, err)
-	Equal(t, 1, len(res))
+	Equal(t, 0, len(fragments))
+	Equal(t, 1, len(operators))
 
-	items := res[0].selection[0].field.selection
-	Equal(t, 4, len(items))
+	for _, operator := range operators {
+		items := operator.selection[0].field.selection
+		Equal(t, 4, len(items))
 
-	Equal(t, "FragmentSpread", items[1].selectionType)
-	Equal(t, "FragmentSpread", items[2].selectionType)
+		Equal(t, "FragmentSpread", items[1].selectionType)
+		Equal(t, "FragmentSpread", items[2].selectionType)
 
-	spread1 := items[1].fragmentSpread
-	spread2 := items[2].fragmentSpread
+		spread1 := items[1].fragmentSpread
+		spread2 := items[2].fragmentSpread
 
-	NotNil(t, spread1)
-	NotNil(t, spread2)
+		NotNil(t, spread1)
+		NotNil(t, spread2)
 
-	Equal(t, "fooBar", spread1.name)
-	Equal(t, "barFoo", spread2.name)
+		Equal(t, "fooBar", spread1.name)
+		Equal(t, "barFoo", spread2.name)
+	}
 }
 
 func TestQueryParserFragmentSpreadDirectives(t *testing.T) {
-	res, err := parseQuery(`{
+	fragments, operators, err := parseQuery(`{
 		baz {
 			foo
 			...fooBar@a@b
@@ -363,19 +413,22 @@ func TestQueryParserFragmentSpreadDirectives(t *testing.T) {
 		}
 	}`)
 	Nil(t, err)
-	Equal(t, 1, len(res))
+	Equal(t, 0, len(fragments))
+	Equal(t, 1, len(operators))
 
-	items := res[0].selection[0].field.selection
+	for _, operator := range operators {
+		items := operator.selection[0].field.selection
 
-	spread1 := items[1].fragmentSpread
-	spread2 := items[2].fragmentSpread
+		spread1 := items[1].fragmentSpread
+		spread2 := items[2].fragmentSpread
 
-	Equal(t, 2, len(spread1.directives))
-	Equal(t, 1, len(spread2.directives))
+		Equal(t, 2, len(spread1.directives))
+		Equal(t, 1, len(spread2.directives))
+	}
 }
 
 func TestQueryParserInlineFragment(t *testing.T) {
-	res, err := parseQuery(`{
+	fragments, operators, err := parseQuery(`{
 		baz {
 			foo
 
@@ -393,29 +446,32 @@ func TestQueryParserInlineFragment(t *testing.T) {
 		}
 	}`)
 	Nil(t, err)
-	Equal(t, 1, len(res))
+	Equal(t, 0, len(fragments))
+	Equal(t, 1, len(operators))
 
-	items := res[0].selection[0].field.selection
-	Equal(t, 4, len(items))
+	for _, operator := range operators {
+		items := operator.selection[0].field.selection
+		Equal(t, 4, len(items))
 
-	Equal(t, "InlineFragment", items[1].selectionType)
-	Equal(t, "InlineFragment", items[2].selectionType)
+		Equal(t, "InlineFragment", items[1].selectionType)
+		Equal(t, "InlineFragment", items[2].selectionType)
 
-	frag1 := items[1].inlineFragment
-	frag2 := items[2].inlineFragment
+		frag1 := items[1].inlineFragment
+		frag2 := items[2].inlineFragment
 
-	NotNil(t, frag1)
-	NotNil(t, frag2)
+		NotNil(t, frag1)
+		NotNil(t, frag2)
 
-	Equal(t, "", frag1.onTypeConditionName)
-	Equal(t, "User", frag2.onTypeConditionName)
+		Equal(t, "", frag1.onTypeConditionName)
+		Equal(t, "User", frag2.onTypeConditionName)
 
-	NotNil(t, frag2.selection)
-	NotEmpty(t, frag2.selection)
+		NotNil(t, frag2.selection)
+		NotEmpty(t, frag2.selection)
+	}
 }
 
 func TestQueryParserInlineFragmentWithDirectives(t *testing.T) {
-	res, err := parseQuery(`{
+	fragments, operators, err := parseQuery(`{
 		baz {
 			...@some_directive@a{
 
@@ -429,19 +485,22 @@ func TestQueryParserInlineFragmentWithDirectives(t *testing.T) {
 		}
 	}`)
 	Nil(t, err)
-	Equal(t, 1, len(res))
+	Equal(t, 0, len(fragments))
+	Equal(t, 1, len(operators))
 
-	items := res[0].selection[0].field.selection
+	for _, operator := range operators {
+		items := operator.selection[0].field.selection
 
-	frag1 := items[0].inlineFragment
-	frag2 := items[1].inlineFragment
+		frag1 := items[0].inlineFragment
+		frag2 := items[1].inlineFragment
 
-	Equal(t, 2, len(frag1.directives))
-	Equal(t, 1, len(frag2.directives))
+		Equal(t, 2, len(frag1.directives))
+		Equal(t, 1, len(frag2.directives))
+	}
 }
 
 func TestQueryParserFieldDirective(t *testing.T) {
-	res, err := parseQuery(`{
+	fragments, operators, err := parseQuery(`{
 		client {
 			foo
 			bar @this_is_a_directive
@@ -450,18 +509,22 @@ func TestQueryParserFieldDirective(t *testing.T) {
 		}
 	}`)
 	Nil(t, err)
-	Equal(t, 1, len(res))
 
-	directives := res[0].selection[0].field.selection[1].field.directives
-	NotNil(t, directives)
-	Equal(t, 1, len(directives))
+	Equal(t, 0, len(fragments))
+	Equal(t, 1, len(operators))
 
-	_, ok := directives["this_is_a_directive"]
-	True(t, ok)
+	for _, operator := range operators {
+		directives := operator.selection[0].field.selection[1].field.directives
+		NotNil(t, directives)
+		Equal(t, 1, len(directives))
+
+		_, ok := directives["this_is_a_directive"]
+		True(t, ok)
+	}
 }
 
 func TestQueryParserFieldInvalidDirective(t *testing.T) {
-	_, err := parseQuery(`{
+	_, _, err := parseQuery(`{
 		client {
 			foo
 			bar @
@@ -474,7 +537,7 @@ func TestQueryParserFieldInvalidDirective(t *testing.T) {
 }
 
 func TestQueryParserFieldMultipleDirective(t *testing.T) {
-	res, err := parseQuery(`{
+	fragments, operators, err := parseQuery(`{
 		client {
 			foo
 			bar @a @b@c
@@ -483,21 +546,24 @@ func TestQueryParserFieldMultipleDirective(t *testing.T) {
 		}
 	}`)
 	Nil(t, err)
-	Equal(t, 1, len(res))
+	Equal(t, 0, len(fragments))
+	Equal(t, 1, len(operators))
 
-	directives := res[0].selection[0].field.selection[1].field.directives
-	NotNil(t, directives)
-	Equal(t, 3, len(directives), "Not all directives")
+	for _, operator := range operators {
+		directives := operator.selection[0].field.selection[1].field.directives
+		NotNil(t, directives)
+		Equal(t, 3, len(directives), "Not all directives")
 
-	expect := []string{"a", "b", "c"}
-	for _, item := range expect {
-		_, ok := directives[item]
-		True(t, ok, "Missing directive: "+item)
+		expect := []string{"a", "b", "c"}
+		for _, item := range expect {
+			_, ok := directives[item]
+			True(t, ok, "Missing directive: "+item)
+		}
 	}
 }
 
 func TestQueryParserFieldWithArguments(t *testing.T) {
-	res, err := parseQuery(`{
+	fragments, operators, err := parseQuery(`{
 		client {
 			foo
 			bar(a: 1,b:true c : false , d: [1,2 3 , 4,], e: $foo_bar, f: null, g: SomeEnumValue, h: {a: 1, b: true})
@@ -505,40 +571,43 @@ func TestQueryParserFieldWithArguments(t *testing.T) {
 		}
 	}`)
 	Nil(t, err)
-	Equal(t, 1, len(res))
+	Equal(t, 0, len(fragments))
+	Equal(t, 1, len(operators))
 
-	arguments := res[0].selection[0].field.selection[1].field.arguments
-	NotNil(t, arguments, "arguments should be defined")
+	for _, operator := range operators {
+		arguments := operator.selection[0].field.selection[1].field.arguments
+		NotNil(t, arguments, "arguments should be defined")
 
-	a, ok := arguments["a"]
-	True(t, ok)
-	Equal(t, reflect.Int, a.valType)
-	Equal(t, 1, a.intValue)
+		a, ok := arguments["a"]
+		True(t, ok)
+		Equal(t, reflect.Int, a.valType)
+		Equal(t, 1, a.intValue)
 
-	b, ok := arguments["b"]
-	True(t, ok)
-	Equal(t, reflect.Bool, b.valType)
-	True(t, b.booleanValue)
+		b, ok := arguments["b"]
+		True(t, ok)
+		Equal(t, reflect.Bool, b.valType)
+		True(t, b.booleanValue)
 
-	c, ok := arguments["c"]
-	True(t, ok)
-	Equal(t, reflect.Bool, c.valType)
-	False(t, c.booleanValue)
+		c, ok := arguments["c"]
+		True(t, ok)
+		Equal(t, reflect.Bool, c.valType)
+		False(t, c.booleanValue)
 
-	d, ok := arguments["d"]
-	True(t, ok)
-	Equal(t, reflect.Array, d.valType)
-	list := d.listValue
-	Equal(t, 4, len(list))
+		d, ok := arguments["d"]
+		True(t, ok)
+		Equal(t, reflect.Array, d.valType)
+		list := d.listValue
+		Equal(t, 4, len(list))
 
-	for i, item := range list {
-		Equal(t, reflect.Int, item.valType)
-		Equal(t, i+1, item.intValue)
+		for i, item := range list {
+			Equal(t, reflect.Int, item.valType)
+			Equal(t, i+1, item.intValue)
+		}
 	}
 }
 
 func TestQueryParserFieldDirectiveWithArguments(t *testing.T) {
-	res, err := parseQuery(`{
+	fragments, operators, err := parseQuery(`{
 		client {
 			foo
 			bar @a(a: 1,b:true c : false) @b(a: 1,b:true c : false)@c(a: 1,b:true c : false)
@@ -547,34 +616,37 @@ func TestQueryParserFieldDirectiveWithArguments(t *testing.T) {
 		}
 	}`)
 	Nil(t, err)
-	Equal(t, 1, len(res))
+	Equal(t, 0, len(fragments))
+	Equal(t, 1, len(operators))
 
-	directives := res[0].selection[0].field.selection[1].field.directives
-	NotNil(t, directives)
-	Equal(t, 3, len(directives), "Not all directives")
+	for _, operator := range operators {
+		directives := operator.selection[0].field.selection[1].field.directives
+		NotNil(t, directives)
+		Equal(t, 3, len(directives), "Not all directives")
 
-	expect := []string{"a", "b", "c"}
-	for _, item := range expect {
-		directive, ok := directives[item]
-		True(t, ok, "directive: "+item)
-		arguments := directive.arguments
+		expect := []string{"a", "b", "c"}
+		for _, item := range expect {
+			directive, ok := directives[item]
+			True(t, ok, "directive: "+item)
+			arguments := directive.arguments
 
-		NotNil(t, arguments, "arguments should be defined")
+			NotNil(t, arguments, "arguments should be defined")
 
-		a, ok := arguments["a"]
-		True(t, ok, "directive: "+item)
-		Equal(t, reflect.Int, a.valType, "directive: "+item)
-		Equal(t, 1, a.intValue, "directive: "+item)
+			a, ok := arguments["a"]
+			True(t, ok, "directive: "+item)
+			Equal(t, reflect.Int, a.valType, "directive: "+item)
+			Equal(t, 1, a.intValue, "directive: "+item)
 
-		b, ok := arguments["b"]
-		True(t, ok, "directive: "+item)
-		Equal(t, reflect.Bool, b.valType, "directive: "+item)
-		True(t, b.booleanValue, "directive: "+item)
+			b, ok := arguments["b"]
+			True(t, ok, "directive: "+item)
+			Equal(t, reflect.Bool, b.valType, "directive: "+item)
+			True(t, b.booleanValue, "directive: "+item)
 
-		c, ok := arguments["c"]
-		True(t, ok, "directive: "+item)
-		Equal(t, reflect.Bool, c.valType, "directive: "+item)
-		False(t, c.booleanValue, "directive: "+item)
+			c, ok := arguments["c"]
+			True(t, ok, "directive: "+item)
+			Equal(t, reflect.Bool, c.valType, "directive: "+item)
+			False(t, c.booleanValue, "directive: "+item)
+		}
 	}
 }
 
@@ -642,17 +714,23 @@ func TestQueryParserCodeInjection(t *testing.T) {
 }
 
 func TestQueryParserFragment(t *testing.T) {
-	res, err := parseQuery(`fragment a on User {}`)
+	fragments, operators, err := parseQuery(`fragment a on User {}`)
 	Nil(t, err)
-	Equal(t, 1, len(res))
-	NotNil(t, res[0].fragment)
-	Equal(t, "a", res[0].name)
-	Equal(t, "User", res[0].fragment.onTypeConditionName)
+	Equal(t, 1, len(fragments))
+	Equal(t, 0, len(operators))
 
-	res, err = parseQuery(`fragment a on User {
+	for _, fragment := range fragments {
+		NotNil(t, fragment.fragment)
+		Equal(t, "a", fragment.name)
+		Equal(t, "User", fragment.fragment.onTypeConditionName)
+
+	}
+
+	fragments, operators, err = parseQuery(`fragment a on User {
 		a
 		b
 	}`)
 	Nil(t, err)
-	Equal(t, 1, len(res))
+	Equal(t, 1, len(fragments))
+	Equal(t, 0, len(operators))
 }

@@ -47,6 +47,7 @@ type Schema struct {
 	graphqlTypesMap  map[string]qlType
 	graphqlTypesList []qlType
 	graphqlObjFields map[string][]qlField
+	iter             iterT
 }
 
 type valueType int
@@ -185,6 +186,9 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 			errors:     []error{},
 			path:       pathT{},
 			funcInputs: []reflect.Value{},
+		},
+		iter: iterT{
+			resErrors: []ErrorWLocation{},
 		},
 	}
 

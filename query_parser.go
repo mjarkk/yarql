@@ -73,27 +73,15 @@ type variableDefinition struct {
 
 type arguments map[string]value
 
-func parseQuery(input string) ([]*operator, *ErrorWLocation) {
-	res := []*operator{}
-	iter := &iter{
-		data: input,
-	}
-
-	for {
-		operator, err := iter.parseOperatorOrFragment()
-		if err != nil {
-			return nil, err
-		}
-		if operator == nil {
-			return res, err
-		}
-		res = append(res, operator)
-	}
-}
-
-type iter struct {
-	data   string
-	charNr uint64
+type iterT struct {
+	data                 string
+	charNr               uint64
+	unknownQueries       int
+	unknownMutations     int
+	unknownSubscriptions int
+	fragments            map[string]operator
+	operatorsMap         map[string]operator
+	resErrors            []ErrorWLocation
 }
 
 type ErrorWLocation struct {
@@ -106,7 +94,23 @@ func (e ErrorWLocation) Error() string {
 	return e.err.Error()
 }
 
-func (i *iter) err(err string) *ErrorWLocation {
+func (i *iterT) parseQuery(input string) {
+	*i = iterT{
+		data:         input,
+		resErrors:    i.resErrors[:0],
+		fragments:    map[string]operator{},
+		operatorsMap: map[string]operator{},
+	}
+
+	for {
+		criticalErr := i.parseOperatorOrFragment()
+		if criticalErr || i.eof(i.charNr) {
+			return
+		}
+	}
+}
+
+func (i *iterT) err(err string) bool {
 	line := uint(1)
 	column := uint(0)
 	for idx, char := range i.data {
@@ -130,40 +134,41 @@ func (i *iter) err(err string) *ErrorWLocation {
 		}
 	}
 
-	return &ErrorWLocation{
+	i.resErrors = append(i.resErrors, ErrorWLocation{
 		errors.New(err),
 		line,
 		uint(column),
-	}
+	})
+	return true
 }
 
-func (i *iter) unexpectedEOF() *ErrorWLocation {
+func (i *iterT) unexpectedEOF() bool {
 	return i.err("unexpected EOF")
 }
 
-func (i *iter) checkC(nr uint64) (res byte, end bool) {
+func (i *iterT) checkC(nr uint64) (res byte, end bool) {
 	if i.eof(nr) {
 		return 0, true
 	}
 	return i.c(nr), false
 }
 
-func (i *iter) c(nr uint64) byte {
+func (i *iterT) c(nr uint64) byte {
 	return i.data[nr]
 }
 
-func (i *iter) eof(nr uint64) bool {
+func (i *iterT) eof(nr uint64) bool {
 	return nr >= uint64(len(i.data))
 }
 
-func (i *iter) currentC() byte {
+func (i *iterT) currentC() byte {
 	return i.c(i.charNr)
 }
 
 // Parses one of the following:
 // - https://spec.graphql.org/June2018/#sec-Language.Operations
 // - https://spec.graphql.org/June2018/#FragmentDefinition
-func (i *iter) parseOperatorOrFragment() (*operator, *ErrorWLocation) {
+func (i *iterT) parseOperatorOrFragment() bool {
 	res := operator{
 		operationType:       "query",
 		name:                "",
@@ -172,118 +177,147 @@ func (i *iter) parseOperatorOrFragment() (*operator, *ErrorWLocation) {
 		variableDefinitions: variableDefinitions{},
 	}
 
-	// This can only return EOF errors atm and as we handle those differently here we can ignore the error
-	c, _ := i.mightIgnoreNextTokens()
-	if i.eof(i.charNr) {
-		return nil, nil
+	c, eof := i.mightIgnoreNextTokens()
+	if eof {
+		return false
 	}
-
-	var err *ErrorWLocation
 
 	// For making a simple query you don't have to define a operation type
 	// Note that a simple query as descried above disables the name, variable definitions and directives
 	if c != '{' {
 		newOperationType := i.matches("query", "mutation", "subscription", "fragment")
 		if len(newOperationType) == 0 {
-			return nil, i.err("unknown operation type")
+			return i.err("unknown operation type")
 		}
 		res.operationType = newOperationType
 
-		c, err = i.mightIgnoreNextTokens()
-		if err != nil {
-			return nil, err
+		var eof bool
+		c, eof = i.mightIgnoreNextTokens()
+		if eof {
+			return i.unexpectedEOF()
 		}
 
 		if c != '(' && c != '@' && c != '{' || res.operationType == "fragment" {
-			name, err := i.parseName()
-			if err != nil {
-				return nil, err
+			name, criticalErr := i.parseName()
+			if criticalErr {
+				return criticalErr
 			}
 			if name == "" {
-				return nil, i.err("expected name but got \"" + string(i.currentC()) + "\"")
+				return i.err("expected name but got \"" + string(i.currentC()) + "\"")
 			}
 			res.name = name
 
-			c, err = i.mightIgnoreNextTokens()
-			if err != nil {
-				return nil, err
+			c, eof = i.mightIgnoreNextTokens()
+			if eof {
+				return i.unexpectedEOF()
 			}
 		}
 
 		if res.operationType == "fragment" {
 			if i.matches("on") == "" {
-				return nil, i.err("expected type condition (\"on some_name\")")
+				return i.err("expected type condition (\"on some_name\")")
 			}
-			res.fragment, err = i.parseInlineFragment(true)
-			if err != nil {
-				return nil, err
+
+			var criticalErr bool
+			res.fragment, criticalErr = i.parseInlineFragment(true)
+			if criticalErr {
+				return criticalErr
 			}
-			return &res, nil
+
+			if res.name == "" {
+				i.err("fragment cannot have an empty name")
+				return false // the above is not a critical parsing error
+			}
+			if _, ok := i.fragments[res.name]; ok {
+				i.err("fragment name can only be used once (name = \"" + res.name + "\")")
+				return false // the above is not a critical parsing error
+			}
+			i.fragments[res.name] = res
+			return false
 		}
 
 		if c == '(' {
 			i.charNr++
-			variableDefinitions, err := i.parseVariableDefinitions()
-			if err != nil {
-				return nil, err
+			variableDefinitions, criticalErr := i.parseVariableDefinitions()
+			if criticalErr {
+				return criticalErr
 			}
 			res.variableDefinitions = variableDefinitions
-			c, err = i.mightIgnoreNextTokens()
-			if err != nil {
-				return nil, err
+			c, eof = i.mightIgnoreNextTokens()
+			if eof {
+				return i.unexpectedEOF()
 			}
 		} else if c != '@' && c != '{' {
-			return nil, i.err("unexpected character")
+			return i.err("unexpected character")
 		}
 
 		if c == '@' {
-			directives, err := i.parseDirectives()
-			if err != nil {
-				return nil, err
+			directives, criticalErr := i.parseDirectives()
+			if criticalErr {
+				return criticalErr
 			}
 			res.directives = directives
 		} else if c != '{' {
-			return nil, i.err("unexpected character")
+			return i.err("unexpected character")
 		}
 	}
 
 	i.charNr++
-	selection, err := i.parseSelectionSets()
-	if err != nil {
-		return nil, err
+	selection, criticalErr := i.parseSelectionSets()
+	if criticalErr {
+		return criticalErr
 	}
 	res.selection = selection
-	return &res, nil
+
+	if res.name == "" {
+		switch res.operationType {
+		case "query":
+			i.unknownQueries++
+			res.name = "unknown_query_" + strconv.Itoa(i.unknownQueries)
+		case "mutation":
+			i.unknownMutations++
+			res.name = "unknown_mutation_" + strconv.Itoa(i.unknownMutations)
+		case "subscription":
+			i.unknownSubscriptions++
+			res.name = "unknown_subscription_" + strconv.Itoa(i.unknownSubscriptions)
+		}
+	}
+	if _, ok := i.operatorsMap[res.name]; ok {
+		i.err("operator name can only be used once (name = \"" + res.name + "\")")
+		return false // the above is not a critical parsing error
+	}
+	i.operatorsMap[res.name] = res
+	return false
 }
 
 // https://spec.graphql.org/June2018/#VariableDefinitions
-func (i *iter) parseVariableDefinitions() (variableDefinitions, *ErrorWLocation) {
-	c, err := i.mightIgnoreNextTokens()
-	if err != nil {
-		return nil, err
+func (i *iterT) parseVariableDefinitions() (variableDefinitions, bool) {
+	c, eof := i.mightIgnoreNextTokens()
+	if eof {
+		return nil, i.unexpectedEOF()
 	}
 
 	res := variableDefinitions{}
 	for {
 		if c == ')' {
 			i.charNr++
-			return res, nil
+			return res, false
 		}
 
-		variable, err := i.parseVariableDefinition()
-		if err != nil {
-			return nil, err
+		variable, criticalErr := i.parseVariableDefinition()
+		if criticalErr {
+			return nil, criticalErr
 		}
 
-		c, err = i.mightIgnoreNextTokens()
-		if err != nil {
-			return nil, err
+		c, eof = i.mightIgnoreNextTokens()
+		if eof {
+			return nil, i.unexpectedEOF()
 		}
 		if c == ',' {
 			i.charNr++
-			c, err = i.mightIgnoreNextTokens()
-			if err != nil {
-				return nil, err
+			c, eof = i.mightIgnoreNextTokens()
+			if eof {
+				return nil, i.unexpectedEOF()
 			}
 		}
 
@@ -292,20 +326,20 @@ func (i *iter) parseVariableDefinitions() (variableDefinitions, *ErrorWLocation)
 }
 
 // https://spec.graphql.org/June2018/#VariableDefinition
-func (i *iter) parseVariableDefinition() (variableDefinition, *ErrorWLocation) {
+func (i *iterT) parseVariableDefinition() (variableDefinition, bool) {
 	res := variableDefinition{}
 
 	// Parse var name
-	varName, err := i.parseVariable(false)
-	if err != nil {
-		return res, err
+	varName, criticalErr := i.parseVariable(false)
+	if criticalErr {
+		return res, criticalErr
 	}
 	res.name = varName
 
 	// Parse identifier for switching from var name to var type
-	c, err := i.mightIgnoreNextTokens()
-	if err != nil {
-		return res, err
+	c, eof := i.mightIgnoreNextTokens()
+	if eof {
+		return res, i.unexpectedEOF()
 	}
 	if c != ':' {
 		return res, i.err(`expected ":" but got "` + string(i.currentC()) + `"`)
@@ -313,85 +347,85 @@ func (i *iter) parseVariableDefinition() (variableDefinition, *ErrorWLocation) {
 	i.charNr++
 
 	// Parse variable type
-	_, err = i.mightIgnoreNextTokens()
-	if err != nil {
-		return res, err
+	_, eof = i.mightIgnoreNextTokens()
+	if eof {
+		return res, i.unexpectedEOF()
 	}
-	varType, err := i.parseType()
-	if err != nil {
-		return res, err
+	varType, criticalErr := i.parseType()
+	if criticalErr {
+		return res, criticalErr
 	}
 	res.varType = *varType
 
 	// Parse optional default value
-	c, err = i.mightIgnoreNextTokens()
-	if err != nil {
-		return res, err
+	c, eof = i.mightIgnoreNextTokens()
+	if eof {
+		return res, i.unexpectedEOF()
 	}
 	if c == '=' {
 		i.charNr++
-		_, err = i.mightIgnoreNextTokens()
-		if err != nil {
-			return res, err
+		_, eof = i.mightIgnoreNextTokens()
+		if eof {
+			return res, i.unexpectedEOF()
 		}
 
-		value, err := i.parseValue(false)
-		if err != nil {
-			return res, err
+		value, criticalErr := i.parseValue(false)
+		if criticalErr {
+			return res, criticalErr
 		}
 		res.defaultValue = &value
 
-		_, err = i.mightIgnoreNextTokens()
-		if err != nil {
-			return res, err
+		_, eof = i.mightIgnoreNextTokens()
+		if eof {
+			return res, i.unexpectedEOF()
 		}
 	}
 
-	return res, nil
+	return res, false
 }
 
 // https://spec.graphql.org/June2018/#Value
-func (i *iter) parseValue(allowVariables bool) (value, *ErrorWLocation) {
+func (i *iterT) parseValue(allowVariables bool) (value, bool) {
 	switch i.currentC() {
 	case '$':
 		if !allowVariables {
 			return value{}, i.err("variables not allowed within this context")
 		}
 		i.charNr++
-		varName, err := i.parseVariable(true)
-		return makeVariableValue(varName), err
+		varName, criticalErr := i.parseVariable(true)
+		return makeVariableValue(varName), criticalErr
 	case '-', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0':
 		return i.parseNumberValue()
 	case '"':
-		val, err := i.parseString()
-		return makeStringValue(val), err
+		val, criticalErr := i.parseString()
+		return makeStringValue(val), criticalErr
 	case '[':
 		i.charNr++
-		list, err := i.parseListValue(allowVariables)
-		return makeArrayValue(list), err
+		list, criticalErr := i.parseListValue(allowVariables)
+		return makeArrayValue(list), criticalErr
 	case '{':
 		i.charNr++
-		values, err := i.parseArgumentsOrObjectValues('}')
-		return makeStructValue(values), err
+		values, criticalErr := i.parseArgumentsOrObjectValues('}')
+		return makeStructValue(values), criticalErr
 	default:
-		name, err := i.parseName()
-		if err != nil {
-			return value{}, err
+		name, criticalErr := i.parseName()
+		if criticalErr {
+			return value{}, criticalErr
 		}
 		switch name {
 		case "null":
-			return makeNullValue(), nil
+			return makeNullValue(), false
 		case "true", "false":
-			return makeBooleanValue(name == "true"), nil
+			return makeBooleanValue(name == "true"), false
 		case "":
 			return value{}, i.err("invalid value")
 		default:
-			return makeEnumValue(name), nil
+			return makeEnumValue(name), false
 		}
 	}
 }
 
-func (i *iter) parseString() (string, *ErrorWLocation) {
+func (i *iterT) parseString() (string, bool) {
 	res := []byte{}
 	isBlock := false
 	if i.matches(`"""`) == `"""` {
@@ -410,7 +444,7 @@ func (i *iter) parseString() (string, *ErrorWLocation) {
 		switch c {
 		case '"':
 			if !isBlock {
-				return string(res), nil
+				return string(res), false
 			}
 
 			c2, eof := i.checkC(i.charNr)
@@ -429,7 +463,7 @@ func (i *iter) parseString() (string, *ErrorWLocation) {
 					i.charNr++
 					// TODO: this trim space is wrong, only the leading and trailing empty lines should be removed not all the spaces chars before the first char
 					//       for more info see: https://spec.graphql.org/June2018/#BlockStringCharacter
-					return string(bytes.TrimSpace(res)), nil
+					return string(bytes.TrimSpace(res)), false
 				}
 				res = append(res, '"')
 			}
@@ -515,36 +549,36 @@ func (i *iter) parseString() (string, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#ListValue
-func (i *iter) parseListValue(allowVariables bool) ([]value, *ErrorWLocation) {
+func (i *iterT) parseListValue(allowVariables bool) ([]value, bool) {
 	res := []value{}
 
 	firstLoop := true
 	for {
-		c, err := i.mightIgnoreNextTokens()
-		if err != nil {
-			return nil, err
+		c, eof := i.mightIgnoreNextTokens()
+		if eof {
+			return nil, i.unexpectedEOF()
 		}
 		if c == ']' {
 			i.charNr++
-			return res, nil
+			return res, false
 		}
 
 		if !firstLoop && c == ',' {
 			i.charNr++
-			c, err := i.mightIgnoreNextTokens()
-			if err != nil {
-				return nil, err
+			c, eof := i.mightIgnoreNextTokens()
+			if eof {
+				return nil, i.unexpectedEOF()
 			}
 
 			if c == ']' {
 				i.charNr++
-				return res, nil
+				return res, false
 			}
 		}
 
-		val, err := i.parseValue(allowVariables)
-		if err != nil {
-			return nil, err
+		val, criticalErr := i.parseValue(allowVariables)
+		if criticalErr {
+			return nil, criticalErr
 		}
 		res = append(res, val)
 		firstLoop = false
@@ -554,7 +588,7 @@ func (i *iter) parseListValue(allowVariables bool) ([]value, *ErrorWLocation) {
 // Returns FloatValue or IntValue
 // https://spec.graphql.org/June2018/#FloatValue
 // https://spec.graphql.org/June2018/#IntValue
-func (i *iter) parseNumberValue() (value, *ErrorWLocation) {
+func (i *iterT) parseNumberValue() (value, bool) {
 	digit := map[byte]bool{
 		'0': true,
 		'1': true,
@@ -569,14 +603,14 @@ func (i *iter) parseNumberValue() (value, *ErrorWLocation) {
 	}
 
 	resStr := ""
-	res := func(isFloat bool) (value, *ErrorWLocation) {
+	res := func(isFloat bool) (value, bool) {
 		if !isFloat {
 			// Value is int
 			intValue, err := strconv.Atoi(resStr)
 			if err != nil {
 				return value{}, i.err("unable to parse int")
 			}
-			return makeIntValue(intValue), nil
+			return makeIntValue(intValue), false
 		}
 
 		floatValue, err := strconv.ParseFloat(resStr, 64)
@@ -584,7 +618,7 @@ func (i *iter) parseNumberValue() (value, *ErrorWLocation) {
 			return value{}, i.err("unable to parse float")
 		}
 
-		return makeFloatValue(floatValue), nil
+		return makeFloatValue(floatValue), false
 	}
 
 	c := i.currentC()
@@ -724,34 +758,35 @@ func (i *iter) parseNumberValue() (value, *ErrorWLocation) {
 }
 
 // https://spec.graphql.org/June2018/#Type
-func (i *iter) parseType() (*typeReference, *ErrorWLocation) {
+func (i *iterT) parseType() (*typeReference, bool) {
 	res := typeReference{}
 
 	if i.currentC() == '[' {
 		res.list = true
 		i.charNr++
-		_, err := i.mightIgnoreNextTokens()
-		if err != nil {
-			return nil, err
+		_, eof := i.mightIgnoreNextTokens()
+		if eof {
+			return nil, i.unexpectedEOF()
 		}
 
-		res.listType, err = i.parseType()
-		if err != nil {
-			return nil, err
+		var criticalErr bool
+		res.listType, criticalErr = i.parseType()
+		if criticalErr {
+			return nil, criticalErr
 		}
 
-		c, err := i.mightIgnoreNextTokens()
-		if err != nil {
-			return nil, err
+		c, eof := i.mightIgnoreNextTokens()
+		if eof {
+			return nil, i.unexpectedEOF()
 		}
 		if c != ']' {
 			return nil, i.err(`expected list closure ("]") but got "` + string(c) + `"`)
 		}
 		i.charNr++
 	} else {
-		name, err := i.parseName()
-		if err != nil {
-			return nil, err
+		name, criticalErr := i.parseName()
+		if criticalErr {
+			return nil, criticalErr
 		}
 		if name == "" {
 			return nil, i.err("type name missing or invalid type name")
@@ -759,31 +794,34 @@ func (i *iter) parseType() (*typeReference, *ErrorWLocation) {
 		res.name = name
 	}
 
-	c, err := i.mightIgnoreNextTokens()
-	if err != nil {
-		return nil, err
+	c, eof := i.mightIgnoreNextTokens()
+	if eof {
+		return nil, i.unexpectedEOF()
 	}
 	if c == '!' {
 		res.nonNull = true
 		i.charNr++
 	}
 
-	return &res, nil
+	return &res, false
 }
 
 // https://spec.graphql.org/June2018/#Variable
-func (i *iter) parseVariable(alreadyParsedIdentifier bool) (string, *ErrorWLocation) {
+func (i *iterT) parseVariable(alreadyParsedIdentifier bool) (string, bool) {
 	if !alreadyParsedIdentifier {
-		i.mightIgnoreNextTokens()
+		_, eof := i.mightIgnoreNextTokens()
+		if eof {
+			return "", i.unexpectedEOF()
+		}
 		if i.currentC() != '$' {
 			return "", i.err(`variable must start with "$"`)
 		}
 		i.charNr++
 	}
 
-	name, err := i.parseName()
-	if err != nil {
-		return "", err
+	name, criticalErr := i.parseName()
+	if criticalErr {
+		return "", criticalErr
 	}
 	if name == "" {
 		return "", i.err("cannot have empty variable name")
@@ -792,33 +830,33 @@ func (i *iter) parseVariable(alreadyParsedIdentifier bool) (string, *ErrorWLocat
 		return "", i.err("null is a illegal variable name")
 	}
 
-	return name, nil
+	return name, false
 }
 
 // https://spec.graphql.org/June2018/#sec-Selection-Sets
-func (i *iter) parseSelectionSets() (selectionSet, *ErrorWLocation) {
+func (i *iterT) parseSelectionSets() (selectionSet, bool) {
 	res := selectionSet{}
 
 	for {
-		c, err := i.mightIgnoreNextTokens()
-		if err != nil {
-			return nil, err
+		c, eof := i.mightIgnoreNextTokens()
+		if eof {
+			return nil, i.unexpectedEOF()
 		}
 
 		if c == '}' {
 			i.charNr++
-			return res, nil
+			return res, false
 		}
 
-		selection, err := i.parseSelection()
-		if err != nil {
-			return nil, err
+		selection, criticalErr := i.parseSelection()
+		if criticalErr {
+			return nil, criticalErr
 		}
 		res = append(res, selection)
 
-		c, err = i.mightIgnoreNextTokens()
-		if err != nil {
-			return nil, err
+		c, eof = i.mightIgnoreNextTokens()
+		if eof {
+			return nil, i.unexpectedEOF()
 		}
 
 		switch c {
@@ -826,65 +864,66 @@ func (i *iter) parseSelectionSets() (selectionSet, *ErrorWLocation) {
 			i.charNr++
 		case '}':
 			i.charNr++
-			return res, nil
+			return res, false
 		}
 	}
 }
 
 // https://spec.graphql.org/June2018/#Selection
-func (i *iter) parseSelection() (selection, *ErrorWLocation) {
+func (i *iterT) parseSelection() (selection, bool) {
 	res := selection{}
 
 	if len(i.matches("...")) > 0 {
-		_, err := i.mightIgnoreNextTokens()
-		if err != nil {
-			return res, err
+		_, eof := i.mightIgnoreNextTokens()
+		if eof {
+			return res, i.unexpectedEOF()
 		}
 
-		name, err := i.parseName()
-		if err != nil {
-			return res, err
+		name, criticalErr := i.parseName()
+		if criticalErr {
+			return res, criticalErr
 		}
 
 		if name == "on" || name == "" {
-			inlineFragment, err := i.parseInlineFragment(name == "on")
-			if err != nil {
-				return res, err
+			inlineFragment, criticalErr := i.parseInlineFragment(name == "on")
+			if criticalErr {
+				return res, criticalErr
 			}
 			res.selectionType = "InlineFragment"
 			res.inlineFragment = inlineFragment
 		} else {
-			fragmentSpread, err := i.parseFragmentSpread(name)
-			if err != nil {
-				return res, err
+			fragmentSpread, criticalErr := i.parseFragmentSpread(name)
+			if criticalErr {
+				return res, criticalErr
 			}
 			res.selectionType = "FragmentSpread"
 			res.fragmentSpread = fragmentSpread
 		}
 	} else {
-		field, err := i.parseField()
-		if err != nil {
-			return res, err
+		field, criticalErr := i.parseField()
+		if criticalErr {
+			return res, criticalErr
 		}
 		res.selectionType = "Field"
 		res.field = field
 	}
 
-	return res, nil
+	return res, false
 }
 
 // https://spec.graphql.org/June2018/#InlineFragment
-func (i *iter) parseInlineFragment(hasTypeCondition bool) (*inlineFragment, *ErrorWLocation) {
+func (i *iterT) parseInlineFragment(hasTypeCondition bool) (*inlineFragment, bool) {
 	res := inlineFragment{}
 	if hasTypeCondition {
-		_, err := i.mightIgnoreNextTokens()
-		if err != nil {
-			return nil, err
+		_, eof := i.mightIgnoreNextTokens()
+		if eof {
+			return nil, i.unexpectedEOF()
 		}
 
-		res.onTypeConditionName, err = i.parseName()
-		if err != nil {
-			return nil, err
+		var criticalErr bool
+		res.onTypeConditionName, criticalErr = i.parseName()
+		if criticalErr {
+			return nil, criticalErr
 		}
 
 		if res.onTypeConditionName == "" {
@@ -893,62 +932,63 @@ func (i *iter) parseInlineFragment(hasTypeCondition bool) (*inlineFragment, *Err
 	}
 
 	// parse optional directives
-	c, err := i.mightIgnoreNextTokens()
-	if err != nil {
-		return nil, err
+	c, eof := i.mightIgnoreNextTokens()
+	if eof {
+		return nil, i.unexpectedEOF()
 	}
 	if c == '@' {
-		res.directives, err = i.parseDirectives()
-		if err != nil {
-			return nil, err
+		res.directives, eof = i.parseDirectives()
+		if eof {
+			return nil, i.unexpectedEOF()
 		}
 	}
 
 	// Parse SelectionSet
-	c, err = i.mightIgnoreNextTokens()
-	if err != nil {
-		return nil, err
+	c, eof = i.mightIgnoreNextTokens()
+	if eof {
+		return nil, i.unexpectedEOF()
 	}
 	if c != '{' {
 		return nil, i.err("expected \"{\", not: \"" + string(i.currentC()) + "\"")
 	}
 	i.charNr++
-	res.selection, err = i.parseSelectionSets()
-	return &res, err
+	var criticalErr bool
+	res.selection, criticalErr = i.parseSelectionSets()
+	return &res, criticalErr
 }
 
 // https://spec.graphql.org/June2018/#FragmentSpread
-func (i *iter) parseFragmentSpread(name string) (*fragmentSpread, *ErrorWLocation) {
+func (i *iterT) parseFragmentSpread(name string) (*fragmentSpread, bool) {
 	res := fragmentSpread{name: name}
 
 	// parse optional directives
-	c, err := i.mightIgnoreNextTokens()
-	if err != nil {
-		return nil, err
+	c, eof := i.mightIgnoreNextTokens()
+	if eof {
+		return nil, i.unexpectedEOF()
 	}
 	if c == '@' {
-		res.directives, err = i.parseDirectives()
-		if err != nil {
-			return nil, err
+		res.directives, eof = i.parseDirectives()
+		if eof {
+			return nil, i.unexpectedEOF()
 		}
 	}
 
-	return &res, nil
+	return &res, false
 }
 
 // https://spec.graphql.org/June2018/#Field
-func (i *iter) parseField() (*field, *ErrorWLocation) {
+func (i *iterT) parseField() (*field, bool) {
 	res := field{}
 
 	// Parse name (and alias if pressent)
-	nameOrAlias, err := i.parseName()
-	if err != nil {
-		return nil, err
+	nameOrAlias, criticalErr := i.parseName()
+	if criticalErr {
+		return nil, criticalErr
 	}
 
-	c, err := i.mightIgnoreNextTokens()
-	if err != nil {
-		return nil, err
+	c, eof := i.mightIgnoreNextTokens()
+	if eof {
+		return nil, i.unexpectedEOF()
 	}
 
 	if c == ':' {
@@ -957,13 +997,13 @@ func (i *iter) parseField() (*field, *ErrorWLocation) {
 		}
 		res.alias = nameOrAlias
 		i.charNr++
-		_, err := i.mightIgnoreNextTokens()
-		if err != nil {
-			return nil, err
+		_, eof := i.mightIgnoreNextTokens()
+		if eof {
+			return nil, i.unexpectedEOF()
 		}
-		res.name, err = i.parseName()
-		if err != nil {
-			return nil, err
+		res.name, criticalErr = i.parseName()
+		if criticalErr {
+			return nil, criticalErr
 		}
 		if res.name == "" {
 			return nil, i.err("field should have a name")
@@ -976,77 +1016,77 @@ func (i *iter) parseField() (*field, *ErrorWLocation) {
 	}
 
 	// Parse Arguments if present
-	c, err = i.mightIgnoreNextTokens()
-	if err != nil {
-		return nil, err
+	c, eof = i.mightIgnoreNextTokens()
+	if eof {
+		return nil, i.unexpectedEOF()
 	}
 	if c == '(' {
 		i.charNr++
-		args, err := i.parseArgumentsOrObjectValues(')')
-		if err != nil {
-			return nil, err
+		args, criticalErr := i.parseArgumentsOrObjectValues(')')
+		if criticalErr {
+			return nil, criticalErr
 		}
 		res.arguments = args
 	}
 
 	// Parse directives if present
-	c, err = i.mightIgnoreNextTokens()
-	if err != nil {
-		return nil, err
+	c, eof = i.mightIgnoreNextTokens()
+	if eof {
+		return nil, i.unexpectedEOF()
 	}
 	if c == '@' {
-		directives, err := i.parseDirectives()
-		if err != nil {
-			return nil, err
+		directives, criticalErr := i.parseDirectives()
+		if criticalErr {
+			return nil, criticalErr
 		}
 		res.directives = directives
 	}
 
 	// Parse SelectionSet if pressent
-	c, err = i.mightIgnoreNextTokens()
-	if err != nil {
-		return nil, err
+	c, eof = i.mightIgnoreNextTokens()
+	if eof {
+		return nil, i.unexpectedEOF()
 	}
 	if c == '{' {
 		i.charNr++
-		selection, err := i.parseSelectionSets()
-		if err != nil {
-			return nil, err
+		selection, criticalErr := i.parseSelectionSets()
+		if criticalErr {
+			return nil, criticalErr
 		}
 		res.selection = selection
 	}
 
-	return &res, nil
+	return &res, false
 }
 
 // Parses object values and arguments as the only diffrents seems to be the wrappers around it
 // ObjectValues > https://spec.graphql.org/June2018/#ObjectValue
 // Arguments > https://spec.graphql.org/June2018/#Arguments
-func (i *iter) parseArgumentsOrObjectValues(closure byte) (arguments, *ErrorWLocation) {
-	res := arguments{}
+func (i *iterT) parseArgumentsOrObjectValues(closure byte) (res arguments, criticalErr bool) {
+	res = arguments{}
 
-	c, err := i.mightIgnoreNextTokens()
-	if err != nil {
-		return nil, err
+	c, eof := i.mightIgnoreNextTokens()
+	if eof {
+		return nil, i.unexpectedEOF()
 	}
 
 	if c == closure {
 		i.charNr++
-		return res, nil
+		return res, false
 	}
 
 	for {
-		name, err := i.parseName()
-		if err != nil {
-			return nil, err
+		name, criticalErr := i.parseName()
+		if criticalErr {
+			return nil, criticalErr
 		}
 		if name == "" {
 			return nil, i.err("argument name must be defined")
 		}
 
-		c, err = i.mightIgnoreNextTokens()
-		if err != nil {
-			return nil, err
+		c, eof = i.mightIgnoreNextTokens()
+		if eof {
+			return nil, i.unexpectedEOF()
 		}
 
 		if c != ':' {
@@ -1054,65 +1094,65 @@ func (i *iter) parseArgumentsOrObjectValues(closure byte) (arguments, *ErrorWLoc
 		}
 		i.charNr++
 
-		_, err = i.mightIgnoreNextTokens()
-		if err != nil {
-			return nil, err
+		_, eof = i.mightIgnoreNextTokens()
+		if eof {
+			return nil, i.unexpectedEOF()
 		}
 
-		value, err := i.parseValue(true)
-		if err != nil {
-			return nil, err
+		value, criticalErr := i.parseValue(true)
+		if criticalErr {
+			return nil, criticalErr
 		}
 		res[name] = value
 
-		c, err = i.mightIgnoreNextTokens()
-		if err != nil {
-			return nil, err
+		c, eof = i.mightIgnoreNextTokens()
+		if eof {
+			return nil, eof
 		}
 
 		if c == ',' {
 			i.charNr++
 
-			c, err = i.mightIgnoreNextTokens()
-			if err != nil {
-				return nil, err
+			c, eof = i.mightIgnoreNextTokens()
+			if eof {
+				return nil, i.unexpectedEOF()
 			}
 		}
 
 		if c == closure {
 			i.charNr++
-			return res, nil
+			return res, false
 		}
 	}
 }
 
 // https://spec.graphql.org/June2018/#Directives
-func (i *iter) parseDirectives() (directives, *ErrorWLocation) {
+func (i *iterT) parseDirectives() (directives, bool) {
 	res := directives{}
 	for {
-		c, err := i.mightIgnoreNextTokens()
-		if err != nil {
-			return nil, err
+		c, eof := i.mightIgnoreNextTokens()
+		if eof {
+			return nil, i.unexpectedEOF()
 		}
 
 		if c != '@' {
-			return res, nil
+			return res, false
 		}
 
 		i.charNr++
-		directive, err := i.parseDirective()
-		if err != nil {
-			return nil, err
+		directive, criticalErr := i.parseDirective()
+		if criticalErr {
+			return nil, criticalErr
 		}
 		res[directive.name] = *directive
 	}
 }
 
 // https://spec.graphql.org/June2018/#Directive
-func (i *iter) parseDirective() (*directive, *ErrorWLocation) {
-	name, err := i.parseName()
-	if err != nil {
-		return nil, err
+func (i *iterT) parseDirective() (*directive, bool) {
+	name, criticalErr := i.parseName()
+	if criticalErr {
+		return nil, criticalErr
 	}
 	if name == "" {
 		return nil, i.err("directive must have a name")
@@ -1120,24 +1160,24 @@ func (i *iter) parseDirective() (*directive, *ErrorWLocation) {
 	res := directive{name: name}
 
 	// Parse optional Arguments
-	c, err := i.mightIgnoreNextTokens()
-	if err != nil {
-		return nil, err
+	c, eof := i.mightIgnoreNextTokens()
+	if eof {
+		return nil, i.unexpectedEOF()
 	}
 	if c == '(' {
 		i.charNr++
-		args, err := i.parseArgumentsOrObjectValues(')')
-		if err != nil {
-			return nil, err
+		args, criticalErr := i.parseArgumentsOrObjectValues(')')
+		if criticalErr {
+			return nil, criticalErr
 		}
 		res.arguments = args
 	}
 
-	return &res, nil
+	return &res, false
 }
 
 // https://spec.graphql.org/June2018/#Name
-func (i *iter) parseName() (string, *ErrorWLocation) {
+func (i *iterT) parseName() (string, bool) {
 	// TODO check if checking if char is in char range of A-Z a-z 0-9
 	name := []byte{}
 	for {
@@ -1152,26 +1192,26 @@ func (i *iter) parseName() (string, *ErrorWLocation) {
 			continue
 		}
 
-		return string(name), nil
+		return string(name), false
 	}
 }
 
 // https://spec.graphql.org/June2018/#sec-Source-Text.Ignored-Tokens
-func (i *iter) isIgnoredToken(c byte) bool {
+func (i *iterT) isIgnoredToken(c byte) bool {
 	// TODO support unicode bomb
 	return isWhiteSpace(c) || i.isLineTerminator() || i.isComment(true)
 }
 
-func (i *iter) mightIgnoreNextTokens() (byte, *ErrorWLocation) {
+func (i *iterT) mightIgnoreNextTokens() (nextC byte, eof bool) {
 	for {
 		c, eof := i.checkC(i.charNr)
 		if eof {
-			return 0, i.unexpectedEOF()
+			return 0, true
 		}
 
 		isIgnoredChar := i.isIgnoredToken(c)
 		if !isIgnoredChar {
-			return c, nil
+			return c, false
 		}
 
 		i.charNr++
@@ -1184,7 +1224,7 @@ func isWhiteSpace(input byte) bool {
 }
 
 // https://spec.graphql.org/June2018/#LineTerminator
-func (i *iter) isLineTerminator() bool {
+func (i *iterT) isLineTerminator() bool {
 	c := i.currentC()
 	if c == '\n' {
 		return true
@@ -1200,7 +1240,7 @@ func (i *iter) isLineTerminator() bool {
 }
 
 // https://spec.graphql.org/June2018/#Comment
-func (i *iter) isComment(parseComment bool) bool {
+func (i *iterT) isComment(parseComment bool) bool {
 	if i.currentC() == '#' {
 		if parseComment {
 			i.parseComment()
@@ -1210,7 +1250,7 @@ func (i *iter) isComment(parseComment bool) bool {
 	return false
 }
 
-func (i *iter) parseComment() {
+func (i *iterT) parseComment() {
 	for {
 		if i.eof(i.charNr) {
 			return
@@ -1222,7 +1262,7 @@ func (i *iter) parseComment() {
 	}
 }
 
-func (i *iter) matches(oneOf ...string) string {
+func (i *iterT) matches(oneOf ...string) string {
 	startIdx := i.charNr
 
 	oneOfMap := map[string]bool{}

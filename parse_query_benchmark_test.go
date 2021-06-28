@@ -9,10 +9,10 @@ func BenchmarkParseName(b *testing.B) {
 	// BenchmarkParseName-12    	 5842974	       200.4 ns/op	      16 B/op	       2 allocs/op
 	// BenchmarkParseName-12    	22152402	        47.90 ns/op	      16 B/op	       2 allocs/op
 
-	validName := iter{
+	validName := iterT{
 		data: "_Banana ",
 	}
-	invalidValidName := iter{
+	invalidValidName := iterT{
 		data: "0Banana ",
 	}
 

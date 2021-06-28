@@ -79,7 +79,6 @@ func (ctx *Ctx) Reset(
 	tracing bool,
 ) {
 	*ctx = Ctx{
-		fragments:           ctx.fragments,
 		schema:              schema,
 		errors:              ctx.errors[:0],
 		operator:            ctx.operator,
@@ -157,21 +156,20 @@ func (ctx *Ctx) CompleteResult(sendEmptyResult, includeErrs, includeExtensions b
 }
 
 func (s *Schema) ResolveContent(query string, options *ResolveOptions) (treadResultAsEmpty bool) {
-	fragments, operatorsMap, errs := ParseQueryAndCheckNames(query, &s.ctx)
-	if len(errs) > 0 {
+	s.iter.ParseQueryAndCheckNames(query, &s.ctx)
+	if len(s.iter.resErrors) > 0 {
 		return true
 	}
 
-	s.ctx.fragments = fragments
 	if options.Values != nil {
 		s.ctx.Values = options.Values
 	}
 
-	switch len(operatorsMap) {
+	switch len(s.iter.operatorsMap) {
 	case 0:
 		return true
 	case 1:
-		for _, operator := range operatorsMap {
+		for _, operator := range s.iter.operatorsMap {
 			s.ctx.operator = &operator
 		}
 	default:
@@ -180,10 +178,10 @@ func (s *Schema) ResolveContent(query string, options *ResolveOptions) (treadRes
 			return true
 		}
 
-		operator, ok := operatorsMap[options.OperatorTarget]
+		operator, ok := s.iter.operatorsMap[options.OperatorTarget]
 		if !ok {
 			operatorsList := []string{}
-			for k := range operatorsMap {
+			for k := range s.iter.operatorsMap {
 				operatorsList = append(operatorsList, k)
 			}
 			s.ctx.errors = append(s.ctx.errors, errors.New(options.OperatorTarget+" is not a valid operator, available operators: "+strings.Join(operatorsList, ", ")))
@@ -291,7 +289,7 @@ func (ctx *Ctx) resolveSelectionContent(selectionSet selectionSet, structType *o
 				}
 			}
 
-			operator, ok := ctx.fragments[selection.fragmentSpread.name]
+			operator, ok := ctx.schema.iter.fragments[selection.fragmentSpread.name]
 			if !ok {
 				ctx.addErrf("unknown fragment %s", selection.fragmentSpread.name)
 				continue

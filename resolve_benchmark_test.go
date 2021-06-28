@@ -9,8 +9,12 @@ import (
 )
 
 func BenchmarkCheckNames(b *testing.B) {
+	// BenchmarkCheckNames-12    	   35697	     33170 ns/op	   17536 B/op	     331 allocs/op
+	// BenchmarkCheckNames-12    	   37735	     30622 ns/op	   17488 B/op	     329 allocs/op
+
+	iter := &iterT{resErrors: []ErrorWLocation{}}
 	for i := 0; i < b.N; i++ {
-		ParseQueryAndCheckNames(schemaQuery, nil)
+		iter.ParseQueryAndCheckNames(schemaQuery, nil)
 	}
 }
 
