@@ -249,6 +249,17 @@ In your request add a form file with the field name: `form_file_field_name`
 
 _Based on [graphql-multipart-request-spec #55](https://github.com/jaydenseric/graphql-multipart-request-spec/issues/55)_
 
+## Performance
+
+Below shows a benchmark of fetching the graphql schema
+
+```sh
+# go test -benchmem -bench "^(BenchmarkResolve)\$"
+goos: darwin
+cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+BenchmarkResolve-12    	    4497	    246012 ns/op	   46837 B/op	    2602 allocs/op
+```
+
 ## Alternatives
 
 - [graph-gophers/graphql-go](https://github.com/graph-gophers/graphql-go)
