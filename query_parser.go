@@ -916,7 +916,7 @@ func (i *iterT) parseSelection() (selection, bool) {
 			return res, criticalErr
 		}
 		res.selectionType = "Field"
-		res.field = field
+		res.field = &field
 	}
 
 	return res, false
@@ -990,42 +990,40 @@ func (i *iterT) parseFragmentSpread(name string) (*fragmentSpread, bool) {
 }
 
 // https://spec.graphql.org/June2018/#Field
-func (i *iterT) parseField() (*field, bool) {
-	res := field{
-		selectionIdx: -1,
-	}
+func (i *iterT) parseField() (field, bool) {
+	res := field{selectionIdx: -1}
 
 	// Parse name (and alias if pressent)
 	nameOrAlias, criticalErr := i.parseName()
 	if criticalErr {
-		return nil, criticalErr
+		return res, criticalErr
 	}
 
 	c, eof := i.mightIgnoreNextTokens()
 	if eof {
-		return nil, i.unexpectedEOF()
+		return res, i.unexpectedEOF()
 	}
 
 	if c == ':' {
 		if nameOrAlias == "" {
-			return nil, i.err("field alias should have a name")
+			return res, i.err("field alias should have a name")
 		}
 		res.alias = nameOrAlias
 		i.charNr++
 		_, eof := i.mightIgnoreNextTokens()
 		if eof {
-			return nil, i.unexpectedEOF()
+			return res, i.unexpectedEOF()
 		}
 		res.name, criticalErr = i.parseName()
 		if criticalErr {
-			return nil, criticalErr
+			return res, criticalErr
 		}
 		if res.name == "" {
-			return nil, i.err("field should have a name")
+			return res, i.err("field should have a name")
 		}
 	} else {
 		if nameOrAlias == "" {
-			return nil, i.err("field should have a name")
+			return res, i.err("field should have a name")
 		}
 		res.name = nameOrAlias
 	}
@@ -1033,13 +1031,13 @@ func (i *iterT) parseField() (*field, bool) {
 	// Parse Arguments if present
 	c, eof = i.mightIgnoreNextTokens()
 	if eof {
-		return nil, i.unexpectedEOF()
+		return res, i.unexpectedEOF()
 	}
 	if c == '(' {
 		i.charNr++
 		args, criticalErr := i.parseArgumentsOrObjectValues(')')
 		if criticalErr {
-			return nil, criticalErr
+			return res, criticalErr
 		}
 		res.arguments = args
 	}
@@ -1047,12 +1045,12 @@ func (i *iterT) parseField() (*field, bool) {
 	// Parse directives if present
 	c, eof = i.mightIgnoreNextTokens()
 	if eof {
-		return nil, i.unexpectedEOF()
+		return res, i.unexpectedEOF()
 	}
 	if c == '@' {
 		directives, criticalErr := i.parseDirectives()
 		if criticalErr {
-			return nil, criticalErr
+			return res, criticalErr
 		}
 		res.directives = directives
 	}
@@ -1060,17 +1058,17 @@ func (i *iterT) parseField() (*field, bool) {
 	// Parse SelectionSet if pressent
 	c, eof = i.mightIgnoreNextTokens()
 	if eof {
-		return nil, i.unexpectedEOF()
+		return res, i.unexpectedEOF()
 	}
 	if c == '{' {
 		i.charNr++
 		res.selectionIdx, criticalErr = i.parseSelectionSets()
 		if criticalErr {
-			return nil, criticalErr
+			return res, criticalErr
 		}
 	}
 
-	return &res, false
+	return res, false
 }
 
 // Parses object values and arguments as the only diffrents seems to be the wrappers around it
@@ -1192,21 +1190,30 @@ func (i *iterT) parseDirective() (*directive, bool) {
 
 // https://spec.graphql.org/June2018/#Name
 func (i *iterT) parseName() (string, bool) {
-	// TODO check if checking if char is in char range of A-Z a-z 0-9
-	name := []byte{}
+	nameLen := 64
+	name := make([]byte, nameLen)
+	len := 0
 	for {
 		c, eof := i.checkC(i.charNr)
 		if eof {
-			return string(name), i.unexpectedEOF()
+			return string(name[:len]), i.unexpectedEOF()
 		}
 
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || (len(name) != 0 && c >= '0' && c <= '9') {
-			name = append(name, c)
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || (len != 0 && c >= '0' && c <= '9') {
+			name[len] = c
 			i.charNr++
+			len++
+
+			if len == nameLen {
+				// Grow array
+				name = append(name, make([]byte, nameLen)...)
+				nameLen *= 2
+			}
+
 			continue
 		}
 
-		return string(name), false
+		return string(name[:len]), false
 	}
 }
 
