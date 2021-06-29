@@ -194,15 +194,19 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 		iter: iterT{
 			resErrors:  []ErrorWLocation{},
 			selections: make([]selectionSet, 100),
+			arguments:  make([]arguments, 5),
 			nameBuff:   []byte{},
 			stringBuff: []byte{},
 		},
 	}
 	res.ctxReflection = reflect.ValueOf(&res.ctx)
 
-	// Preserve the memory for the selections
-	for i, _ := range res.iter.selections {
+	// Preserve the memory for the selections and arguments
+	for i := range res.iter.selections {
 		res.iter.selections[i] = make(selectionSet, 5)
+	}
+	for i := range res.iter.arguments {
+		res.iter.arguments[i] = make(arguments, 5)
 	}
 
 	ctx := &parseCtx{

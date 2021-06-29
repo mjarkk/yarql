@@ -234,16 +234,18 @@ func (ctx *Ctx) resolveVariableFromJson(jsonValue *fastjson.Value, expectedValue
 			return errors.New("exected default value to be of kind object")
 		}
 
-		objectContent := arguments{}
+		objectContentsIdx := ctx.schema.iter.getNewArgumentsIdx()
 		jsonObject.Visit(func(key []byte, v *fastjson.Value) {
 			if v != nil {
-				keyStr := string(key)
-				objectContent[keyStr] = jsonValueToValue(v)
+				arg := ctx.jsonValueToValue(v)
+				arg.qlFieldName = string(key)
+				ctx.schema.iter.arguments[objectContentsIdx] = append(ctx.schema.iter.arguments[objectContentsIdx], arg)
 			}
 		})
 
 		val.valType = reflect.Map
-		val.objectValue = objectContent
+		val.objectValueIdx = objectContentsIdx
+
 		return nil
 	}
 
@@ -302,7 +304,7 @@ func (ctx *Ctx) resolveVariableFromDefault(defaultValue value, expectedValueType
 			return errors.New("exected default value to be of kind object")
 		}
 		val.valType = reflect.Map
-		val.objectValue = defaultValue.objectValue
+		val.objectValueIdx = defaultValue.objectValueIdx
 		return nil
 	}
 
@@ -343,24 +345,25 @@ func (ctx *Ctx) getJSONVariables() (*fastjson.Value, error) {
 	return ctx.jsonVariables, nil
 }
 
-func jsonValueToValue(jsonValue *fastjson.Value) value {
+func (ctx *Ctx) jsonValueToValue(jsonValue *fastjson.Value) value {
 	switch jsonValue.Type() {
 	case fastjson.TypeNull:
 		return makeNullValue()
 	case fastjson.TypeObject:
-		objectContent := arguments{}
+		objectContentsIdx := ctx.schema.iter.getNewArgumentsIdx()
 		jsonValue.GetObject().Visit(func(key []byte, v *fastjson.Value) {
-			keyStr := string(key)
-			objectContent[keyStr] = jsonValueToValue(v)
+			arg := ctx.jsonValueToValue(v)
+			arg.qlFieldName = string(key)
+			ctx.schema.iter.arguments[objectContentsIdx] = append(ctx.schema.iter.arguments[objectContentsIdx], arg)
 		})
-		return makeStructValue(objectContent)
+		return makeStructValue(objectContentsIdx)
 	case fastjson.TypeArray:
 		list := []value{}
 		for _, item := range jsonValue.GetArray() {
 			if item == nil {
 				continue
 			}
-			list = append(list, jsonValueToValue(item))
+			list = append(list, ctx.jsonValueToValue(item))
 		}
 		return makeArrayValue(list)
 	case fastjson.TypeString:

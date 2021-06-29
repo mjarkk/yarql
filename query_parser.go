@@ -31,7 +31,8 @@ type field struct {
 	alias        []byte     // Optional
 	selectionIdx int        // Optional
 	directives   directives // Optional
-	arguments    arguments  // Optional
+	hasArguments bool       // Optional
+	argumentsIdx int        // If hasArguments is set
 }
 
 type fragmentSpread struct {
@@ -48,8 +49,9 @@ type inlineFragment struct {
 type directives map[string]directive
 
 type directive struct {
-	name      string
-	arguments arguments
+	name         string
+	hasArguments bool
+	argumentsIdx int
 }
 
 type typeReference struct {
@@ -71,7 +73,7 @@ type variableDefinition struct {
 	defaultValue *value
 }
 
-type arguments map[string]value
+type arguments []value
 
 type iterT struct {
 	data                 string
@@ -83,9 +85,11 @@ type iterT struct {
 	operatorsMap         map[string]operator
 	resErrors            []ErrorWLocation
 	selections           []selectionSet
+	selectionSetIdx      int
+	arguments            []arguments
+	argumentSetIdx       int
 	nameBuff             []byte
 	stringBuff           []byte
-	selectionSetIdx      int
 }
 
 type ErrorWLocation struct {
@@ -100,13 +104,16 @@ func (e ErrorWLocation) Error() string {
 
 func (i *iterT) parseQuery(input string) {
 	*i = iterT{
-		data:         input,
-		resErrors:    i.resErrors[:0],
-		fragments:    map[string]operator{},
-		operatorsMap: map[string]operator{},
-		selections:   i.selections,
-		nameBuff:     i.nameBuff[:0],
-		stringBuff:   i.stringBuff[:0],
+		data:            input,
+		resErrors:       i.resErrors[:0],
+		fragments:       map[string]operator{},
+		operatorsMap:    map[string]operator{},
+		selections:      i.selections,
+		selectionSetIdx: 0,
+		arguments:       i.arguments,
+		argumentSetIdx:  0,
+		nameBuff:        i.nameBuff[:0],
+		stringBuff:      i.stringBuff[:0],
 	}
 
 	for {
@@ -414,8 +421,8 @@ func (i *iterT) parseValue(allowVariables bool) (value, bool) {
 		return makeArrayValue(list), criticalErr
 	case '{':
 		i.charNr++
-		values, criticalErr := i.parseArgumentsOrObjectValues('}')
-		return makeStructValue(values), criticalErr
+		idx, criticalErr := i.parseArgumentsOrObjectValues('}')
+		return makeStructValue(idx), criticalErr
 	default:
 		var criticalErr bool
 		i.nameBuff, criticalErr = i.parseName(i.nameBuff[:0])
@@ -1056,11 +1063,12 @@ func (i *iterT) parseField() (field, bool) {
 	}
 	if c == '(' {
 		i.charNr++
-		args, criticalErr := i.parseArgumentsOrObjectValues(')')
+		idx, criticalErr := i.parseArgumentsOrObjectValues(')')
 		if criticalErr {
 			return res, criticalErr
 		}
-		res.arguments = args
+		res.hasArguments = true
+		res.argumentsIdx = idx
 	}
 
 	// Parse directives if present
@@ -1092,58 +1100,68 @@ func (i *iterT) parseField() (field, bool) {
 	return res, false
 }
 
+func (i *iterT) getNewArgumentsIdx() int {
+	setIdx := i.argumentSetIdx
+	if setIdx >= len(i.arguments) {
+		i.arguments = append(i.arguments, arguments{})
+	} else {
+		i.arguments[setIdx] = i.arguments[setIdx][:0]
+	}
+	i.argumentSetIdx++
+	return setIdx
+}
+
 // Parses object values and arguments as the only diffrents seems to be the wrappers around it
 // ObjectValues > https://spec.graphql.org/June2018/#ObjectValue
 // Arguments > https://spec.graphql.org/June2018/#Arguments
-func (i *iterT) parseArgumentsOrObjectValues(closure byte) (res arguments, criticalErr bool) {
-	// FIXME this is slow
-
-	res = arguments{}
+func (i *iterT) parseArgumentsOrObjectValues(closure byte) (index int, criticalErr bool) {
+	setIdx := i.getNewArgumentsIdx()
 
 	c, eof := i.mightIgnoreNextTokens()
 	if eof {
-		return nil, i.unexpectedEOF()
+		return setIdx, i.unexpectedEOF()
 	}
 
 	if c == closure {
 		i.charNr++
-		return res, false
+		return setIdx, false
 	}
 
 	for {
 		i.nameBuff, criticalErr = i.parseName(i.nameBuff[:0])
 		if criticalErr {
-			return nil, criticalErr
+			return setIdx, criticalErr
 		}
 		if len(i.nameBuff) == 0 {
-			return nil, i.err("argument name must be defined")
+			return setIdx, i.err("argument name must be defined")
 		}
 		name := string(i.nameBuff)
 
 		c, eof = i.mightIgnoreNextTokens()
 		if eof {
-			return nil, i.unexpectedEOF()
+			return setIdx, i.unexpectedEOF()
 		}
 
 		if c != ':' {
-			return nil, i.err("expected \":\"")
+			return setIdx, i.err("expected \":\"")
 		}
 		i.charNr++
 
 		_, eof = i.mightIgnoreNextTokens()
 		if eof {
-			return nil, i.unexpectedEOF()
+			return setIdx, i.unexpectedEOF()
 		}
 
 		value, criticalErr := i.parseValue(true)
 		if criticalErr {
-			return nil, criticalErr
+			return setIdx, criticalErr
 		}
-		res[name] = value
+		value.qlFieldName = name
+		i.arguments[setIdx] = append(i.arguments[setIdx], value)
 
 		c, eof = i.mightIgnoreNextTokens()
 		if eof {
-			return nil, eof
+			return setIdx, eof
 		}
 
 		if c == ',' {
@@ -1151,13 +1169,13 @@ func (i *iterT) parseArgumentsOrObjectValues(closure byte) (res arguments, criti
 
 			c, eof = i.mightIgnoreNextTokens()
 			if eof {
-				return nil, i.unexpectedEOF()
+				return setIdx, i.unexpectedEOF()
 			}
 		}
 
 		if c == closure {
 			i.charNr++
-			return res, false
+			return setIdx, false
 		}
 	}
 }
@@ -1203,11 +1221,13 @@ func (i *iterT) parseDirective() (*directive, bool) {
 	}
 	if c == '(' {
 		i.charNr++
-		args, criticalErr := i.parseArgumentsOrObjectValues(')')
+		idx, criticalErr := i.parseArgumentsOrObjectValues(')')
 		if criticalErr {
 			return nil, criticalErr
 		}
-		res.arguments = args
+
+		res.hasArguments = true
+		res.argumentsIdx = idx
 	}
 
 	return &res, false

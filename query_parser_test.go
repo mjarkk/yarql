@@ -20,7 +20,7 @@ func checkErrorHaveLocation(err *ErrorWLocation) {
 }
 
 func parseQuery(query string) (i *iterT, fragments, operators map[string]operator, err *ErrorWLocation) {
-	i = &iterT{resErrors: []ErrorWLocation{}, selections: []selectionSet{}, nameBuff: []byte{}, stringBuff: []byte{}}
+	i = &iterT{resErrors: []ErrorWLocation{}, selections: []selectionSet{}, arguments: []arguments{}, nameBuff: []byte{}, stringBuff: []byte{}}
 	i.parseQuery(query)
 	if len(i.resErrors) > 0 {
 		err = &i.resErrors[0]
@@ -573,27 +573,27 @@ func TestQueryParserFieldWithArguments(t *testing.T) {
 	Equal(t, 1, len(operators))
 
 	for _, operator := range operators {
-		arguments := i.selections[i.selections[operator.selectionIdx][0].field.selectionIdx][1].field.arguments
+		arguments := i.arguments[i.selections[i.selections[operator.selectionIdx][0].field.selectionIdx][1].field.argumentsIdx]
 
 		NotNil(t, arguments, "arguments should be defined")
 
-		a, ok := arguments["a"]
-		True(t, ok)
+		a := arguments[0]
+		Equal(t, "a", a.qlFieldName)
 		Equal(t, reflect.Int, a.valType)
 		Equal(t, 1, a.intValue)
 
-		b, ok := arguments["b"]
-		True(t, ok)
+		b := arguments[1]
+		Equal(t, "b", b.qlFieldName)
 		Equal(t, reflect.Bool, b.valType)
 		True(t, b.booleanValue)
 
-		c, ok := arguments["c"]
-		True(t, ok)
+		c := arguments[2]
+		Equal(t, "c", c.qlFieldName)
 		Equal(t, reflect.Bool, c.valType)
 		False(t, c.booleanValue)
 
-		d, ok := arguments["d"]
-		True(t, ok)
+		d := arguments[3]
+		Equal(t, "d", d.qlFieldName)
 		Equal(t, reflect.Array, d.valType)
 		list := d.listValue
 		Equal(t, 4, len(list))
@@ -628,22 +628,22 @@ func TestQueryParserFieldDirectiveWithArguments(t *testing.T) {
 		for _, item := range expect {
 			directive, ok := directives[item]
 			True(t, ok, "directive: "+item)
-			arguments := directive.arguments
+			arguments := i.arguments[directive.argumentsIdx]
 
 			NotNil(t, arguments, "arguments should be defined")
 
-			a, ok := arguments["a"]
-			True(t, ok, "directive: "+item)
+			a := arguments[0]
+			Equal(t, "a", a.qlFieldName)
 			Equal(t, reflect.Int, a.valType, "directive: "+item)
 			Equal(t, 1, a.intValue, "directive: "+item)
 
-			b, ok := arguments["b"]
-			True(t, ok, "directive: "+item)
+			b := arguments[1]
+			Equal(t, "b", b.qlFieldName)
 			Equal(t, reflect.Bool, b.valType, "directive: "+item)
 			True(t, b.booleanValue, "directive: "+item)
 
-			c, ok := arguments["c"]
-			True(t, ok, "directive: "+item)
+			c := arguments[2]
+			Equal(t, "c", c.qlFieldName)
 			Equal(t, reflect.Bool, c.valType, "directive: "+item)
 			False(t, c.booleanValue, "directive: "+item)
 		}

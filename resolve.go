@@ -227,9 +227,16 @@ loop:
 	for directiveName, arg := range directives {
 		switch directiveName {
 		case "skip", "include":
-			ifArg, ok := arg.arguments["if"]
-			if !ok {
-				return false, errors.New("if argument missing in skip directive")
+			if !arg.hasArguments {
+				return false, errors.New("expected argument for " + directiveName + " directive")
+			}
+			arguments := ctx.schema.iter.arguments[arg.argumentsIdx]
+			if len(arguments) == 0 {
+				return false, errors.New("if argument missing in " + directiveName + " directive")
+			}
+			ifArg := arguments[0]
+			if ifArg.qlFieldName != "if" {
+				return false, errors.New(`expected directive argument "if" but got "` + ifArg.qlFieldName + `"`)
 			}
 
 			v := reflect.New(reflect.TypeOf(true)).Elem()
@@ -245,6 +252,7 @@ loop:
 			if !include {
 				break loop
 			}
+			break
 		default:
 			return false, fmt.Errorf("unknown directive %s", directiveName)
 		}
@@ -624,16 +632,16 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 				goAnalyzedData = ctx.schema.inTypes[goAnalyzedData.structName]
 			}
 
-			for queryKey, arg := range queryValue.objectValue {
-				structItemMeta, ok := goAnalyzedData.structContent[queryKey]
+			for _, arg := range ctx.schema.iter.arguments[queryValue.objectValueIdx] {
+				structItemMeta, ok := goAnalyzedData.structContent[arg.qlFieldName]
 				if !ok {
-					return fmt.Errorf("undefined property %s", queryKey)
+					return errors.New("undefined property " + arg.qlFieldName)
 				}
 
 				field := goField.Field(structItemMeta.goFieldIdx)
 				err := ctx.matchInputValue(&arg, &field, &structItemMeta)
 				if err != nil {
-					return fmt.Errorf("%s, property: %s", err.Error(), queryKey)
+					return errors.New(err.Error() + ", property: " + arg.qlFieldName)
 				}
 			}
 		default:
@@ -664,19 +672,21 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 			}
 		}
 
-		for queryKey, queryValue := range query.arguments {
-			inField, ok := method.inFields[queryKey]
-			if !ok {
-				ctx.addErrf("undefined input: %s", queryKey)
-				continue
-			}
-			goField := ctx.funcInputs[inField.inputIdx].Field(inField.input.goFieldIdx)
+		if query.hasArguments {
+			for _, argument := range ctx.schema.iter.arguments[query.argumentsIdx] {
+				inField, ok := method.inFields[argument.qlFieldName]
+				if !ok {
+					ctx.addErr("undefined input: " + argument.qlFieldName)
+					continue
+				}
+				goField := ctx.funcInputs[inField.inputIdx].Field(inField.input.goFieldIdx)
 
-			err := ctx.matchInputValue(&queryValue, &goField, &inField.input)
-			if err != nil {
-				ctx.addErrf("%s, property: %s", err.Error(), queryKey)
-				ctx.write([]byte("null"))
-				return
+				err := ctx.matchInputValue(&argument, &goField, &inField.input)
+				if err != nil {
+					ctx.addErr(err.Error() + ", property: " + argument.qlFieldName)
+					ctx.write([]byte("null"))
+					return
+				}
 			}
 		}
 

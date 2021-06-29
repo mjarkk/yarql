@@ -19,6 +19,7 @@ func BenchmarkQueryParser(b *testing.B) {
 	// On desktop
 	// BenchmarkQueryParser-16    	   67248	     17757 ns/op	   10716 B/op	     172 allocs/op
 	// BenchmarkQueryParser-16    	   76287	     15323 ns/op	    8130 B/op	      95 allocs/op
+	// BenchmarkQueryParser-16    	   85382	     13723 ns/op	    3128 B/op	      91 allocs/op
 
 	// f, err := os.Create("memprofile")
 	// if err != nil {
@@ -31,9 +32,12 @@ func BenchmarkQueryParser(b *testing.B) {
 	// }
 	// defer pprof.StopCPUProfile()
 
-	iter := &iterT{resErrors: []ErrorWLocation{}, selections: make([]selectionSet, 100), nameBuff: []byte{}, stringBuff: []byte{}}
+	iter := &iterT{resErrors: []ErrorWLocation{}, selections: make([]selectionSet, 100), arguments: make([]arguments, 5), nameBuff: []byte{}, stringBuff: []byte{}}
 	for i := range iter.selections {
 		iter.selections[i] = make(selectionSet, 5)
+	}
+	for i := range iter.arguments {
+		iter.arguments[i] = make(arguments, 5)
 	}
 
 	for i := 0; i < b.N; i++ {

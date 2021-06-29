@@ -16,18 +16,21 @@ type value struct {
 	// Maybe we should rename Map to Struct everywhere
 	valType reflect.Kind
 
-	variable     string
-	intValue     int
-	floatValue   float64
-	stringValue  string
-	booleanValue bool
-	enumValue    string
-	listValue    []value
-	objectValue  arguments
+	variable       string
+	intValue       int
+	floatValue     float64
+	stringValue    string
+	booleanValue   bool
+	enumValue      string
+	listValue      []value
+	objectValueIdx int
 
 	// Set this value if the value might be used on multiple places and the graphql typename is known
 	// When using this struct to set data and this field is defined you should check it
 	qlTypeName *string
+
+	// Set if part of a object of values
+	qlFieldName string
 }
 
 func (v *value) setToValueOfAndExpect(other value, expect reflect.Kind) error {
@@ -52,7 +55,7 @@ func (v *value) setToValueOf(other value) {
 	case reflect.Array:
 		v.listValue = other.listValue
 	case reflect.Map:
-		v.objectValue = other.objectValue
+		v.objectValueIdx = other.objectValueIdx
 	}
 }
 
@@ -107,13 +110,10 @@ func makeArrayValue(list []value) value {
 	}
 }
 
-func makeStructValue(keyValues arguments) value {
-	if keyValues == nil {
-		keyValues = arguments{}
-	}
+func makeStructValue(keyValuesIdx int) value {
 	return value{
-		valType:     reflect.Map,
-		objectValue: keyValues,
+		valType:        reflect.Map,
+		objectValueIdx: keyValuesIdx,
 	}
 }
 
