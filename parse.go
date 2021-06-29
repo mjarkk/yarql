@@ -177,6 +177,39 @@ func newParseCtx() *parseCtx {
 	}
 }
 
+func newIter(lite bool) iterT {
+	if lite {
+		return iterT{
+			operators:  []operator{},
+			fragments:  []operator{},
+			resErrors:  []ErrorWLocation{},
+			selections: []selectionSet{},
+			arguments:  []arguments{},
+			nameBuff:   []byte{},
+			stringBuff: []byte{},
+		}
+	}
+
+	res := iterT{
+		operators:  make([]operator, 2),
+		fragments:  make([]operator, 2),
+		resErrors:  []ErrorWLocation{},
+		selections: make([]selectionSet, 100),
+		arguments:  make([]arguments, 5),
+		nameBuff:   []byte{},
+		stringBuff: []byte{},
+	}
+
+	// Preserve the memory for the selections and arguments
+	for i := range res.selections {
+		res.selections[i] = make(selectionSet, 5)
+	}
+	for i := range res.arguments {
+		res.arguments[i] = make(arguments, 5)
+	}
+	return res
+}
+
 func ParseSchema(queries interface{}, methods interface{}, options *SchemaOptions) (*Schema, error) {
 	res := Schema{
 		types:            types{},
@@ -191,23 +224,9 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 			path:       []byte{},
 			funcInputs: []reflect.Value{},
 		},
-		iter: iterT{
-			resErrors:  []ErrorWLocation{},
-			selections: make([]selectionSet, 100),
-			arguments:  make([]arguments, 5),
-			nameBuff:   []byte{},
-			stringBuff: []byte{},
-		},
+		iter: newIter(false),
 	}
 	res.ctxReflection = reflect.ValueOf(&res.ctx)
-
-	// Preserve the memory for the selections and arguments
-	for i := range res.iter.selections {
-		res.iter.selections[i] = make(selectionSet, 5)
-	}
-	for i := range res.iter.arguments {
-		res.iter.arguments[i] = make(arguments, 5)
-	}
 
 	ctx := &parseCtx{
 		types:         &res.types,

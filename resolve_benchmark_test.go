@@ -20,6 +20,7 @@ func BenchmarkQueryParser(b *testing.B) {
 	// BenchmarkQueryParser-16    	   67248	     17757 ns/op	   10716 B/op	     172 allocs/op
 	// BenchmarkQueryParser-16    	   76287	     15323 ns/op	    8130 B/op	      95 allocs/op
 	// BenchmarkQueryParser-16    	   85382	     13723 ns/op	    3128 B/op	      91 allocs/op
+	// BenchmarkQueryParser-16    	   88876	     13199 ns/op	    1240 B/op	      87 allocs/op
 
 	// f, err := os.Create("memprofile")
 	// if err != nil {
@@ -32,7 +33,7 @@ func BenchmarkQueryParser(b *testing.B) {
 	// }
 	// defer pprof.StopCPUProfile()
 
-	iter := &iterT{resErrors: []ErrorWLocation{}, selections: make([]selectionSet, 100), arguments: make([]arguments, 5), nameBuff: []byte{}, stringBuff: []byte{}}
+	iter := newIter(false)
 	for i := range iter.selections {
 		iter.selections[i] = make(selectionSet, 5)
 	}
@@ -79,6 +80,7 @@ func BenchmarkResolve(b *testing.B) {
 	// BenchmarkResolve-16    	    8398	    150171 ns/op	   17443 B/op	     306 allocs/op
 	// BenchmarkResolve-16    	    7682	    136384 ns/op	   17475 B/op	     306 allocs/op
 	// BenchmarkResolve-16    	    9787	    118577 ns/op	    7559 B/op	     145 allocs/op
+	// BenchmarkResolve-16    	    9458	    115545 ns/op	    2928 B/op	     136 allocs/op
 
 	s, _ := ParseSchema(TestExecSchemaRequestWithFieldsData{}, M{}, nil)
 

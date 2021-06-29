@@ -81,8 +81,8 @@ type iterT struct {
 	unknownQueries       int
 	unknownMutations     int
 	unknownSubscriptions int
-	fragments            map[string]operator
-	operatorsMap         map[string]operator
+	fragments            []operator
+	operators            []operator
 	resErrors            []ErrorWLocation
 	selections           []selectionSet
 	selectionSetIdx      int
@@ -106,8 +106,8 @@ func (i *iterT) parseQuery(input string) {
 	*i = iterT{
 		data:            input,
 		resErrors:       i.resErrors[:0],
-		fragments:       map[string]operator{},
-		operatorsMap:    map[string]operator{},
+		fragments:       i.fragments[:0],
+		operators:       i.operators[:0],
 		selections:      i.selections,
 		selectionSetIdx: 0,
 		arguments:       i.arguments,
@@ -242,11 +242,14 @@ func (i *iterT) parseOperatorOrFragment() bool {
 				i.err("fragment cannot have an empty name")
 				return false // the above is not a critical parsing error
 			}
-			if _, ok := i.fragments[res.name]; ok {
-				i.err("fragment name can only be used once (name = \"" + res.name + "\")")
-				return false // the above is not a critical parsing error
+			for _, fragment := range i.fragments {
+				if fragment.name == res.name {
+					i.err("fragment name can only be used once (name = \"" + res.name + "\")")
+					return false // the above is not a critical parsing error
+				}
 			}
-			i.fragments[res.name] = res
+
+			i.fragments = append(i.fragments, res)
 			return false
 		}
 
@@ -297,12 +300,14 @@ func (i *iterT) parseOperatorOrFragment() bool {
 			res.name = "unknown_subscription_" + strconv.Itoa(i.unknownSubscriptions)
 		}
 	}
-	if _, ok := i.operatorsMap[res.name]; ok {
-		i.err("operator name can only be used once (name = \"" + res.name + "\")")
-		return false // the above is not a critical parsing error
+	for _, operator := range i.operators {
+		if operator.name == res.name {
+			i.err("operator name can only be used once (name = \"" + res.name + "\")")
+			return false // the above is not a critical parsing error
+		}
 	}
 
-	i.operatorsMap[res.name] = res
+	i.operators = append(i.operators, res)
 	return false
 }
 

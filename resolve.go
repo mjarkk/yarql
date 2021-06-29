@@ -162,29 +162,34 @@ func (s *Schema) ResolveContent(query string, options *ResolveOptions) (treadRes
 		s.ctx.Values = options.Values
 	}
 
-	switch len(s.iter.operatorsMap) {
+	switch len(s.iter.operators) {
 	case 0:
 		return true
 	case 1:
-		for _, operator := range s.iter.operatorsMap {
-			s.ctx.operator = &operator
-		}
+		s.ctx.operator = &s.iter.operators[0]
 	default:
 		if options.OperatorTarget == "" {
 			s.ctx.errors = append(s.ctx.errors, errors.New("multiple operators defined without target"))
 			return true
 		}
 
-		operator, ok := s.iter.operatorsMap[options.OperatorTarget]
-		if !ok {
+		found := false
+		for _, operator := range s.iter.operators {
+			if operator.name == options.OperatorTarget {
+				s.ctx.operator = &operator
+				found = true
+				break
+			}
+		}
+
+		if !found {
 			operatorsList := []string{}
-			for k := range s.iter.operatorsMap {
-				operatorsList = append(operatorsList, k)
+			for _, operator := range s.iter.operators {
+				operatorsList = append(operatorsList, operator.name)
 			}
 			s.ctx.errors = append(s.ctx.errors, errors.New(options.OperatorTarget+" is not a valid operator, available operators: "+strings.Join(operatorsList, ", ")))
 			return true
 		}
-		s.ctx.operator = &operator
 	}
 
 	s.ctx.start()
@@ -263,6 +268,7 @@ loop:
 func (ctx *Ctx) resolveSelectionContent(selectionIdx int, structType *obj, dept uint8, startLen int) {
 	dept = dept + 1
 
+mainLoop:
 	for _, selection := range ctx.schema.iter.selections[selectionIdx] {
 		switch selection.selectionType {
 		case "Field":
@@ -294,13 +300,14 @@ func (ctx *Ctx) resolveSelectionContent(selectionIdx int, structType *obj, dept 
 				}
 			}
 
-			operator, ok := ctx.schema.iter.fragments[selection.fragmentSpread.name]
-			if !ok {
-				ctx.addErrf("unknown fragment %s", selection.fragmentSpread.name)
-				continue
+			for _, fragment := range ctx.schema.iter.fragments {
+				if fragment.name == selection.fragmentSpread.name {
+					ctx.resolveSelectionContent(fragment.fragment.selectionIdx, structType, dept, startLen)
+					continue mainLoop
+				}
 			}
 
-			ctx.resolveSelectionContent(operator.fragment.selectionIdx, structType, dept, startLen)
+			ctx.addErrf("unknown fragment %s", selection.fragmentSpread.name)
 		case "InlineFragment":
 			if dept >= ctx.schema.MaxDepth {
 				continue
