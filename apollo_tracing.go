@@ -42,12 +42,10 @@ func (t *tracer) finish() {
 }
 
 func (ctx *Ctx) finishTrace(report func(offset, duration int64)) {
-	if ctx.tracingEnabled {
-		f := ctx.prefRecordingStartTime
-		offset := f.Sub(ctx.tracing.GoStartTime).Nanoseconds()
-		duration := time.Since(f).Nanoseconds()
-		report(offset, duration)
-	}
+	f := ctx.prefRecordingStartTime
+	offset := f.Sub(ctx.tracing.GoStartTime).Nanoseconds()
+	duration := time.Since(f).Nanoseconds()
+	report(offset, duration)
 }
 
 func (ctx *Ctx) startTrace() {

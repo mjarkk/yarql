@@ -269,7 +269,7 @@ func (ctx *Ctx) resolveSelectionContent(selectionIdx int, structType *obj, dept 
 				}
 			}
 
-			ctx.resolveField(selection.field, structType, dept, len(ctx.result) > startLen)
+			ctx.resolveField(&selection.field, structType, dept, len(ctx.result) > startLen)
 		case "FragmentSpread":
 			if dept >= ctx.schema.MaxDepth {
 				continue
@@ -360,19 +360,21 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 	ctx.path = append(ctx.path, name...)
 	ctx.path = append(ctx.path, '"')
 
-	defer ctx.finishTrace(func(offset, duration int64) {
-		returnType := bytes.NewBuffer(nil)
-		ctx.schema.objToQlTypeName(structItem, returnType)
+	if ctx.tracingEnabled {
+		defer ctx.finishTrace(func(offset, duration int64) {
+			returnType := bytes.NewBuffer(nil)
+			ctx.schema.objToQlTypeName(structItem, returnType)
 
-		ctx.tracing.Execution.Resolvers = append(ctx.tracing.Execution.Resolvers, tracerResolver{
-			Path:        json.RawMessage(ctx.Path()),
-			ParentType:  codeStructure.typeName,
-			FieldName:   query.name,
-			ReturnType:  returnType.String(),
-			StartOffset: offset,
-			Duration:    duration,
+			ctx.tracing.Execution.Resolvers = append(ctx.tracing.Execution.Resolvers, tracerResolver{
+				Path:        json.RawMessage(ctx.Path()),
+				ParentType:  codeStructure.typeName,
+				FieldName:   query.name,
+				ReturnType:  returnType.String(),
+				StartOffset: offset,
+				Duration:    duration,
+			})
 		})
-	})
+	}
 
 	if placeCommaInFront {
 		ctx.writeByte(',')

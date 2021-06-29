@@ -14,16 +14,16 @@ type operator struct {
 	selectionIdx        int
 	directives          directives
 	variableDefinitions variableDefinitions
-	fragment            *inlineFragment // defined if: operationType == "fragment"
+	fragment            inlineFragment // defined if: operationType == "fragment"
 }
 
 type selectionSet []selection
 
 type selection struct {
-	selectionType  string          // "Field" || "FragmentSpread" || "InlineFragment"
-	field          *field          // Optional
-	fragmentSpread *fragmentSpread // Optional
-	inlineFragment *inlineFragment // Optional
+	selectionType  string         // "Field" || "FragmentSpread" || "InlineFragment" // TODO change this to an enum
+	field          field          // Optional
+	fragmentSpread fragmentSpread // Optional
+	inlineFragment inlineFragment // Optional
 }
 
 type field struct {
@@ -83,6 +83,8 @@ type iterT struct {
 	operatorsMap         map[string]operator
 	resErrors            []ErrorWLocation
 	selections           []selectionSet
+	nameBuff             []byte
+	stringBuff           []byte
 	selectionSetIdx      int
 }
 
@@ -103,6 +105,8 @@ func (i *iterT) parseQuery(input string) {
 		fragments:    map[string]operator{},
 		operatorsMap: map[string]operator{},
 		selections:   i.selections,
+		nameBuff:     i.nameBuff[:0],
+		stringBuff:   i.stringBuff[:0],
 	}
 
 	for {
@@ -200,14 +204,15 @@ func (i *iterT) parseOperatorOrFragment() bool {
 		}
 
 		if c != '(' && c != '@' && c != '{' || res.operationType == "fragment" {
-			name, criticalErr := i.parseName()
+			var criticalErr bool
+			i.nameBuff, criticalErr = i.parseName(i.nameBuff[:0])
 			if criticalErr {
 				return criticalErr
 			}
-			if len(name) == 0 {
+			if len(i.nameBuff) == 0 {
 				return i.err("expected name but got \"" + string(i.currentC()) + "\"")
 			}
-			res.name = string(name)
+			res.name = string(i.nameBuff)
 
 			c, eof = i.mightIgnoreNextTokens()
 			if eof {
@@ -401,7 +406,7 @@ func (i *iterT) parseValue(allowVariables bool) (value, bool) {
 	case '-', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0':
 		return i.parseNumberValue()
 	case '"':
-		val, criticalErr := i.parseString()
+		val, criticalErr := i.parseString(i.stringBuff[:0])
 		return makeStringValue(val), criticalErr
 	case '[':
 		i.charNr++
@@ -412,11 +417,12 @@ func (i *iterT) parseValue(allowVariables bool) (value, bool) {
 		values, criticalErr := i.parseArgumentsOrObjectValues('}')
 		return makeStructValue(values), criticalErr
 	default:
-		name, criticalErr := i.parseName()
+		var criticalErr bool
+		i.nameBuff, criticalErr = i.parseName(i.nameBuff[:0])
 		if criticalErr {
 			return value{}, criticalErr
 		}
-		strName := string(name)
+		strName := string(i.nameBuff)
 		switch strName {
 		case "null":
 			return makeNullValue(), false
@@ -432,8 +438,7 @@ func (i *iterT) parseValue(allowVariables bool) (value, bool) {
 	}
 }
 
-func (i *iterT) parseString() (string, bool) {
-	res := []byte{}
+func (i *iterT) parseString(res []byte) (string, bool) {
 	isBlock := false
 	if i.matches(`"""`) == `"""` {
 		isBlock = true
@@ -791,14 +796,15 @@ func (i *iterT) parseType() (*typeReference, bool) {
 		}
 		i.charNr++
 	} else {
-		name, criticalErr := i.parseName()
+		var criticalErr bool
+		i.nameBuff, criticalErr = i.parseName(i.nameBuff[:0])
 		if criticalErr {
 			return nil, criticalErr
 		}
-		if len(name) == 0 {
+		if len(i.nameBuff) == 0 {
 			return nil, i.err("type name missing or invalid type name")
 		}
-		res.name = string(name)
+		res.name = string(i.nameBuff)
 	}
 
 	c, eof := i.mightIgnoreNextTokens()
@@ -826,14 +832,15 @@ func (i *iterT) parseVariable(alreadyParsedIdentifier bool) (string, bool) {
 		i.charNr++
 	}
 
-	name, criticalErr := i.parseName()
+	var criticalErr bool
+	i.nameBuff, criticalErr = i.parseName(i.nameBuff[:0])
 	if criticalErr {
 		return "", criticalErr
 	}
-	if len(name) == 0 {
+	if len(i.nameBuff) == 0 {
 		return "", i.err("cannot have empty variable name")
 	}
-	strName := string(name)
+	strName := string(i.nameBuff)
 	if strName == "null" {
 		return "", i.err("null is a illegal variable name")
 	}
@@ -862,12 +869,11 @@ func (i *iterT) parseSelectionSets() (int, bool) {
 			return setIdx, false
 		}
 
-		selection, criticalErr := i.parseSelection()
+		var criticalErr bool
+		i.selections[setIdx], criticalErr = i.parseSelection(i.selections[setIdx])
 		if criticalErr {
 			return setIdx, criticalErr
 		}
-
-		i.selections[setIdx] = append(i.selections[setIdx], selection)
 
 		c, eof = i.mightIgnoreNextTokens()
 		if eof {
@@ -885,113 +891,119 @@ func (i *iterT) parseSelectionSets() (int, bool) {
 }
 
 // https://spec.graphql.org/June2018/#Selection
-func (i *iterT) parseSelection() (selection, bool) {
-	res := selection{}
-
+func (i *iterT) parseSelection(res selectionSet) (selectionSet, bool) {
 	if len(i.matches("...")) > 0 {
 		_, eof := i.mightIgnoreNextTokens()
 		if eof {
 			return res, i.unexpectedEOF()
 		}
 
-		byteName, criticalErr := i.parseName()
+		var criticalErr bool
+		i.nameBuff, criticalErr = i.parseName(i.nameBuff[:0])
 		if criticalErr {
 			return res, criticalErr
 		}
-		name := string(byteName)
+		name := string(i.nameBuff)
 
 		if name == "on" || name == "" {
 			inlineFragment, criticalErr := i.parseInlineFragment(name == "on")
 			if criticalErr {
 				return res, criticalErr
 			}
-			res.selectionType = "InlineFragment"
-			res.inlineFragment = inlineFragment
+			res = append(res, selection{
+				selectionType:  "InlineFragment",
+				inlineFragment: inlineFragment,
+			})
 		} else {
 			fragmentSpread, criticalErr := i.parseFragmentSpread(name)
 			if criticalErr {
 				return res, criticalErr
 			}
-			res.selectionType = "FragmentSpread"
-			res.fragmentSpread = fragmentSpread
+			res = append(res, selection{
+				selectionType:  "FragmentSpread",
+				fragmentSpread: fragmentSpread,
+			})
 		}
 	} else {
 		field, criticalErr := i.parseField()
 		if criticalErr {
 			return res, criticalErr
 		}
-		res.selectionType = "Field"
-		res.field = &field
+		res = append(res, selection{
+			selectionType: "Field",
+			field:         field,
+		})
 	}
 
 	return res, false
 }
 
 // https://spec.graphql.org/June2018/#InlineFragment
-func (i *iterT) parseInlineFragment(hasTypeCondition bool) (*inlineFragment, bool) {
+func (i *iterT) parseInlineFragment(hasTypeCondition bool) (inlineFragment, bool) {
 	res := inlineFragment{
 		selectionIdx: -1,
 	}
 	if hasTypeCondition {
 		_, eof := i.mightIgnoreNextTokens()
 		if eof {
-			return nil, i.unexpectedEOF()
+			return res, i.unexpectedEOF()
 		}
 
-		name, criticalErr := i.parseName()
-		res.onTypeConditionName = string(name)
+		var criticalErr bool
+		i.nameBuff, criticalErr = i.parseName(i.nameBuff[:0])
+		res.onTypeConditionName = string(i.nameBuff)
 		if criticalErr {
-			return nil, criticalErr
+			return res, criticalErr
 		}
 
 		if res.onTypeConditionName == "" {
-			return nil, i.err("cannot have type condition without name")
+			return res, i.err("cannot have type condition without name")
 		}
 	}
 
 	// parse optional directives
 	c, eof := i.mightIgnoreNextTokens()
 	if eof {
-		return nil, i.unexpectedEOF()
+		return res, i.unexpectedEOF()
 	}
 	if c == '@' {
 		res.directives, eof = i.parseDirectives()
 		if eof {
-			return nil, i.unexpectedEOF()
+			return res, i.unexpectedEOF()
 		}
 	}
 
 	// Parse SelectionSet
 	c, eof = i.mightIgnoreNextTokens()
 	if eof {
-		return nil, i.unexpectedEOF()
+		return res, i.unexpectedEOF()
 	}
 	if c != '{' {
-		return nil, i.err("expected \"{\", not: \"" + string(i.currentC()) + "\"")
+		return res, i.err("expected \"{\", not: \"" + string(i.currentC()) + "\"")
 	}
 	i.charNr++
 	var criticalErr bool
 	res.selectionIdx, criticalErr = i.parseSelectionSets()
-	return &res, criticalErr
+	return res, criticalErr
 }
 
 // https://spec.graphql.org/June2018/#FragmentSpread
-func (i *iterT) parseFragmentSpread(name string) (*fragmentSpread, bool) {
+func (i *iterT) parseFragmentSpread(name string) (fragmentSpread, bool) {
 	res := fragmentSpread{name: name}
 
 	// parse optional directives
 	c, eof := i.mightIgnoreNextTokens()
 	if eof {
-		return nil, i.unexpectedEOF()
+		return res, i.unexpectedEOF()
 	}
 	if c == '@' {
 		res.directives, eof = i.parseDirectives()
 		if eof {
-			return nil, i.unexpectedEOF()
+			return res, i.unexpectedEOF()
 		}
 	}
 
-	return &res, false
+	return res, false
 }
 
 // https://spec.graphql.org/June2018/#Field
@@ -999,7 +1011,8 @@ func (i *iterT) parseField() (field, bool) {
 	res := field{selectionIdx: -1}
 
 	// Parse name (and alias if pressent)
-	nameOrAlias, criticalErr := i.parseName()
+	var criticalErr bool
+	i.nameBuff, criticalErr = i.parseName(i.nameBuff[:0])
 	if criticalErr {
 		return res, criticalErr
 	}
@@ -1010,28 +1023,30 @@ func (i *iterT) parseField() (field, bool) {
 	}
 
 	if c == ':' {
-		if len(nameOrAlias) == 0 {
+		if len(i.nameBuff) == 0 {
 			return res, i.err("field alias should have a name")
 		}
-		res.alias = nameOrAlias
+		res.alias = make([]byte, len(i.nameBuff))
+		copy(res.alias, i.nameBuff)
+
 		i.charNr++
 		_, eof := i.mightIgnoreNextTokens()
 		if eof {
 			return res, i.unexpectedEOF()
 		}
-		name, criticalErr := i.parseName()
+		i.nameBuff, criticalErr = i.parseName(i.nameBuff[:0])
 		if criticalErr {
 			return res, criticalErr
 		}
-		res.name = string(name)
+		res.name = string(i.nameBuff)
 		if res.name == "" {
 			return res, i.err("field should have a name")
 		}
 	} else {
-		if len(nameOrAlias) == 0 {
+		if len(i.nameBuff) == 0 {
 			return res, i.err("field should have a name")
 		}
-		res.name = string(nameOrAlias)
+		res.name = string(i.nameBuff)
 	}
 
 	// Parse Arguments if present
@@ -1081,6 +1096,8 @@ func (i *iterT) parseField() (field, bool) {
 // ObjectValues > https://spec.graphql.org/June2018/#ObjectValue
 // Arguments > https://spec.graphql.org/June2018/#Arguments
 func (i *iterT) parseArgumentsOrObjectValues(closure byte) (res arguments, criticalErr bool) {
+	// FIXME this is slow
+
 	res = arguments{}
 
 	c, eof := i.mightIgnoreNextTokens()
@@ -1094,13 +1111,14 @@ func (i *iterT) parseArgumentsOrObjectValues(closure byte) (res arguments, criti
 	}
 
 	for {
-		name, criticalErr := i.parseName()
+		i.nameBuff, criticalErr = i.parseName(i.nameBuff[:0])
 		if criticalErr {
 			return nil, criticalErr
 		}
-		if len(name) == 0 {
+		if len(i.nameBuff) == 0 {
 			return nil, i.err("argument name must be defined")
 		}
+		name := string(i.nameBuff)
 
 		c, eof = i.mightIgnoreNextTokens()
 		if eof {
@@ -1121,7 +1139,7 @@ func (i *iterT) parseArgumentsOrObjectValues(closure byte) (res arguments, criti
 		if criticalErr {
 			return nil, criticalErr
 		}
-		res[string(name)] = value
+		res[name] = value
 
 		c, eof = i.mightIgnoreNextTokens()
 		if eof {
@@ -1168,14 +1186,15 @@ func (i *iterT) parseDirectives() (directives, bool) {
 
 // https://spec.graphql.org/June2018/#Directive
 func (i *iterT) parseDirective() (*directive, bool) {
-	name, criticalErr := i.parseName()
+	var criticalErr bool
+	i.nameBuff, criticalErr = i.parseName(i.nameBuff[:0])
 	if criticalErr {
 		return nil, criticalErr
 	}
-	if len(name) == 0 {
+	if len(i.nameBuff) == 0 {
 		return nil, i.err("directive must have a name")
 	}
-	res := directive{name: string(name)}
+	res := directive{name: string(i.nameBuff)}
 
 	// Parse optional Arguments
 	c, eof := i.mightIgnoreNextTokens()
@@ -1195,31 +1214,20 @@ func (i *iterT) parseDirective() (*directive, bool) {
 }
 
 // https://spec.graphql.org/June2018/#Name
-func (i *iterT) parseName() ([]byte, bool) {
-	nameLen := 64
-	name := make([]byte, nameLen)
-	len := 0
+func (i *iterT) parseName(name []byte) ([]byte, bool) {
 	for {
 		c, eof := i.checkC(i.charNr)
 		if eof {
-			return name[:len], i.unexpectedEOF()
+			return name, i.unexpectedEOF()
 		}
 
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || (len != 0 && c >= '0' && c <= '9') {
-			name[len] = c
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || (len(name) != 0 && c >= '0' && c <= '9') {
+			name = append(name, c)
 			i.charNr++
-			len++
-
-			if len == nameLen {
-				// Grow array
-				name = append(name, make([]byte, nameLen)...)
-				nameLen *= 2
-			}
-
 			continue
 		}
 
-		return name[:len], false
+		return name, false
 	}
 }
 

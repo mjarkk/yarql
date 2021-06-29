@@ -20,7 +20,7 @@ func checkErrorHaveLocation(err *ErrorWLocation) {
 }
 
 func parseQuery(query string) (i *iterT, fragments, operators map[string]operator, err *ErrorWLocation) {
-	i = &iterT{resErrors: []ErrorWLocation{}, selections: []selectionSet{}}
+	i = &iterT{resErrors: []ErrorWLocation{}, selections: []selectionSet{}, nameBuff: []byte{}, stringBuff: []byte{}}
 	i.parseQuery(query)
 	if len(i.resErrors) > 0 {
 		err = &i.resErrors[0]
@@ -309,8 +309,7 @@ func TestQueryParserSimpleQuery(t *testing.T) {
 			selectionMap := map[string]field{}
 			for _, item := range i.selections[operator.selectionIdx] {
 				Equal(t, "Field", item.selectionType)
-				NotNil(t, item.field)
-				selectionMap[item.field.name] = *item.field
+				selectionMap[item.field.name] = item.field
 			}
 
 			Contains(t, selectionMap, "a")
@@ -824,7 +823,7 @@ func TestQueryParserMatches(t *testing.T) {
 	}
 
 	for _, case_ := range cases {
-		i := iterT{data: case_.data}
+		i := iterT{data: case_.data, nameBuff: []byte{}, stringBuff: []byte{}}
 		Equal(t, case_.matches, i.matches(case_.matches), case_)
 	}
 }

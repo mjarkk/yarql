@@ -9,24 +9,29 @@ import (
 )
 
 func BenchmarkQueryParser(b *testing.B) {
+	// On laptop
 	// BenchmarkQueryParser-12    	   35697	     33170 ns/op	   17536 B/op	     331 allocs/op
 	// BenchmarkQueryParser-12    	   37735	     30622 ns/op	   17488 B/op	     329 allocs/op
 	// BenchmarkQueryParser-12    	   35721	     30887 ns/op	   10793 B/op	     273 allocs/op
 	// BenchmarkQueryParser-12    	   51865	     19334 ns/op	   10770 B/op	     273 allocs/op
 	// BenchmarkQueryParser-12    	   50334	     19974 ns/op	   14362 B/op	     241 allocs/op
 
-	f, err := os.Create("memprofile")
-	if err != nil {
-		log.Fatal("could not create memory profile: ", err)
-	}
-	defer f.Close()
+	// On desktop
+	// BenchmarkQueryParser-16    	   67248	     17757 ns/op	   10716 B/op	     172 allocs/op
+	// BenchmarkQueryParser-16    	   76287	     15323 ns/op	    8130 B/op	      95 allocs/op
 
-	if err := pprof.StartCPUProfile(f); err != nil {
-		log.Fatal("could not start CPU profile: ", err)
-	}
-	defer pprof.StopCPUProfile()
+	// f, err := os.Create("memprofile")
+	// if err != nil {
+	// 	log.Fatal("could not create memory profile: ", err)
+	// }
+	// defer f.Close()
 
-	iter := &iterT{resErrors: []ErrorWLocation{}, selections: make([]selectionSet, 100)}
+	// if err := pprof.StartCPUProfile(f); err != nil {
+	// 	log.Fatal("could not start CPU profile: ", err)
+	// }
+	// defer pprof.StopCPUProfile()
+
+	iter := &iterT{resErrors: []ErrorWLocation{}, selections: make([]selectionSet, 100), nameBuff: []byte{}, stringBuff: []byte{}}
 	for i := range iter.selections {
 		iter.selections[i] = make(selectionSet, 5)
 	}
@@ -34,6 +39,11 @@ func BenchmarkQueryParser(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		iter.parseQuery(schemaQuery)
 	}
+
+	// runtime.GC()
+	// if err := pprof.WriteHeapProfile(f); err != nil {
+	// 	log.Fatal("could not write memory profile: ", err)
+	// }
 }
 
 func BenchmarkResolve(b *testing.B) {
@@ -64,6 +74,7 @@ func BenchmarkResolve(b *testing.B) {
 	// BenchmarkResolve-16    	    4406	    265315 ns/op	   40399 B/op	    2326 allocs/op
 	// BenchmarkResolve-16    	    8398	    150171 ns/op	   17443 B/op	     306 allocs/op
 	// BenchmarkResolve-16    	    7682	    136384 ns/op	   17475 B/op	     306 allocs/op
+	// BenchmarkResolve-16    	    9787	    118577 ns/op	    7559 B/op	     145 allocs/op
 
 	s, _ := ParseSchema(TestExecSchemaRequestWithFieldsData{}, M{}, nil)
 

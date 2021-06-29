@@ -194,6 +194,8 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 		iter: iterT{
 			resErrors:  []ErrorWLocation{},
 			selections: make([]selectionSet, 100),
+			nameBuff:   []byte{},
+			stringBuff: []byte{},
 		},
 	}
 	res.ctxReflection = reflect.ValueOf(&res.ctx)
