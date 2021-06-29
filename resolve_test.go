@@ -504,9 +504,15 @@ func TestExecStructTypeMethod(t *testing.T) {
 
 type TestExecStructTypeMethodWithCtxData struct{}
 
-func (TestExecStructTypeMethodWithCtxData) ResolveBar(c *Ctx) string {
+func (TestExecStructTypeMethodWithCtxData) ResolveBar(c *Ctx) TestExecStructTypeMethodWithCtxDataInner {
 	c.Values["baz"] = "bar"
-	return "foo"
+	return TestExecStructTypeMethodWithCtxDataInner{}
+}
+
+type TestExecStructTypeMethodWithCtxDataInner struct{}
+
+func (TestExecStructTypeMethodWithCtxDataInner) ResolveFoo(c *Ctx) string {
+	return c.Values["baz"].(string)
 }
 
 func (TestExecStructTypeMethodWithCtxData) ResolveBaz(c *Ctx) (string, error) {
@@ -518,11 +524,11 @@ func (TestExecStructTypeMethodWithCtxData) ResolveBaz(c *Ctx) (string, error) {
 }
 
 func TestExecStructTypeMethodWithCtx(t *testing.T) {
-	out, errs := parseAndTest(t, `{bar, baz}`, TestExecStructTypeMethodData{}, M{})
+	out, errs := parseAndTest(t, `{bar {foo}, baz}`, TestExecStructTypeMethodWithCtxData{}, M{})
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"bar":"foo","baz":"bar"}`, out)
+	Equal(t, `{"bar":{"foo":"bar"},"baz":"bar"}`, out)
 }
 
 type TestExecStructTypeMethodWithArgsData struct{}

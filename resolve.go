@@ -656,7 +656,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 		ctx.funcInputs = ctx.funcInputs[:0]
 		for _, in := range method.ins {
 			if in.isCtx {
-				ctx.funcInputs = append(ctx.funcInputs, reflect.ValueOf(ctx))
+				ctx.funcInputs = append(ctx.funcInputs, ctx.schema.ctxReflection)
 			} else {
 				ctx.funcInputs = append(ctx.funcInputs, reflect.New(*in.type_).Elem())
 			}

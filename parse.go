@@ -44,6 +44,7 @@ type Schema struct {
 
 	// Zero alloc variables
 	ctx              Ctx
+	ctxReflection    reflect.Value
 	graphqlTypesMap  map[string]qlType
 	graphqlTypesList []qlType
 	graphqlObjFields map[string][]qlField
@@ -195,6 +196,7 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 			selections: make([]selectionSet, 100),
 		},
 	}
+	res.ctxReflection = reflect.ValueOf(&res.ctx)
 
 	// Preserve the memory for the selections
 	for i, _ := range res.iter.selections {
