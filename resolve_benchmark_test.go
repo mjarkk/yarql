@@ -70,6 +70,7 @@ func BenchmarkResolve(b *testing.B) {
 	// BenchmarkResolve-12    	    8761	    115397 ns/op	   17432 B/op	     306 allocs/op
 	// BenchmarkResolve-12    	    8962	    112175 ns/op	   17424 B/op	     306 allocs/op
 	// BenchmarkResolve-12    	    9361	    107861 ns/op	   17409 B/op	     306 allocs/op
+	// BenchmarkResolve-12    	   12471	     88927 ns/op	    2857 B/op	     136 allocs/op
 
 	// On desktop
 	// BenchmarkResolve-16    	    2259	    503592 ns/op	   62823 B/op	    4340 allocs/op
