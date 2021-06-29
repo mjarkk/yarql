@@ -12,7 +12,7 @@ import (
 // license that can be found in the LICENSE file.
 //
 // IMPORTANT the full license can be found in this repo: https://github.com/golang/go
-func stringToJson(s []byte, e *[]byte) {
+func stringToJson(s string, e *[]byte) {
 	const hex = "0123456789abcdef"
 
 	*e = append(*e, '"')
@@ -55,7 +55,8 @@ func stringToJson(s []byte, e *[]byte) {
 			start = i
 			continue
 		}
-		c, size := utf8.DecodeRune(s[i:])
+
+		c, size := utf8.DecodeRuneInString(s[i:])
 		if c == utf8.RuneError && size == 1 {
 			if start < i {
 				*e = append(*e, s[start:i]...)

@@ -73,10 +73,9 @@ func (ctx *Ctx) Reset(
 		tracingEnabled:      tracing,
 		tracing:             ctx.tracing,
 
-		reflectValues:       ctx.reflectValues,
-		result:              ctx.result[:0],
-		funcInputs:          ctx.funcInputs[:0],
-		stringToJsonInCache: ctx.stringToJsonInCache,
+		reflectValues: ctx.reflectValues,
+		result:        ctx.result[:0],
+		funcInputs:    ctx.funcInputs[:0],
 
 		Values: map[string]interface{}{},
 	}
@@ -105,7 +104,7 @@ func (ctx *Ctx) CompleteResult(sendEmptyResult, includeErrs, includeExtensions b
 				ctx.writeByte(',')
 			}
 			ctx.write([]byte(`{"message":`))
-			stringToJson([]byte(err.Error()), &ctx.result)
+			stringToJson(err.Error(), &ctx.result)
 
 			errWPath, isErrWPath := err.(ErrorWPath)
 			if isErrWPath && len(errWPath.path) > 0 {
@@ -846,8 +845,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 func (ctx *Ctx) valueToJson(in reflect.Value, kind reflect.Kind) {
 	switch kind {
 	case reflect.String:
-		ctx.stringToJsonInCache = append(ctx.stringToJsonInCache[:0], []byte(in.String())...)
-		stringToJson(ctx.stringToJsonInCache, &ctx.result)
+		stringToJson(in.String(), &ctx.result)
 	case reflect.Bool:
 		if in.Bool() {
 			ctx.write([]byte("true"))

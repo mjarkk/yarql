@@ -186,11 +186,10 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 		MaxDepth:         255,
 		graphqlObjFields: map[string][]qlField{},
 		ctx: Ctx{
-			result:              make([]byte, 2048),
-			errors:              []error{},
-			path:                []byte{},
-			funcInputs:          []reflect.Value{},
-			stringToJsonInCache: []byte{},
+			result:     make([]byte, 2048),
+			errors:     []error{},
+			path:       []byte{},
+			funcInputs: []reflect.Value{},
 		},
 		iter: iterT{
 			resErrors:  []ErrorWLocation{},
