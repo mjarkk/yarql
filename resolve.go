@@ -73,9 +73,10 @@ func (ctx *Ctx) Reset(
 		tracingEnabled:      tracing,
 		tracing:             ctx.tracing,
 
-		reflectValues: ctx.reflectValues,
-		result:        ctx.result[:0],
-		funcInputs:    ctx.funcInputs[:0],
+		reflectValues:       ctx.reflectValues,
+		result:              ctx.result[:0],
+		funcInputs:          ctx.funcInputs[:0],
+		stringToJsonInCache: ctx.stringToJsonInCache,
 
 		Values: map[string]interface{}{},
 	}
@@ -845,7 +846,8 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 func (ctx *Ctx) valueToJson(in reflect.Value, kind reflect.Kind) {
 	switch kind {
 	case reflect.String:
-		stringToJson([]byte(in.String()), &ctx.result)
+		ctx.stringToJsonInCache = append(ctx.stringToJsonInCache[:0], []byte(in.String())...)
+		stringToJson(ctx.stringToJsonInCache, &ctx.result)
 	case reflect.Bool:
 		if in.Bool() {
 			ctx.write([]byte("true"))

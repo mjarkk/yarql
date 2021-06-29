@@ -259,7 +259,7 @@ _Note: This benchmark also profiles the cpu and that effects the score by a bit_
 # go test -benchmem -bench "^(BenchmarkResolve)\$"
 # goos: darwin
 # cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
-BenchmarkResolve-12    	    8949	    123498 ns/op	   17482 B/op	     309 allocs/op
+BenchmarkResolve-12    	    9361	    107861 ns/op	   17409 B/op	     306 allocs/op
 ```
 
 ## Alternatives
