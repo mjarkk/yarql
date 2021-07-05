@@ -22,11 +22,99 @@ func (ctx *parserCtx) parseQueryToBytecode() {
 	ctx.parseOperatorOrFragment()
 }
 
-func (ctx *parserCtx) parseOperatorOrFragment() {
-	c := ctx.mightIgnoreNextTokens()
+// - http://spec.graphql.org/June2018/#sec-Language.Operations
+// - http://spec.graphql.org/June2018/#FragmentDefinition
+func (ctx *parserCtx) parseOperatorOrFragment() bool {
+	c, eof := ctx.mightIgnoreNextTokens()
+	if eof {
+		return false
+	}
 
-	if c == '{' {
+	if matches := ctx.matches("query", "mutation", "subscription"); matches != -1 {
+		if matches == 0 {
+			ctx.instructionNewOperation(operatorQuery)
+		} else if matches == 1 {
+			ctx.instructionNewOperation(operatorMutation)
+		} else {
+			ctx.instructionNewOperation(operatorSubscription)
+		}
 
+		_, eof = ctx.mightIgnoreNextTokens()
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+
+		// Operation name
+		_, criticalErr := ctx.parseAndWriteName()
+		if criticalErr {
+			return criticalErr
+		}
+
+		c, eof = ctx.mightIgnoreNextTokens()
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+
+		if c != '{' {
+			return ctx.err(`expected selection set opener ("{") but got "` + string(c) + `"`)
+		}
+	} else if c != '{' {
+		return ctx.err(`expected query, mutation, subscription or a simple query ("{...}") but got "` + string(c) + `"`)
+	} else {
+		ctx.instructionNewOperation(operatorQuery)
+	}
+
+	ctx.charNr++
+	criticalErr := ctx.parseSelectionSet()
+	if criticalErr {
+		return criticalErr
+	}
+
+	c, eof = ctx.mightIgnoreNextTokens()
+	if eof {
+		return ctx.unexpectedEOF()
+	}
+	if c != '}' {
+		return ctx.err(`expected operator closure "}" but got "` + string(c) + `"`)
+	}
+
+	ctx.instructionEnd()
+
+	return false
+}
+
+func (ctx *parserCtx) parseSelectionSet() bool {
+	c, eof := ctx.mightIgnoreNextTokens()
+	if eof {
+		return ctx.unexpectedEOF()
+	}
+
+	if c == '}' {
+		return false
+	}
+
+	for {
+		ctx.instructionNewField()
+
+		empty, criticalError := ctx.parseAndWriteName()
+		if criticalError {
+			return criticalError
+		}
+
+		c, eof := ctx.mightIgnoreNextTokens()
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+		if empty {
+			return ctx.err(`expected field name character but got "` + string(c) + `"`)
+		}
+
+		ctx.instructionEnd()
+		if c == '}' {
+			return false
+		} else {
+			return ctx.err(`unexpected character in parsing field "` + string(c) + `"`)
+		}
 	}
 }
 
@@ -196,21 +284,31 @@ func (ctx *parserCtx) unexpectedEOF() bool {
 	return ctx.err("unexpected EOF")
 }
 
-func (ctx *parserCtx) parseAndWriteName() (notEmpty bool, criticalError bool) {
-	written := false
+func (ctx *parserCtx) parseAndWriteName() (empty bool, criticalError bool) {
+	c, eof := ctx.checkC(ctx.charNr)
+	if eof {
+		return true, ctx.unexpectedEOF()
+	}
+
+	if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' {
+		ctx.res = append(ctx.res, c)
+		ctx.charNr++
+	} else {
+		return true, false
+	}
+
 	for {
 		c, eof := ctx.checkC(ctx.charNr)
 		if eof {
-			return written, ctx.unexpectedEOF()
+			return false, ctx.unexpectedEOF()
 		}
 
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || (written && c >= '0' && c <= '9') {
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || (empty && c >= '0' && c <= '9') {
 			ctx.res = append(ctx.res, c)
 			ctx.charNr++
-			written = true
 			continue
 		}
 
-		return written, false
+		return false, false
 	}
 }
