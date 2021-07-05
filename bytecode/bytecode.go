@@ -106,14 +106,28 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 			return ctx.unexpectedEOF()
 		}
 		if empty {
-			return ctx.err(`expected field name character but got "` + string(c) + `"`)
+			return ctx.err(`unexpected character, expected valid name or selection closure but got: "` + string(c) + `"`)
+		}
+		if c == '{' {
+			ctx.charNr++
+
+			criticalErr := ctx.parseSelectionSet()
+			if criticalErr {
+				return criticalErr
+			}
+
+			ctx.charNr++
+
+			c, eof = ctx.mightIgnoreNextTokens()
+			if eof {
+				return ctx.unexpectedEOF()
+			}
 		}
 
 		ctx.instructionEnd()
+
 		if c == '}' {
 			return false
-		} else {
-			return ctx.err(`unexpected character in parsing field "` + string(c) + `"`)
 		}
 	}
 }

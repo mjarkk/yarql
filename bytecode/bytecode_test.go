@@ -88,3 +88,35 @@ func TestParseQueryWithField(t *testing.T) {
 		e           // end operator
 	`)
 }
+
+func TestParseQueryWithMultipleFields(t *testing.T) {
+	parseQueryAndExpectResult(t, `query {
+		some_field
+		other
+	}`, `
+		oq          // query operator
+		fsome_field // field with name some_field
+		e           // end field with name some_field
+		fother      // field with name other
+		e           // end field with name other
+		e           // end operator
+	`)
+}
+
+func TestParseQueryWithFieldWithSelectionSet(t *testing.T) {
+	parseQueryAndExpectResult(t, `query {
+		some_field {
+			foo
+			bar
+		}
+	}`, `
+		oq          // query operator
+		fsome_field // field with name some_field
+		ffoo        // field with name foo
+		e           // end of foo
+		fbar        // field with name bar
+		e           // end of bar
+		e           // end of some_field
+		e           // end operator
+	`)
+}
