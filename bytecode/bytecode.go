@@ -30,7 +30,12 @@ func (ctx *parserCtx) parseOperatorOrFragment() bool {
 		return false
 	}
 
-	if matches := ctx.matches("query", "mutation", "subscription"); matches != -1 {
+	isOperator := true
+
+	if c == '{' {
+		ctx.instructionNewOperation(operatorQuery)
+	} else if matches := ctx.matches("query", "mutation", "subscription"); matches != -1 {
+		// Set the operation kind
 		if matches == 0 {
 			ctx.instructionNewOperation(operatorQuery)
 		} else if matches == 1 {
@@ -39,12 +44,11 @@ func (ctx *parserCtx) parseOperatorOrFragment() bool {
 			ctx.instructionNewOperation(operatorSubscription)
 		}
 
+		// Parse operation name
 		_, eof = ctx.mightIgnoreNextTokens()
 		if eof {
 			return ctx.unexpectedEOF()
 		}
-
-		// Operation name
 		_, criticalErr := ctx.parseAndWriteName()
 		if criticalErr {
 			return criticalErr
@@ -54,14 +58,68 @@ func (ctx *parserCtx) parseOperatorOrFragment() bool {
 		if eof {
 			return ctx.unexpectedEOF()
 		}
-
 		if c != '{' {
 			return ctx.err(`expected selection set opener ("{") but got "` + string(c) + `"`)
 		}
-	} else if c != '{' {
-		return ctx.err(`expected query, mutation, subscription or a simple query ("{...}") but got "` + string(c) + `"`)
+	} else if matches := ctx.matches("fragment"); matches != -1 {
+		isOperator = false
+		ctx.instructionNewFragment()
+
+		// Parse fragment name
+		_, eof := ctx.mightIgnoreNextTokens()
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+		empty, criticalErr := ctx.parseAndWriteName()
+		if criticalErr {
+			return criticalErr
+		}
+		if empty {
+			return ctx.err(`expected fragment name but got "` + string(ctx.currentC()) + `"`)
+		}
+
+		// Parse "on"
+		c, eof := ctx.mightIgnoreNextTokens()
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+		if c != 'o' {
+			return ctx.err(`expected "on" keyword but got "` + string(c) + `"`)
+		}
+		ctx.charNr++
+		c, eof = ctx.checkC(ctx.charNr)
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+		if c != 'n' {
+			return ctx.err(`expected "on" keyword but got "` + string(c) + `"`)
+		}
+		ctx.charNr++
+
+		// Parse fragment target type name
+		_, eof = ctx.mightIgnoreNextTokens()
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+		ctx.res = append(ctx.res, 0)
+		empty, criticalErr = ctx.parseAndWriteName()
+		if criticalErr {
+			return criticalErr
+		}
+		if empty {
+			return ctx.err(`expected fragment type target but got "` + string(ctx.currentC()) + `"`)
+		}
+
+		// Parse fragment body
+		c, eof = ctx.mightIgnoreNextTokens()
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+		if c != '{' {
+			return ctx.err(`expected selection set opener ("{") but got "` + string(c) + `"`)
+		}
 	} else {
-		ctx.instructionNewOperation(operatorQuery)
+		return ctx.err(`expected query, mutation, subscription or a simple query ("{...}") but got "` + string(c) + `"`)
 	}
 
 	ctx.charNr++
@@ -75,7 +133,11 @@ func (ctx *parserCtx) parseOperatorOrFragment() bool {
 		return ctx.unexpectedEOF()
 	}
 	if c != '}' {
-		return ctx.err(`expected operator closure "}" but got "` + string(c) + `"`)
+		if isOperator {
+			return ctx.err(`expected operator closure "}" but got "` + string(c) + `"`)
+		} else {
+			return ctx.err(`expected fragment closure "}" but got "` + string(c) + `"`)
+		}
 	}
 
 	ctx.instructionEnd()
@@ -219,7 +281,29 @@ func (ctx *parserCtx) parseComment() {
 func (ctx *parserCtx) matches(oneOf ...string) int {
 	startIdx := ctx.charNr
 
+	if len(oneOf) == 1 {
+		for {
+			c, eof := ctx.checkC(ctx.charNr)
+			if eof {
+				ctx.charNr = startIdx
+				return -1
+			}
+			offset := ctx.charNr - startIdx
+
+			keyLen := len(oneOf[0])
+			if oneOf[0][offset] != c {
+				return -1
+			} else if keyLen == offset+1 {
+				ctx.charNr++
+				return 0
+			}
+
+			ctx.charNr++
+		}
+	}
+
 	lastChecked := ""
+
 	for {
 		c, eof := ctx.checkC(ctx.charNr)
 		if eof {

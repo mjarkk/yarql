@@ -120,3 +120,26 @@ func TestParseQueryWithFieldWithSelectionSet(t *testing.T) {
 		e           // end operator
 	`)
 }
+
+func TestParseFragment(t *testing.T) {
+	parseQueryAndExpectResult(t, `fragment Foo on Bar {}`, `
+		FFoo // fragment with name Foo
+		Bar  // fragment type name
+		e    // end of fragment
+	`)
+}
+
+func TestParseFragmentWithFields(t *testing.T) {
+	parseQueryAndExpectResult(t, `fragment Foo on Bar {
+		fieldA
+		bField
+	}`, `
+		FFoo    // fragment with name Foo
+		Bar     // fragment type name
+		ffieldA
+		e
+		fbField
+		e
+		e       // end of fragment
+	`)
+}
