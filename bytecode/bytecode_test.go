@@ -121,6 +121,51 @@ func TestParseQueryWithFieldWithSelectionSet(t *testing.T) {
 	`)
 }
 
+func TestParseQueryWithFieldWithFragmentSpread(t *testing.T) {
+	parseQueryAndExpectResult(t, `query {
+		some_field {
+			foo
+			... baz
+			bar
+		}
+	}`, `
+		oq
+		fsome_field
+		ffoo
+		e
+		sfbaz // fragment spread pointing to fragment with name baz
+		fbar
+		e
+		e
+		e
+	`)
+}
+
+func TestParseQueryWithFieldWithInlineFragmentSpread(t *testing.T) {
+	parseQueryAndExpectResult(t, `query {
+		some_field {
+			foo
+			... on baz {
+				bazField
+			}
+			bar
+		}
+	}`, `
+		oq
+		fsome_field
+		ffoo
+		e
+		stbaz     // fragment spread with typename baz
+		fbazField // fragment field
+		e         // end of fragment field
+		e         // end of inline fragment
+		fbar
+		e
+		e
+		e
+	`)
+}
+
 func TestParseFragment(t *testing.T) {
 	parseQueryAndExpectResult(t, `fragment Foo on Bar {}`, `
 		FFoo // fragment with name Foo

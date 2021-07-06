@@ -30,8 +30,6 @@ func (ctx *parserCtx) parseOperatorOrFragment() bool {
 		return false
 	}
 
-	isOperator := true
-
 	if c == '{' {
 		ctx.instructionNewOperation(operatorQuery)
 	} else if matches := ctx.matches("query", "mutation", "subscription"); matches != -1 {
@@ -62,7 +60,6 @@ func (ctx *parserCtx) parseOperatorOrFragment() bool {
 			return ctx.err(`expected selection set opener ("{") but got "` + string(c) + `"`)
 		}
 	} else if matches := ctx.matches("fragment"); matches != -1 {
-		isOperator = false
 		ctx.instructionNewFragment()
 
 		// Parse fragment name
@@ -127,19 +124,6 @@ func (ctx *parserCtx) parseOperatorOrFragment() bool {
 	if criticalErr {
 		return criticalErr
 	}
-
-	c, eof = ctx.mightIgnoreNextTokens()
-	if eof {
-		return ctx.unexpectedEOF()
-	}
-	if c != '}' {
-		if isOperator {
-			return ctx.err(`expected operator closure "}" but got "` + string(c) + `"`)
-		} else {
-			return ctx.err(`expected fragment closure "}" but got "` + string(c) + `"`)
-		}
-	}
-
 	ctx.instructionEnd()
 
 	return false
@@ -152,6 +136,7 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 	}
 
 	if c == '}' {
+		ctx.charNr++
 		return false
 	}
 
@@ -162,14 +147,61 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 		if criticalError {
 			return criticalError
 		}
+		if empty {
+			// Revert changes from ctx.instructionNewField()
+			ctx.res = ctx.res[:len(ctx.res)-2]
+
+			if ctx.matches("...") == 0 {
+				// Is pointer to fragment or inline fragment
+				_, eof := ctx.mightIgnoreNextTokens()
+				if eof {
+					return ctx.unexpectedEOF()
+				}
+
+				isInline := ctx.matches("on{", "on ", "on\t") != -1
+				ctx.instructionNewFragmentSpread(isInline)
+				if isInline {
+					_, eof := ctx.mightIgnoreNextTokens()
+					if eof {
+						return ctx.unexpectedEOF()
+					}
+				}
+				ctx.parseAndWriteName()
+
+				c, eof = ctx.mightIgnoreNextTokens()
+				if eof {
+					return ctx.unexpectedEOF()
+				}
+
+				if isInline {
+					if c != '{' {
+						return ctx.err(`expected selection set open ("{") on inline fragment but got "` + string(c) + `"`)
+					}
+					ctx.charNr++
+					ctx.parseSelectionSet()
+					ctx.instructionEnd()
+					c, eof = ctx.mightIgnoreNextTokens()
+					if eof {
+						return ctx.unexpectedEOF()
+					}
+				}
+
+				if c == '}' {
+					ctx.charNr++
+					return false
+				}
+
+				continue
+			}
+
+			return ctx.err(`unexpected character, expected valid name or selection closure but got: "` + string(ctx.currentC()) + `"`)
+		}
 
 		c, eof := ctx.mightIgnoreNextTokens()
 		if eof {
 			return ctx.unexpectedEOF()
 		}
-		if empty {
-			return ctx.err(`unexpected character, expected valid name or selection closure but got: "` + string(c) + `"`)
-		}
+
 		if c == '{' {
 			ctx.charNr++
 
@@ -189,6 +221,7 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 		ctx.instructionEnd()
 
 		if c == '}' {
+			ctx.charNr++
 			return false
 		}
 	}

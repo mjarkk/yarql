@@ -6,6 +6,7 @@ const (
 	actionEnd      action = 'e'
 	actionOperator action = 'o'
 	actionField    action = 'f'
+	actionSpread   action = 's'
 	actionFragment action = 'F'
 )
 
@@ -58,6 +59,28 @@ func (ctx *parserCtx) instructionNewFragment() int {
 // 0 [actionField]
 func (ctx *parserCtx) instructionNewField() {
 	ctx.res = append(ctx.res, 0, actionField)
+}
+
+// represends:
+//
+// {
+//   ...Foo
+//   ^- Fragment spread in selector
+//   ... on Banana {}
+//   ^- Also a fragment spread
+// }
+//
+// writes:
+// 0 [actionSpread] [t/f (t = inline fragment, f = pointer to fragment)]
+//
+// additional required append:
+// [Typename or Fragment Name]
+func (ctx *parserCtx) instructionNewFragmentSpread(isInline bool) {
+	if isInline {
+		ctx.res = append(ctx.res, 0, actionSpread, 't')
+	} else {
+		ctx.res = append(ctx.res, 0, actionSpread, 'f')
+	}
 }
 
 // represends:
