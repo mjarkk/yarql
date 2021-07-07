@@ -15,19 +15,22 @@ func (ctx *parserCtx) parseQueryToBytecode() {
 	*ctx = parserCtx{
 		res:    ctx.res[:0],
 		query:  ctx.query,
-		charNr: 0,
 		errors: ctx.errors[:0],
 	}
 
-	ctx.parseOperatorOrFragment()
+	for {
+		if ctx.parseOperatorOrFragment() {
+			return
+		}
+	}
 }
 
 // - http://spec.graphql.org/June2018/#sec-Language.Operations
 // - http://spec.graphql.org/June2018/#FragmentDefinition
-func (ctx *parserCtx) parseOperatorOrFragment() bool {
+func (ctx *parserCtx) parseOperatorOrFragment() (stop bool) {
 	c, eof := ctx.mightIgnoreNextTokens()
 	if eof {
-		return false
+		return true
 	}
 
 	if c == '{' {

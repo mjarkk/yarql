@@ -78,6 +78,15 @@ func TestParseQueryWithName(t *testing.T) {
 	`)
 }
 
+func TestParseMultipleSimpleQueries(t *testing.T) {
+	parseQueryAndExpectResult(t, `{}{}`, `
+		oq // operator 1
+		e  // end of operator 1
+		oq // operator 2
+		e  // end of operator 2
+	`)
+}
+
 func TestParseQueryWithField(t *testing.T) {
 	parseQueryAndExpectResult(t, `query {
 		some_field
