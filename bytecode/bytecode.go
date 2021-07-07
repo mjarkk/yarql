@@ -167,7 +167,7 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 					if !eof && (c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_') {
 						// This is not an inline fragment, there are name chars behind the "on" for example: "online" (starts with on)
 						// Revert the changes made by the match
-						ctx.res = ctx.res[:len(ctx.res)-2]
+						ctx.charNr -= 2
 						isInline = false
 					} else {
 						_, eof := ctx.mightIgnoreNextTokens()
@@ -196,6 +196,7 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 				}
 
 				if isInline {
+					// parse inline fragment selection set
 					if c != '{' {
 						return ctx.err(`expected selection set open ("{") on inline fragment but got "` + string(c) + `"`)
 					}

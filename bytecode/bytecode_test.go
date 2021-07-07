@@ -160,6 +160,25 @@ func TestParseQueryWithFieldWithFragmentSpread(t *testing.T) {
 		e
 		e
 	`)
+
+	// A query that starts with "on" should parse as a fragment pointer
+	parseQueryAndExpectResult(t, `query {
+		some_field {
+			foo
+			... online
+			bar
+		}
+	}`, `
+		oq
+		fsome_field
+		ffoo
+		e
+		sfonline // fragment spread pointing to fragment with name online
+		fbar
+		e
+		e
+		e
+	`)
 }
 
 func TestParseQueryWithFieldWithInlineFragmentSpread(t *testing.T) {
