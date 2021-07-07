@@ -158,19 +158,38 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 					return ctx.unexpectedEOF()
 				}
 
-				isInline := ctx.matches("on{", "on ", "on\t") != -1
-				ctx.instructionNewFragmentSpread(isInline)
+				isInline := ctx.matches("on") == 0
 				if isInline {
-					_, eof := ctx.mightIgnoreNextTokens()
-					if eof {
-						return ctx.unexpectedEOF()
+					c, eof := ctx.checkC(ctx.charNr)
+					if !eof && (c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_') {
+						// This is not an inline fragment, there are name chars behind the "on" for example: "online" (starts with on)
+						// Revert the changes made by the match
+						ctx.res = ctx.res[:len(ctx.res)-2]
+						isInline = false
+					} else {
+						_, eof := ctx.mightIgnoreNextTokens()
+						if eof {
+							return ctx.unexpectedEOF()
+						}
 					}
 				}
-				ctx.parseAndWriteName()
 
+				ctx.instructionNewFragmentSpread(isInline)
+				empyt, criticalErr := ctx.parseAndWriteName()
+				if criticalErr {
+					return criticalErr
+				}
 				c, eof = ctx.mightIgnoreNextTokens()
 				if eof {
 					return ctx.unexpectedEOF()
+				}
+
+				if empyt {
+					if isInline {
+						return ctx.err(`expected fragment type name but got char: "` + string(c) + `"`)
+					} else {
+						return ctx.err(`expected fragment name but got char: "` + string(c) + `"`)
+					}
 				}
 
 				if isInline {
