@@ -150,6 +150,7 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 		if criticalError {
 			return criticalError
 		}
+
 		if empty {
 			// Revert changes from ctx.instructionNewField()
 			ctx.res = ctx.res[:len(ctx.res)-2]
@@ -223,6 +224,29 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 		c, eof := ctx.mightIgnoreNextTokens()
 		if eof {
 			return ctx.unexpectedEOF()
+		}
+
+		ctx.res = append(ctx.res, 0)
+
+		if c == ':' {
+			ctx.charNr++
+			_, eof = ctx.mightIgnoreNextTokens()
+			if eof {
+				return ctx.unexpectedEOF()
+			}
+
+			empty, criticalErr := ctx.parseAndWriteName()
+			if criticalErr {
+				return criticalErr
+			}
+			if empty {
+				return ctx.err(`unexpected character, expected nvalid name char but got "` + string(c) + `"`)
+			}
+
+			c, eof = ctx.mightIgnoreNextTokens()
+			if eof {
+				return ctx.unexpectedEOF()
+			}
 		}
 
 		if c == '{' {

@@ -105,6 +105,7 @@ func TestParseQueryWithField(t *testing.T) {
 	}`, `
 		oq          // query operator
 		fsome_field // field with name some_field
+		// no field alias
 		e           // end field
 		e           // end operator
 	`)
@@ -117,8 +118,10 @@ func TestParseQueryWithMultipleFields(t *testing.T) {
 	}`, `
 		oq          // query operator
 		fsome_field // field with name some_field
+    	// no field alias
 		e           // end field with name some_field
 		fother      // field with name other
+		// no field alias
 		e           // end field with name other
 		e           // end operator
 	`)
@@ -133,9 +136,12 @@ func TestParseQueryWithFieldWithSelectionSet(t *testing.T) {
 	}`, `
 		oq          // query operator
 		fsome_field // field with name some_field
+		// no field alias
 		ffoo        // field with name foo
+		// no field alias
 		e           // end of foo
 		fbar        // field with name bar
+		// no field alias
 		e           // end of bar
 		e           // end of some_field
 		e           // end operator
@@ -152,10 +158,13 @@ func TestParseQueryWithFieldWithFragmentSpread(t *testing.T) {
 	}`, `
 		oq
 		fsome_field
+		// no field alias
 		ffoo
+		// no field alias
 		e
 		sfbaz // fragment spread pointing to fragment with name baz
 		fbar
+		// no field alias
 		e
 		e
 		e
@@ -171,10 +180,13 @@ func TestParseQueryWithFieldWithFragmentSpread(t *testing.T) {
 	}`, `
 		oq
 		fsome_field
+		// no field alias
 		ffoo
+		// no field alias
 		e
 		sfonline // fragment spread pointing to fragment with name online
 		fbar
+		// no field alias
 		e
 		e
 		e
@@ -193,15 +205,31 @@ func TestParseQueryWithFieldWithInlineFragmentSpread(t *testing.T) {
 	}`, `
 		oq
 		fsome_field
+		// no field alias
 		ffoo
+		// no field alias
 		e
 		stbaz     // fragment spread with typename baz
 		fbazField // fragment field
+		// no field alias
 		e         // end of fragment field
 		e         // end of inline fragment
 		fbar
+		// no field alias
 		e
 		e
+		e
+	`)
+}
+
+func TestParseAlias(t *testing.T) {
+	parseQueryAndExpectResult(t, `query {
+		foo: baz
+	}`, `
+		oq
+		ffoo // field with alias foo
+		baz  // field name
+		e    // end of field
 		e
 	`)
 }
@@ -222,8 +250,10 @@ func TestParseFragmentWithFields(t *testing.T) {
 		FFoo    // fragment with name Foo
 		Bar     // fragment type name
 		ffieldA
+		// no field alias
 		e
 		fbField
+		// no field alias
 		e
 		e       // end of fragment
 	`)

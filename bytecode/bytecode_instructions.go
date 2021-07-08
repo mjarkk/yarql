@@ -57,6 +57,11 @@ func (ctx *parserCtx) instructionNewFragment() int {
 //
 // writes:
 // 0 [actionField]
+//
+// additional required append:
+// [Fieldname] 0
+// OR
+// [Alias] 0 [Fieldname]
 func (ctx *parserCtx) instructionNewField() {
 	ctx.res = append(ctx.res, 0, actionField)
 }
