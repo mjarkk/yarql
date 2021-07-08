@@ -3,11 +3,27 @@ package graphql
 type action = byte
 
 const (
-	actionEnd      action = 'e'
-	actionOperator action = 'o'
-	actionField    action = 'f'
-	actionSpread   action = 's'
-	actionFragment action = 'F'
+	actionEnd              action = 'e'
+	actionOperator         action = 'o'
+	actionField            action = 'f'
+	actionSpread           action = 's'
+	actionFragment         action = 'F'
+	actionValue            action = 'v'
+	actionObjectValueField action = 'u'
+)
+
+type valueKind = byte
+
+const (
+	valueVariable valueKind = 'v'
+	valueInt      valueKind = 'i'
+	valueFloat    valueKind = 'f'
+	valueString   valueKind = 's'
+	valueBoolean  valueKind = 'b'
+	valueNull     valueKind = 'n'
+	valueEnum     valueKind = 'e'
+	valueList     valueKind = 'l'
+	valueObject   valueKind = 'o'
 )
 
 type operatorKind = byte
@@ -86,6 +102,37 @@ func (ctx *parserCtx) instructionNewFragmentSpread(isInline bool) {
 	} else {
 		ctx.res = append(ctx.res, 0, actionSpread, 'f')
 	}
+}
+
+// represends:
+//
+// {a: "a", b: "b", ...}
+// ^- This represends the start of a set
+// AND
+// (a: "a", b: "b", ...)
+// ^- This represends the start of a set
+//
+// writes:
+// 0 [actionValue] [valueObject]
+func (ctx *parserCtx) instructionNewValueObject() {
+	ctx.res = append(ctx.res, 0, actionValue, valueObject)
+}
+
+// represends:
+//
+// {a: "a", b: "b", ...}
+//          ^- This represends a field inside a set
+// AND
+// (a: "a", b: "b", ...)
+//          ^- This represends a field inside a set
+//
+// writes:
+// 0 [actionObjectValueField]
+//
+// additional required append:
+// [fieldname]
+func (ctx *parserCtx) instructionStartNewValueObjectField() {
+	ctx.res = append(ctx.res, 0, actionObjectValueField)
 }
 
 // represends:

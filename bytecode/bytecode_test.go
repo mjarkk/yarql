@@ -35,6 +35,11 @@ func formatResToHumandReadable(result []byte) string {
 	return strings.TrimSpace(string(result))
 }
 
+// parseQueryAndExpectResult is a readable tester for the bytecode
+// The `expectedResult` is formatted like so:
+// - Enter == null byte
+// - Spaces characters are removed ('\r','\t',' ')
+// - Comments can be made using // and will be trimmed away in the output
 func parseQueryAndExpectResult(t *testing.T, query, expectedResult string) {
 	res, errs := parseQuery(query)
 	for _, err := range errs {

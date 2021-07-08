@@ -249,6 +249,24 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 			}
 		}
 
+		if c == '(' {
+			ctx.charNr++
+			_, eof = ctx.mightIgnoreNextTokens()
+			if eof {
+				return ctx.unexpectedEOF()
+			}
+
+			criticalErr := ctx.parseAssignmentSet(')')
+			if criticalErr {
+				return criticalErr
+			}
+
+			c, eof = ctx.mightIgnoreNextTokens()
+			if eof {
+				return ctx.unexpectedEOF()
+			}
+		}
+
 		if c == '{' {
 			ctx.charNr++
 
@@ -269,6 +287,44 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 
 		if c == '}' {
 			ctx.charNr++
+			return false
+		}
+	}
+}
+
+// http://spec.graphql.org/June2018/#sec-Language.Arguments
+// http://spec.graphql.org/June2018/#ObjectValue
+func (ctx *parserCtx) parseAssignmentSet(closure byte) bool {
+	ctx.instructionNewValueObject()
+
+	c, eof := ctx.mightIgnoreNextTokens()
+	if eof {
+		return ctx.unexpectedEOF()
+	}
+	if c == closure {
+		ctx.instructionEnd()
+		return false
+	}
+
+	for {
+		ctx.instructionStartNewValueObjectField()
+
+		empty, criticalErr := ctx.parseAndWriteName()
+		if criticalErr {
+			return criticalErr
+		}
+		if empty {
+			return ctx.err(`expected name character but got: "` + string(ctx.currentC()) + `"`)
+		}
+
+		// TODO support the actual value :^)
+
+		c, eof := ctx.mightIgnoreNextTokens()
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+		if c == closure {
+			ctx.instructionEnd()
 			return false
 		}
 	}
