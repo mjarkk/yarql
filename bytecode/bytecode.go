@@ -318,9 +318,20 @@ func (ctx *parserCtx) parseAssignmentSet(closure byte) bool {
 			return ctx.err(`expected name character but got: "` + string(ctx.currentC()) + `"`)
 		}
 
-		// TODO support the actual value :^)
+		c, eof = ctx.mightIgnoreNextTokens()
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+		if c != ':' {
+			return ctx.err(`expected ":" but got "` + string(c) + `"`)
+		}
 
-		c, eof := ctx.mightIgnoreNextTokens()
+		criticalErr = ctx.parseInputValue()
+		if criticalErr {
+			return criticalErr
+		}
+
+		c, eof = ctx.mightIgnoreNextTokens()
 		if eof {
 			return ctx.unexpectedEOF()
 		}
@@ -330,6 +341,52 @@ func (ctx *parserCtx) parseAssignmentSet(closure byte) bool {
 			return false
 		}
 	}
+}
+
+func (ctx *parserCtx) parseInputValue() bool {
+	c, eof := ctx.mightIgnoreNextTokens()
+	if eof {
+		return ctx.unexpectedEOF()
+	}
+
+	if c == 't' || c == 'f' {
+		// TODO parse boolean
+		return ctx.err("value kind unsupported")
+	}
+
+	if c == '$' {
+		// TODO parse variable
+		return ctx.err("value kind unsupported")
+	}
+
+	if c == '-' || c == '.' || (c >= '0' && c <= '9') {
+		// TODO parse number or float
+		return ctx.err("value kind unsupported")
+	}
+
+	if c == '"' {
+		// TODO parse string
+		return ctx.err("value kind unsupported")
+	}
+
+	if c == '[' {
+		// TODO parse list
+		return ctx.err("value kind unsupported")
+	}
+
+	if c == '{' {
+		// TODO parse object
+		return ctx.err("value kind unsupported")
+	}
+
+	if c == 'n' {
+		// TODO value might be "null"
+		return ctx.err("value kind unsupported")
+	}
+
+	// TODO parse enum
+
+	return ctx.err("value kind unsupported")
 }
 
 //
