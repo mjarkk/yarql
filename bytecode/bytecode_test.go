@@ -282,11 +282,16 @@ func TestParseArgumentValueTypes(t *testing.T) {
 		input  string
 		output string
 	}{
-		{`true`, `vb1`},         // boolean
-		{`false`, `vb0`},        // boolean
-		{`null`, `vn`},          // null
-		{`$banana`, `v$banana`}, // variable reference
-		{`BANANA`, `veBANANA`},  // Enum
+		{`true`, `vb1`},                      // boolean
+		{`false`, `vb0`},                     // boolean
+		{`null`, `vn`},                       // null
+		{`$banana`, `v$banana`},              // variable reference
+		{`BANANA`, `veBANANA`},               // Enum
+		{`{}`, "vo\ne"},                      // Object
+		{`[]`, "vl\ne"},                      // List
+		{`{a: true}`, "vo\nua\nvb1\ne"},      // Object
+		{`[true, false]`, "vl\nvb1\nvb0\ne"}, // List
+		{`[true false]`, "vl\nvb1\nvb0\ne"},  // List
 	}
 
 	for _, option := range options {

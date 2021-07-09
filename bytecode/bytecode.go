@@ -389,8 +389,45 @@ func (ctx *parserCtx) parseInputValue() bool {
 	}
 
 	if c == '[' {
-		// TODO parse list
-		return ctx.err("value kind unsupported")
+		ctx.charNr++
+		ctx.instructionNewValueList()
+
+		c, eof := ctx.mightIgnoreNextTokens()
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+
+		if c == ']' {
+			ctx.charNr++
+			ctx.instructionEnd()
+			return false
+		}
+
+		for {
+			criticalErr := ctx.parseInputValue()
+			if criticalErr {
+				return criticalErr
+			}
+
+			c, eof := ctx.mightIgnoreNextTokens()
+			if eof {
+				return ctx.unexpectedEOF()
+			}
+
+			if c == ',' {
+				ctx.charNr++
+				c, eof = ctx.mightIgnoreNextTokens()
+				if eof {
+					return ctx.unexpectedEOF()
+				}
+			}
+
+			if c == ']' {
+				ctx.charNr++
+				ctx.instructionEnd()
+				return false
+			}
+		}
 	}
 
 	if c == '{' {
