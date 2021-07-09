@@ -379,8 +379,7 @@ func (ctx *parserCtx) parseInputValue() bool {
 	}
 
 	if c == '-' || c == '.' || (c >= '0' && c <= '9') {
-		// TODO parse number or float
-		return ctx.err("value kind unsupported")
+		return ctx.parseNumberInputValue()
 	}
 
 	if c == '"' {
@@ -456,6 +455,120 @@ func (ctx *parserCtx) parseInputValue() bool {
 	return false
 }
 
+func (ctx *parserCtx) parseNumberInputValue() bool {
+	ctx.instructionNewValueInt()
+	valueTypeAt := len(ctx.res) - 1
+
+	var eof bool
+	c := ctx.currentC()
+	if c == '-' {
+		ctx.charNr++
+		ctx.res = append(ctx.res, '-')
+		c, eof = ctx.checkC(ctx.charNr)
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+	} else if c == '+' {
+		ctx.charNr++
+	}
+
+	// Parse the first set of numbers (the 123 of +123.456e78)
+	for {
+		if c >= '0' && c <= '9' {
+			ctx.res = append(ctx.res, c)
+		} else if c == '.' || c == 'e' || c == 'E' {
+			break
+		} else if c == '_' {
+			// Ignore this char
+		} else if isPunctuator(c) || ctx.isIgnoredToken(c) || c == ',' {
+			// End of number
+			return false
+		} else {
+			return ctx.err(`unexpected character in int or float value, char: "` + string(c) + `"`)
+		}
+
+		ctx.charNr++
+		c, eof = ctx.checkC(ctx.charNr)
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+	}
+
+	if c == '.' {
+		ctx.res[valueTypeAt] = valueFloat
+		ctx.res = append(ctx.res, '.')
+		for {
+			ctx.charNr++
+			c, eof = ctx.checkC(ctx.charNr)
+			if eof {
+				return ctx.unexpectedEOF()
+			}
+
+			if c >= '0' && c <= '9' {
+				ctx.res = append(ctx.res, c)
+			} else if c == 'e' || c == 'E' {
+				break
+			} else if c == '_' {
+				// Ignore this char
+			} else if c == '.' {
+				// isPunctuator(c) returns . on this char but from here those are not allowed
+				return ctx.err(`unexpected character in float value, char: "` + string(c) + `"`)
+			} else if isPunctuator(c) || ctx.isIgnoredToken(c) || c == ',' {
+				// End of number
+				return false
+			} else {
+				return ctx.err(`unexpected character in float value, char: "` + string(c) + `"`)
+			}
+		}
+	}
+
+	if c == 'e' || c == 'E' {
+		ctx.res[valueTypeAt] = valueFloat
+		ctx.res = append(ctx.res, 'E')
+
+		ctx.charNr++
+		c, eof = ctx.checkC(ctx.charNr)
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+		if c == '+' || c == '-' {
+			if c == '-' {
+				ctx.res = append(ctx.res, c)
+			}
+			ctx.charNr++
+			c, eof = ctx.checkC(ctx.charNr)
+			if eof {
+				return ctx.unexpectedEOF()
+			}
+		}
+
+		for {
+			if c >= '0' && c <= '9' {
+				ctx.res = append(ctx.res, c)
+			} else if c == 'e' || c == 'E' || c == '.' {
+				// isPunctuator(c) returns . on this char but from here those are not allowed
+				// e and E are also not allowed from here
+				return ctx.err(`unexpected character in float value, char: "` + string(c) + `"`)
+			} else if c == '_' {
+				// Ignore this char
+			} else if isPunctuator(c) || ctx.isIgnoredToken(c) || c == ',' {
+				// End of number
+				break
+			} else {
+				return ctx.err(`unexpected character in float value, char: "` + string(c) + `"`)
+			}
+
+			ctx.charNr++
+			c, eof = ctx.checkC(ctx.charNr)
+			if eof {
+				return ctx.unexpectedEOF()
+			}
+		}
+	}
+
+	return false
+}
+
 //
 // ITERATOR HELPERS
 //
@@ -493,6 +606,10 @@ func (ctx *parserCtx) mightIgnoreNextTokens() (nextC byte, eof bool) {
 
 		ctx.charNr++
 	}
+}
+
+func isPunctuator(c byte) bool {
+	return c == '!' || c == '$' || c == '(' || c == ')' || c == '.' || c == ':' || c == '=' || c == '@' || c == '[' || c == ']' || c == '{' || c == '|' || c == '}'
 }
 
 // https://spec.graphql.org/June2018/#sec-Source-Text.Ignored-Tokens

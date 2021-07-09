@@ -287,6 +287,12 @@ func TestParseArgumentValueTypes(t *testing.T) {
 		{`null`, `vn`},                       // null
 		{`$banana`, `v$banana`},              // variable reference
 		{`BANANA`, `veBANANA`},               // Enum
+		{`10`, `vi10`},                       // Int
+		{`-20`, `vi-20`},                     // Int
+		{`10.1`, `vf10.1`},                   // Float
+		{`-20.1`, `vf-20.1`},                 // Float
+		{`10.1E3`, `vf10.1E3`},               // Float
+		{`-20.1e-3`, `vf-20.1E-3`},           // Float
 		{`{}`, "vo\ne"},                      // Object
 		{`[]`, "vl\ne"},                      // List
 		{`{a: true}`, "vo\nua\nvb1\ne"},      // Object
