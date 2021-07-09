@@ -303,6 +303,7 @@ func (ctx *parserCtx) parseAssignmentSet(closure byte) bool {
 	}
 	if c == closure {
 		ctx.instructionEnd()
+		ctx.charNr++
 		return false
 	}
 
@@ -325,6 +326,7 @@ func (ctx *parserCtx) parseAssignmentSet(closure byte) bool {
 		}
 		if c == closure {
 			ctx.instructionEnd()
+			ctx.charNr++
 			return false
 		}
 	}

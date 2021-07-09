@@ -239,6 +239,20 @@ func TestParseAlias(t *testing.T) {
 	`)
 }
 
+func TestParseArgumentsWithoutInput(t *testing.T) {
+	parseQueryAndExpectResult(t, `query {
+		baz()
+	}`, `
+		oq
+		fbaz // field with alias foo
+		// no alias
+		vo   // value of kind object (these are the arguments)
+		e    // end of value object / arguments
+		e    // end of field
+		e
+	`)
+}
+
 func TestParseFragment(t *testing.T) {
 	parseQueryAndExpectResult(t, `fragment Foo on Bar {}`, `
 		FFoo // fragment with name Foo
