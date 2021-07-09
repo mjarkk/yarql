@@ -202,6 +202,14 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 					}
 				}
 
+				if c == ',' {
+					ctx.charNr++
+					c, eof = ctx.mightIgnoreNextTokens()
+					if eof {
+						return ctx.unexpectedEOF()
+					}
+				}
+
 				if c == '}' {
 					ctx.charNr++
 					return false
@@ -277,6 +285,14 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 
 		ctx.instructionEnd()
 
+		if c == ',' {
+			ctx.charNr++
+			c, eof = ctx.mightIgnoreNextTokens()
+			if eof {
+				return ctx.unexpectedEOF()
+			}
+		}
+
 		if c == '}' {
 			ctx.charNr++
 			return false
@@ -327,6 +343,13 @@ func (ctx *parserCtx) parseAssignmentSet(closure byte) bool {
 		c, eof = ctx.mightIgnoreNextTokens()
 		if eof {
 			return ctx.unexpectedEOF()
+		}
+		if c == ',' {
+			ctx.charNr++
+			c, eof = ctx.mightIgnoreNextTokens()
+			if eof {
+				return ctx.unexpectedEOF()
+			}
 		}
 		if c == closure {
 			ctx.instructionEnd()

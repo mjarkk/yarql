@@ -117,19 +117,31 @@ func TestParseQueryWithField(t *testing.T) {
 }
 
 func TestParseQueryWithMultipleFields(t *testing.T) {
-	parseQueryAndExpectResult(t, `query {
-		some_field
-		other
-	}`, `
+	expectedOutput := `
 		oq          // query operator
 		fsome_field // field with name some_field
-    	// no field alias
+		// no field alias
 		e           // end field with name some_field
 		fother      // field with name other
 		// no field alias
 		e           // end field with name other
 		e           // end operator
-	`)
+	`
+
+	parseQueryAndExpectResult(t, `query {
+		some_field
+		other
+	}`, expectedOutput)
+
+	parseQueryAndExpectResult(t, `query {
+		some_field,
+		other
+	}`, expectedOutput)
+
+	parseQueryAndExpectResult(t, `query {
+		some_field ,
+		other      ,
+	}`, expectedOutput)
 }
 
 func TestParseQueryWithFieldWithSelectionSet(t *testing.T) {
@@ -199,15 +211,7 @@ func TestParseQueryWithFieldWithFragmentSpread(t *testing.T) {
 }
 
 func TestParseQueryWithFieldWithInlineFragmentSpread(t *testing.T) {
-	parseQueryAndExpectResult(t, `query {
-		some_field {
-			foo
-			... on baz {
-				bazField
-			}
-			bar
-		}
-	}`, `
+	expectedOutput := `
 		oq
 		fsome_field
 		// no field alias
@@ -224,7 +228,27 @@ func TestParseQueryWithFieldWithInlineFragmentSpread(t *testing.T) {
 		e
 		e
 		e
-	`)
+	`
+
+	parseQueryAndExpectResult(t, `query {
+		some_field {
+			foo
+			... on baz {
+				bazField
+			}
+			bar
+		}
+	}`, expectedOutput)
+
+	parseQueryAndExpectResult(t, `query {
+		some_field {
+			foo,
+			... on baz {
+				bazField
+			},
+			bar,
+		}
+	}`, expectedOutput)
 }
 
 func TestParseAlias(t *testing.T) {
@@ -277,9 +301,27 @@ func TestParseArgumentValueTypes(t *testing.T) {
 			e    // end of field
 			e
 		`)
-
 	}
+}
 
+func TestParseMultipleArguments(t *testing.T) {
+	expect := `
+		oq
+		fbaz // field with alias foo
+		// no alias
+		vo   // value of kind object (these are the arguments)
+		ufoo // key foo
+		vb1  // boolean value with data true
+		ubar // key bar
+		vb0  // boolean value with data false
+		e    // end of value object / arguments
+		e    // end of field
+		e
+	`
+
+	parseQueryAndExpectResult(t, `query {baz(foo: true, bar: false)}`, expect)
+	parseQueryAndExpectResult(t, `query {baz(foo: true bar: false)}`, expect)
+	parseQueryAndExpectResult(t, `query {baz(foo: true, bar: false,)}`, expect)
 }
 
 func TestParseFragment(t *testing.T) {
