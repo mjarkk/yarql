@@ -45,7 +45,7 @@ func parseQueryAndExpectResult(t *testing.T, query, expectedResult string) {
 	for _, err := range errs {
 		panic(err.Error())
 	}
-	Equal(t, formatHumanReadableQuery(expectedResult), formatResToHumandReadable(res))
+	Equal(t, formatHumanReadableQuery(expectedResult), formatResToHumandReadable(res), query)
 }
 
 func TestParseSimpleQuery(t *testing.T) {
@@ -258,9 +258,11 @@ func TestParseArgumentValueTypes(t *testing.T) {
 		input  string
 		output string
 	}{
-		{`true`, `vb1`},
-		{`false`, `vb0`},
-		{`null`, `vn`},
+		{`true`, `vb1`},         // boolean
+		{`false`, `vb0`},        // boolean
+		{`null`, `vn`},          // null
+		{`$banana`, `v$banana`}, // variable reference
+		{`BANANA`, `veBANANA`},  // Enum
 	}
 
 	for _, option := range options {

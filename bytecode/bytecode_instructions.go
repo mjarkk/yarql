@@ -15,7 +15,7 @@ const (
 type valueKind = byte
 
 const (
-	valueVariable valueKind = 'v'
+	valueVariable valueKind = '$'
 	valueInt      valueKind = 'i'
 	valueFloat    valueKind = 'f'
 	valueString   valueKind = 's'
@@ -128,6 +128,14 @@ func (ctx *parserCtx) instructionNewValueBoolean(val bool) {
 
 func (ctx *parserCtx) instructionNewValueNull() {
 	ctx.res = append(ctx.res, 0, actionValue, valueNull)
+}
+
+func (ctx *parserCtx) instructionNewValueEnum() {
+	ctx.res = append(ctx.res, 0, actionValue, valueEnum)
+}
+
+func (ctx *parserCtx) instructionNewValueVariable() {
+	ctx.res = append(ctx.res, 0, actionValue, valueVariable)
 }
 
 // represends:

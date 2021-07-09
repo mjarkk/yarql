@@ -343,8 +343,16 @@ func (ctx *parserCtx) parseInputValue() bool {
 	}
 
 	if c == '$' {
-		// TODO parse variable
-		return ctx.err("value kind unsupported")
+		ctx.charNr++
+		ctx.instructionNewValueVariable()
+		empty, criticalErr := ctx.parseAndWriteName()
+		if criticalErr {
+			return criticalErr
+		}
+		if empty {
+			return ctx.err(`variable input should have a name, got character: "` + string(ctx.currentC()) + `"`)
+		}
+		return false
 	}
 
 	if c == '-' || c == '.' || (c >= '0' && c <= '9') {
@@ -377,9 +385,15 @@ func (ctx *parserCtx) parseInputValue() bool {
 		return false
 	}
 
-	// TODO parse enum
-
-	return ctx.err(`value kind unsupported, char: "` + string(c) + `"`)
+	ctx.instructionNewValueEnum()
+	empty, criticalErr := ctx.parseAndWriteName()
+	if criticalErr {
+		return criticalErr
+	}
+	if empty {
+		return ctx.err(`unknown value kind, got character: "` + string(ctx.currentC()) + `"`)
+	}
+	return false
 }
 
 //
