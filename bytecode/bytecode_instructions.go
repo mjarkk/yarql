@@ -118,6 +118,18 @@ func (ctx *parserCtx) instructionNewValueObject() {
 	ctx.res = append(ctx.res, 0, actionValue, valueObject)
 }
 
+func (ctx *parserCtx) instructionNewValueBoolean(val bool) {
+	if val {
+		ctx.res = append(ctx.res, 0, actionValue, valueBoolean, '1')
+	} else {
+		ctx.res = append(ctx.res, 0, actionValue, valueBoolean, '0')
+	}
+}
+
+func (ctx *parserCtx) instructionNewValueNull() {
+	ctx.res = append(ctx.res, 0, actionValue, valueNull)
+}
+
 // represends:
 //
 // {a: "a", b: "b", ...}

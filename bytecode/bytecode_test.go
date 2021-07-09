@@ -253,6 +253,33 @@ func TestParseArgumentsWithoutInput(t *testing.T) {
 	`)
 }
 
+func TestParseArgumentValueTypes(t *testing.T) {
+	options := []struct {
+		input  string
+		output string
+	}{
+		{`true`, `vb1`},
+		{`false`, `vb0`},
+		{`null`, `vn`},
+	}
+
+	for _, option := range options {
+		parseQueryAndExpectResult(t, `query {baz(foo: `+option.input+`)}`, `
+			oq
+			fbaz // field with alias foo
+			// no alias
+			vo   // value of kind object (these are the arguments)
+			ufoo // key foo
+			`+option.output+`
+			e    // end of value object / arguments
+			e    // end of field
+			e
+		`)
+
+	}
+
+}
+
 func TestParseFragment(t *testing.T) {
 	parseQueryAndExpectResult(t, `fragment Foo on Bar {}`, `
 		FFoo // fragment with name Foo

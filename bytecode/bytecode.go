@@ -162,19 +162,11 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 					return ctx.unexpectedEOF()
 				}
 
-				isInline := ctx.matches("on") == 0
+				isInline := ctx.matchesWord("on") == 0
 				if isInline {
-					c, eof := ctx.checkC(ctx.charNr)
-					if !eof && (c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_') {
-						// This is not an inline fragment, there are name chars behind the "on" for example: "online" (starts with on)
-						// Revert the changes made by the match
-						ctx.charNr -= 2
-						isInline = false
-					} else {
-						_, eof := ctx.mightIgnoreNextTokens()
-						if eof {
-							return ctx.unexpectedEOF()
-						}
+					_, eof := ctx.mightIgnoreNextTokens()
+					if eof {
+						return ctx.unexpectedEOF()
 					}
 				}
 
@@ -325,6 +317,7 @@ func (ctx *parserCtx) parseAssignmentSet(closure byte) bool {
 		if c != ':' {
 			return ctx.err(`expected ":" but got "` + string(c) + `"`)
 		}
+		ctx.charNr++
 
 		criticalErr = ctx.parseInputValue()
 		if criticalErr {
@@ -349,11 +342,6 @@ func (ctx *parserCtx) parseInputValue() bool {
 		return ctx.unexpectedEOF()
 	}
 
-	if c == 't' || c == 'f' {
-		// TODO parse boolean
-		return ctx.err("value kind unsupported")
-	}
-
 	if c == '$' {
 		// TODO parse variable
 		return ctx.err("value kind unsupported")
@@ -375,18 +363,23 @@ func (ctx *parserCtx) parseInputValue() bool {
 	}
 
 	if c == '{' {
-		// TODO parse object
-		return ctx.err("value kind unsupported")
+		ctx.charNr++
+		return ctx.parseAssignmentSet('}')
 	}
 
-	if c == 'n' {
-		// TODO value might be "null"
-		return ctx.err("value kind unsupported")
+	if c == 't' || c == 'f' {
+		if matches := ctx.matchesWord("false", "true"); matches != -1 {
+			ctx.instructionNewValueBoolean(matches == 1)
+			return false
+		}
+	} else if c == 'n' && ctx.matchesWord("null") == 0 {
+		ctx.instructionNewValueNull()
+		return false
 	}
 
 	// TODO parse enum
 
-	return ctx.err("value kind unsupported")
+	return ctx.err(`value kind unsupported, char: "` + string(c) + `"`)
 }
 
 //
@@ -471,6 +464,25 @@ func (ctx *parserCtx) parseComment() {
 		}
 		ctx.charNr++
 	}
+}
+
+func (ctx *parserCtx) matchesWord(oneOf ...string) int {
+	startIdx := ctx.charNr
+
+	matches := ctx.matches(oneOf...)
+	if matches == -1 {
+		return -1
+	}
+	c, eof := ctx.checkC(ctx.charNr)
+	if eof {
+		return matches
+	}
+	if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' {
+		ctx.charNr = startIdx
+		return -1
+	}
+
+	return matches
 }
 
 func (ctx *parserCtx) matches(oneOf ...string) int {
