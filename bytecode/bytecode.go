@@ -494,6 +494,7 @@ func (ctx *parserCtx) parseNumberInputValue() bool {
 		}
 	}
 
+	// Parse the numbers behind the comma (the 456 of +123.456e78)
 	if c == '.' {
 		ctx.res[valueTypeAt] = valueFloat
 		ctx.res = append(ctx.res, '.')
@@ -522,6 +523,7 @@ func (ctx *parserCtx) parseNumberInputValue() bool {
 		}
 	}
 
+	// Parse the exponent (the 78 of +123.456e78)
 	if c == 'e' || c == 'E' {
 		ctx.res[valueTypeAt] = valueFloat
 		ctx.res = append(ctx.res, 'E')
