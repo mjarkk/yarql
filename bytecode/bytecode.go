@@ -59,6 +59,19 @@ func (ctx *parserCtx) parseOperatorOrFragment() (stop bool) {
 		if eof {
 			return ctx.unexpectedEOF()
 		}
+		if c == '(' {
+			ctx.charNr++
+			criticalErr := ctx.parseOperatorArguments()
+			if criticalErr {
+				return criticalErr
+			}
+
+			c, eof = ctx.mightIgnoreNextTokens()
+			if eof {
+				return ctx.unexpectedEOF()
+			}
+		}
+
 		if c != '{' {
 			return ctx.err(`expected selection set opener ("{") but got "` + string(c) + `"`)
 		}
@@ -130,6 +143,88 @@ func (ctx *parserCtx) parseOperatorOrFragment() (stop bool) {
 	ctx.instructionEnd()
 
 	return false
+}
+
+func (ctx *parserCtx) parseOperatorArguments() bool {
+	ctx.instructionNewOperationArgs()
+
+	for {
+		c, eof := ctx.mightIgnoreNextTokens()
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+
+		if c == ')' {
+			ctx.charNr++
+			ctx.instructionEnd()
+			return false
+		}
+
+		// Parse `some_name` of `query a(some_var: String = "a") {`
+		ctx.instructionNewOperationArg()
+		empty, criticalErr := ctx.parseAndWriteName()
+		if criticalErr {
+			return criticalErr
+		}
+		if empty {
+			return ctx.err(`expected argument name but got "` + string(ctx.currentC()) + `"`)
+		}
+
+		// Parse `:` of `query a(some_var: String = "a") {`
+		c, eof = ctx.mightIgnoreNextTokens()
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+		if c != ':' {
+			return ctx.err(`expected ":" name but got "` + string(ctx.currentC()) + `"`)
+		}
+		ctx.charNr++
+
+		// Parse `String` of `query a(some_var: String = "a") {`
+		ctx.res = append(ctx.res, 0)
+		_, eof = ctx.mightIgnoreNextTokens()
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+		criticalErr = ctx.parseGraphqlTypeName()
+		if criticalErr {
+			return criticalErr
+		}
+		ctx.res = append(ctx.res, 0)
+
+		// Parse `=` of query `a(some_var: String = "a") {`
+		c, eof = ctx.mightIgnoreNextTokens()
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+		if c == ')' {
+			ctx.res = append(ctx.res, 'f')
+			ctx.charNr++
+			ctx.instructionEnd()
+			return false
+		}
+		if c != '=' {
+			ctx.res = append(ctx.res, 'f')
+			continue
+		}
+		ctx.res = append(ctx.res, 't')
+		ctx.charNr++
+
+		// Parse `"a"` of `query a(some_var: String = "a") {`
+		_, eof = ctx.mightIgnoreNextTokens()
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+		criticalErr = ctx.parseInputValue()
+		if criticalErr {
+			return criticalErr
+		}
+	}
+}
+
+func (ctx *parserCtx) parseGraphqlTypeName() bool {
+	// TODO
+	return ctx.err("This operation is not yet supported")
 }
 
 func (ctx *parserCtx) parseSelectionSet() bool {

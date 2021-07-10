@@ -5,6 +5,8 @@ type action = byte
 const (
 	actionEnd              action = 'e'
 	actionOperator         action = 'o'
+	actionOperatorArgs     action = 'A'
+	actionOperatorArg      action = 'a'
 	actionField            action = 'f'
 	actionSpread           action = 's'
 	actionFragment         action = 'F'
@@ -48,6 +50,24 @@ func (ctx *parserCtx) instructionNewOperation(kind operatorKind) int {
 	res := len(ctx.res)
 	ctx.res = append(ctx.res, 0, actionOperator, kind)
 	return res
+}
+
+func (ctx *parserCtx) instructionNewOperationArgs() {
+	ctx.res = append(ctx.res, 0, actionOperatorArgs)
+}
+
+// represends:
+//
+// query foo(banana: String) {
+//             ^- actionOperatorArg
+//
+// writes:
+// 0 [actionOperatorArg]
+//
+// additional required append:
+// [Name] 0 [Graphql Type] 0 ['t'/'f' (t = has default value (next instruction will value), f = no default value)]
+func (ctx *parserCtx) instructionNewOperationArg() {
+	ctx.res = append(ctx.res, 0, actionOperatorArg)
 }
 
 // represends:
