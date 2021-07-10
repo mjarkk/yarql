@@ -83,6 +83,31 @@ func TestParseQueryWithName(t *testing.T) {
 	`)
 }
 
+func TestParseQuerywithArgs(t *testing.T) {
+	parseQueryAndExpectResult(t, `query banana(quality: [Int]) {}`, `
+		oqbanana // operator of type query with name banana
+		A        // operator args
+        aquality // argument with name banana
+        lnInt    // argument of type list with an inner type Int
+		f        // this argument has default values
+		e        // end of operator arguments
+		e        // end of operator
+	`)
+
+	parseQueryAndExpectResult(t, `query banana(quality: [Int!]! = [10]) {}`, `
+		oqbanana // operator of type query with name banana
+		A        // operator args
+        aquality // argument with name banana
+        LNInt    // argument of type required list with an inner type Int also required
+		t        // this argument has default values
+		vl       // list value
+		vi10     // value of type int with value 10
+		e        // end of list value
+		e        // end of operator arguments
+		e        // end of operator
+	`)
+}
+
 func TestParseMultipleSimpleQueries(t *testing.T) {
 	parseQueryAndExpectResult(t, `{}{}`, `
 		oq // operator 1
