@@ -223,8 +223,66 @@ func (ctx *parserCtx) parseOperatorArguments() bool {
 }
 
 func (ctx *parserCtx) parseGraphqlTypeName() bool {
-	// TODO
-	return ctx.err("This operation is not yet supported")
+	c, eof := ctx.checkC(ctx.charNr)
+	if eof {
+		return ctx.unexpectedEOF()
+	}
+
+	operationLocation := len(ctx.res)
+	if c == '[' {
+		ctx.res = append(ctx.res, 'l')
+		ctx.charNr++
+
+		_, eof := ctx.mightIgnoreNextTokens()
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+
+		criticalErr := ctx.parseGraphqlTypeName()
+		if criticalErr {
+			return criticalErr
+		}
+
+		c, eof := ctx.mightIgnoreNextTokens()
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+		if c != ']' {
+			return ctx.err(`expected list closure ("]") but got "` + string(c) + `"`)
+		}
+		ctx.charNr++
+		c, eof = ctx.checkC(ctx.charNr)
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+
+		if c == '!' {
+			ctx.res[operationLocation] = 'L'
+			ctx.charNr++
+		}
+
+		return false
+	}
+
+	ctx.res = append(ctx.res, 'n')
+	empty, criticalErr := ctx.parseAndWriteName()
+	if criticalErr {
+		return criticalErr
+	}
+	if empty {
+		return ctx.err(`invalid typename char "` + string(ctx.currentC()) + `"`)
+	}
+
+	c, eof = ctx.mightIgnoreNextTokens()
+	if eof {
+		return ctx.unexpectedEOF()
+	}
+	if c == '!' {
+		ctx.res[operationLocation] = 'N'
+		ctx.charNr++
+	}
+
+	return false
 }
 
 func (ctx *parserCtx) parseSelectionSet() bool {
