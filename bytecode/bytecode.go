@@ -44,7 +44,8 @@ func (ctx *parserCtx) parseOperatorOrFragment() (stop bool) {
 		} else {
 			ctx.instructionNewOperation(operatorSubscription)
 		}
-		hasArgsFlagLocation := len(ctx.res) - 1
+		hasArgsFlagLocation := len(ctx.res) - 2
+		directivesCountLocation := len(ctx.res) - 1
 
 		// Parse operation name
 		_, eof = ctx.mightIgnoreNextTokens()
@@ -67,12 +68,15 @@ func (ctx *parserCtx) parseOperatorOrFragment() (stop bool) {
 			if criticalErr {
 				return criticalErr
 			}
-
-			c, eof = ctx.mightIgnoreNextTokens()
-			if eof {
-				return ctx.unexpectedEOF()
-			}
+			// No need re-set c here as that will be dune by parseDirectives
 		}
+
+		amount, criticalErr := ctx.parseDirectives()
+		ctx.res[directivesCountLocation] = amount
+		if criticalErr {
+			return criticalErr
+		}
+		c = ctx.currentC()
 
 		if c != '{' {
 			return ctx.err(`expected selection set opener ("{") but got "` + string(c) + `"`)
@@ -221,6 +225,46 @@ func (ctx *parserCtx) parseOperatorArguments() bool {
 		if criticalErr {
 			return criticalErr
 		}
+	}
+}
+
+func (ctx *parserCtx) parseDirectives() (directivesAmount uint8, criticalErr bool) {
+	for {
+		c, eof := ctx.mightIgnoreNextTokens()
+		if eof {
+			return directivesAmount, ctx.unexpectedEOF()
+		}
+		if c != '@' {
+			return directivesAmount, false
+		}
+
+		if directivesAmount == 255 {
+			return directivesAmount, ctx.err(`cannot have more than 255 directives`)
+		}
+
+		directivesAmount++
+		ctx.charNr++
+		ctx.instructionNewDirective()
+		hasArgsFlag := len(ctx.res) - 1
+		empty, criticalErr := ctx.parseAndWriteName()
+		if criticalErr {
+			return directivesAmount, criticalErr
+		}
+		if empty {
+			return directivesAmount, ctx.err(`expected directive name but got char "` + string(ctx.currentC()) + `"`)
+		}
+
+		c, eof = ctx.mightIgnoreNextTokens()
+		if eof {
+			return directivesAmount, ctx.unexpectedEOF()
+		}
+		if c != '(' {
+			continue
+		}
+
+		ctx.res[hasArgsFlag] = 't'
+		// TODO, support this
+		return directivesAmount, ctx.err(`directive arguments are currently unsupported`)
 	}
 }
 

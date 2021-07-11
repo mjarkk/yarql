@@ -12,6 +12,7 @@ const (
 	actionFragment         action = 'F'
 	actionValue            action = 'v'
 	actionObjectValueField action = 'u'
+	actionDirective        action = 'd'
 )
 
 type valueKind = byte
@@ -42,13 +43,13 @@ const (
 // ^- Kind
 //
 // writes:
-// 0 [actionNewOperator] [kind] [f (has no arguments (t = has arguments))]
+// 0 [actionNewOperator] [kind] [f (has no arguments (t = has arguments))] [nr of directives in uint8]
 //
 // additional append:
 // [name...]
 func (ctx *parserCtx) instructionNewOperation(kind operatorKind) int {
 	res := len(ctx.res)
-	ctx.res = append(ctx.res, 0, actionOperator, kind, 'f')
+	ctx.res = append(ctx.res, 0, actionOperator, kind, 'f', 0)
 	return res
 }
 
@@ -122,6 +123,19 @@ func (ctx *parserCtx) instructionNewFragmentSpread(isInline bool) {
 	} else {
 		ctx.res = append(ctx.res, 0, actionSpread, 'f')
 	}
+}
+
+// represends:
+//
+// @banana(arg: 2)
+//
+// writes:
+// 0 [actionDirective] [t/f (t = has arguments, f = no arguments)]
+//
+// additional required append:
+// [Directive name]
+func (ctx *parserCtx) instructionNewDirective() {
+	ctx.res = append(ctx.res, 0, actionDirective, 'f')
 }
 
 // represends:
