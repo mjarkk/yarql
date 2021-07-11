@@ -44,6 +44,7 @@ func (ctx *parserCtx) parseOperatorOrFragment() (stop bool) {
 		} else {
 			ctx.instructionNewOperation(operatorSubscription)
 		}
+		hasArgsFlagLocation := len(ctx.res) - 1
 
 		// Parse operation name
 		_, eof = ctx.mightIgnoreNextTokens()
@@ -60,6 +61,7 @@ func (ctx *parserCtx) parseOperatorOrFragment() (stop bool) {
 			return ctx.unexpectedEOF()
 		}
 		if c == '(' {
+			ctx.res[hasArgsFlagLocation] = 't'
 			ctx.charNr++
 			criticalErr := ctx.parseOperatorArguments()
 			if criticalErr {

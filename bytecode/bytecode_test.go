@@ -50,42 +50,42 @@ func parseQueryAndExpectResult(t *testing.T, query, expectedResult string) {
 
 func TestParseSimpleQuery(t *testing.T) {
 	parseQueryAndExpectResult(t, `{}`, `
-		oq // [operator] [query]
+		oqf // [operator] [query]
 		e  // [end of operator]
 	`)
 }
 
 func TestParseSimpleQueryWrittenOut(t *testing.T) {
 	parseQueryAndExpectResult(t, `query {}`, `
-		oq // operator of type query
+		oqf // operator of type query
 		e  // end of operator
 	`)
 }
 
 func TestParseSimpleMutation(t *testing.T) {
 	parseQueryAndExpectResult(t, `mutation {}`, `
-		om // operator of type mutation
+		omf // operator of type mutation
 		e  // end of operator
 	`)
 }
 
 func TestParseSimpleSubscription(t *testing.T) {
 	parseQueryAndExpectResult(t, `subscription {}`, `
-		os // operator of type subscription
+		osf // operator of type subscription
 		e  // end of operator
 	`)
 }
 
 func TestParseQueryWithName(t *testing.T) {
 	parseQueryAndExpectResult(t, `query banana {}`, `
-		oqbanana // operator of type query with name banana
+		oqfbanana // operator of type query with name banana
 		e        // end of operator
 	`)
 }
 
 func TestParseQuerywithArgs(t *testing.T) {
 	parseQueryAndExpectResult(t, `query banana(quality: [Int]) {}`, `
-		oqbanana // operator of type query with name banana
+		oqtbanana // operator of type query with name banana
 		A        // operator args
         aquality // argument with name banana
         lnInt    // argument of type list with an inner type Int
@@ -95,7 +95,7 @@ func TestParseQuerywithArgs(t *testing.T) {
 	`)
 
 	parseQueryAndExpectResult(t, `query banana(quality: [Int!]! = [10]) {}`, `
-		oqbanana // operator of type query with name banana
+		oqtbanana // operator of type query with name banana
 		A        // operator args
         aquality // argument with name banana
         LNInt    // argument of type required list with an inner type Int also required
@@ -110,9 +110,9 @@ func TestParseQuerywithArgs(t *testing.T) {
 
 func TestParseMultipleSimpleQueries(t *testing.T) {
 	parseQueryAndExpectResult(t, `{}{}`, `
-		oq // operator 1
+		oqf // operator 1
 		e  // end of operator 1
-		oq // operator 2
+		oqf // operator 2
 		e  // end of operator 2
 	`)
 }
@@ -122,9 +122,9 @@ func TestParseMultipleQueries(t *testing.T) {
 		query a {}
 		mutation b {}
 	`, `
-		oqa // query operator 1
+		oqfa // query operator 1
 		e   // end of operator 1
-		omb // mutation operator 2
+		omfb // mutation operator 2
 		e   // end of operator 2
 	`)
 }
@@ -133,7 +133,7 @@ func TestParseQueryWithField(t *testing.T) {
 	parseQueryAndExpectResult(t, `query {
 		some_field
 	}`, `
-		oq          // query operator
+		oqf          // query operator
 		fsome_field // field with name some_field
 		// no field alias
 		e           // end field
@@ -143,7 +143,7 @@ func TestParseQueryWithField(t *testing.T) {
 
 func TestParseQueryWithMultipleFields(t *testing.T) {
 	expectedOutput := `
-		oq          // query operator
+		oqf          // query operator
 		fsome_field // field with name some_field
 		// no field alias
 		e           // end field with name some_field
@@ -176,7 +176,7 @@ func TestParseQueryWithFieldWithSelectionSet(t *testing.T) {
 			bar
 		}
 	}`, `
-		oq          // query operator
+		oqf          // query operator
 		fsome_field // field with name some_field
 		// no field alias
 		ffoo        // field with name foo
@@ -198,7 +198,7 @@ func TestParseQueryWithFieldWithFragmentSpread(t *testing.T) {
 			bar
 		}
 	}`, `
-		oq
+		oqf
 		fsome_field
 		// no field alias
 		ffoo
@@ -220,7 +220,7 @@ func TestParseQueryWithFieldWithFragmentSpread(t *testing.T) {
 			bar
 		}
 	}`, `
-		oq
+		oqf
 		fsome_field
 		// no field alias
 		ffoo
@@ -237,7 +237,7 @@ func TestParseQueryWithFieldWithFragmentSpread(t *testing.T) {
 
 func TestParseQueryWithFieldWithInlineFragmentSpread(t *testing.T) {
 	expectedOutput := `
-		oq
+		oqf
 		fsome_field
 		// no field alias
 		ffoo
@@ -280,7 +280,7 @@ func TestParseAlias(t *testing.T) {
 	parseQueryAndExpectResult(t, `query {
 		foo: baz
 	}`, `
-		oq
+		oqf
 		ffoo // field with alias foo
 		baz  // field name
 		e    // end of field
@@ -292,7 +292,7 @@ func TestParseArgumentsWithoutInput(t *testing.T) {
 	parseQueryAndExpectResult(t, `query {
 		baz()
 	}`, `
-		oq
+		oqf
 		fbaz // field with alias foo
 		// no alias
 		vo   // value of kind object (these are the arguments)
@@ -327,7 +327,7 @@ func TestParseArgumentValueTypes(t *testing.T) {
 
 	for _, option := range options {
 		parseQueryAndExpectResult(t, `query {baz(foo: `+option.input+`)}`, `
-			oq
+			oqf
 			fbaz // field with alias foo
 			// no alias
 			vo   // value of kind object (these are the arguments)
@@ -342,7 +342,7 @@ func TestParseArgumentValueTypes(t *testing.T) {
 
 func TestParseMultipleArguments(t *testing.T) {
 	expect := `
-		oq
+		oqf
 		fbaz // field with alias foo
 		// no alias
 		vo   // value of kind object (these are the arguments)

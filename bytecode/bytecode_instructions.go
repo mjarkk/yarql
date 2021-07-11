@@ -42,13 +42,13 @@ const (
 // ^- Kind
 //
 // writes:
-// 0 [actionNewOperator] [kind]
+// 0 [actionNewOperator] [kind] [f (has no arguments (t = has arguments))]
 //
 // additional append:
 // [name...]
 func (ctx *parserCtx) instructionNewOperation(kind operatorKind) int {
 	res := len(ctx.res)
-	ctx.res = append(ctx.res, 0, actionOperator, kind)
+	ctx.res = append(ctx.res, 0, actionOperator, kind, 'f')
 	return res
 }
 
