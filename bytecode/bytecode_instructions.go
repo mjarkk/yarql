@@ -93,14 +93,14 @@ func (ctx *parserCtx) instructionNewFragment() int {
 //         ^
 //
 // writes:
-// 0 [actionField]
+// 0 [actionField] [directives count as uint8]
 //
 // additional required append:
 // [Fieldname] 0
 // OR
 // [Alias] 0 [Fieldname]
 func (ctx *parserCtx) instructionNewField() {
-	ctx.res = append(ctx.res, 0, actionField)
+	ctx.res = append(ctx.res, 0, actionField, 0)
 }
 
 // represends:

@@ -146,7 +146,8 @@ func TestParseQueryWithField(t *testing.T) {
 	}`, `
 		oqf          // query operator
 		// No directives
-		fsome_field // field with name some_field
+		f           // start new field
+		some_field  // field name
 		// no field alias
 		e           // end field
 		e           // end operator
@@ -157,10 +158,12 @@ func TestParseQueryWithMultipleFields(t *testing.T) {
 	expectedOutput := `
 		oqf          // query operator
 		// No directives
-		fsome_field // field with name some_field
+		f           // start new field
+		some_field  // field name
 		// no field alias
 		e           // end field with name some_field
-		fother      // field with name other
+		f           // start new field
+		other       // field name
 		// no field alias
 		e           // end field with name other
 		e           // end operator
@@ -191,12 +194,15 @@ func TestParseQueryWithFieldWithSelectionSet(t *testing.T) {
 	}`, `
 		oqf          // query operator
 		// No directives
-		fsome_field // field with name some_field
+		f           // new field
+		some_field  // field name
 		// no field alias
-		ffoo        // field with name foo
+		f           // new field
+		foo         // field name
 		// no field alias
 		e           // end of foo
-		fbar        // field with name bar
+		f           // new field
+		bar         // field name
 		// no field alias
 		e           // end of bar
 		e           // end of some_field
@@ -214,13 +220,16 @@ func TestParseQueryWithFieldWithFragmentSpread(t *testing.T) {
 	}`, `
 		oqf
 		// No directives
-		fsome_field
+		f
+		some_field
 		// no field alias
-		ffoo
+		f
+		foo
 		// no field alias
 		e
 		sfbaz // fragment spread pointing to fragment with name baz
-		fbar
+		f
+		bar
 		// no field alias
 		e
 		e
@@ -237,13 +246,16 @@ func TestParseQueryWithFieldWithFragmentSpread(t *testing.T) {
 	}`, `
 		oqf
 		// No directives
-		fsome_field
+		f
+		some_field
 		// no field alias
-		ffoo
+		f
+		foo
 		// no field alias
 		e
 		sfonline // fragment spread pointing to fragment with name online
-		fbar
+		f
+		bar
 		// no field alias
 		e
 		e
@@ -255,17 +267,21 @@ func TestParseQueryWithFieldWithInlineFragmentSpread(t *testing.T) {
 	expectedOutput := `
 		oqf
 		// No directives
-		fsome_field
+		f
+		some_field
 		// no field alias
-		ffoo
+		f
+		foo
 		// no field alias
 		e
 		stbaz     // fragment spread with typename baz
-		fbazField // fragment field
+		f
+		bazField // fragment field
 		// no field alias
 		e         // end of fragment field
 		e         // end of inline fragment
-		fbar
+		f
+		bar
 		// no field alias
 		e
 		e
@@ -299,7 +315,8 @@ func TestParseAlias(t *testing.T) {
 	}`, `
 		oqf
 		// No directives
-		ffoo // field with alias foo
+		f
+		foo // field with alias foo
 		baz  // field name
 		e    // end of field
 		e
@@ -312,7 +329,8 @@ func TestParseArgumentsWithoutInput(t *testing.T) {
 	}`, `
 		oqf
 		// No directives
-		fbaz // field with alias foo
+		f
+		baz // field with alias foo
 		// no alias
 		vo   // value of kind object (these are the arguments)
 		e    // end of value object / arguments
@@ -348,7 +366,8 @@ func TestParseArgumentValueTypes(t *testing.T) {
 		parseQueryAndExpectResult(t, `query {baz(foo: `+option.input+`)}`, `
 			oqf
 			// No directives
-			fbaz // field with alias foo
+			f
+			baz  // field with alias foo
 			// no alias
 			vo   // value of kind object (these are the arguments)
 			ufoo // key foo
@@ -364,7 +383,8 @@ func TestParseMultipleArguments(t *testing.T) {
 	expect := `
 		oqf
 		// No directives
-		fbaz // field with alias foo
+		f
+		baz // field with alias foo
 		// no alias
 		vo   // value of kind object (these are the arguments)
 		ufoo // key foo
@@ -396,10 +416,12 @@ func TestParseFragmentWithFields(t *testing.T) {
 	}`, `
 		FFoo    // fragment with name Foo
 		Bar     // fragment type name
-		ffieldA
+		f
+		fieldA
 		// no field alias
 		e
-		fbField
+		f
+		bField
 		// no field alias
 		e
 		e       // end of fragment
