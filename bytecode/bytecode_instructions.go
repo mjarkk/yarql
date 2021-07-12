@@ -113,15 +113,15 @@ func (ctx *parserCtx) instructionNewField() {
 // }
 //
 // writes:
-// 0 [actionSpread] [t/f (t = inline fragment, f = pointer to fragment)]
+// 0 [actionSpread] [t/f (t = inline fragment, f = pointer to fragment)] [directives count in uint8]
 //
 // additional required append:
 // [Typename or Fragment Name]
 func (ctx *parserCtx) instructionNewFragmentSpread(isInline bool) {
 	if isInline {
-		ctx.res = append(ctx.res, 0, actionSpread, 't')
+		ctx.res = append(ctx.res, 0, actionSpread, 't', 0)
 	} else {
-		ctx.res = append(ctx.res, 0, actionSpread, 'f')
+		ctx.res = append(ctx.res, 0, actionSpread, 'f', 0)
 	}
 }
 

@@ -227,7 +227,8 @@ func TestParseQueryWithFieldWithFragmentSpread(t *testing.T) {
 		foo
 		// no field alias
 		e
-		sfbaz // fragment spread pointing to fragment with name baz
+		sf  // fragment spread pointing
+		baz // fragment name
 		f
 		bar
 		// no field alias
@@ -253,7 +254,8 @@ func TestParseQueryWithFieldWithFragmentSpread(t *testing.T) {
 		foo
 		// no field alias
 		e
-		sfonline // fragment spread pointing to fragment with name online
+		sf     // fragment spread pointing
+		online // fragment name
 		f
 		bar
 		// no field alias
@@ -274,7 +276,8 @@ func TestParseQueryWithFieldWithInlineFragmentSpread(t *testing.T) {
 		foo
 		// no field alias
 		e
-		stbaz     // fragment spread with typename baz
+		st       // inline fragment spread
+		baz      // fragment name
 		f
 		bazField // fragment field
 		// no field alias

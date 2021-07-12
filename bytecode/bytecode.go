@@ -371,6 +371,8 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 				}
 
 				ctx.instructionNewFragmentSpread(isInline)
+				directivesCountLocation := len(ctx.res) - 1
+
 				empyt, criticalErr := ctx.parseAndWriteName()
 				if criticalErr {
 					return criticalErr
@@ -386,6 +388,15 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 					} else {
 						return ctx.err(`expected fragment name but got char: "` + string(c) + `"`)
 					}
+				}
+
+				if c == '@' {
+					amount, criticalErr := ctx.parseDirectives()
+					ctx.res[directivesCountLocation] = amount
+					if criticalErr {
+						return criticalErr
+					}
+					c = ctx.currentC()
 				}
 
 				if isInline {
