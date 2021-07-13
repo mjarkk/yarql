@@ -430,3 +430,40 @@ func TestParseFragmentWithFields(t *testing.T) {
 		e       // end of fragment
 	`)
 }
+
+func TestParseOperatonDirective(t *testing.T) {
+	parseQueryAndExpectResult(t, `query a @banana @peer {}`, `
+		oqf`+"\x02"+`a // new operator with name a and 2 directives
+		dfbanana       // directive with no arguments and name banana
+		dfpeer         // directive with no arguments and name peer
+		e              // end of operator
+	`)
+}
+
+func TestParseOperatonDirectiveWithArgs(t *testing.T) {
+	parseQueryAndExpectResult(t, `query a @banana(a: 1, b: 2) {}`, `
+		oqf`+"\x01"+`a // new operator with name a and 2 directives
+		dtbanana       // directive with arguments and name banana
+		vo             // value with type object (start directive arguments values)
+        ua             // object field a
+        vi1            // value type int with value 1
+        ub             // object field b
+        vi2            // value type int with value 2
+		e              // end object (end directive arguments)
+		e              // end of operator
+	`)
+}
+
+func TestParseQueryWithFieldDirective(t *testing.T) {
+	parseQueryAndExpectResult(t, `query {
+		some_field @banana
+	}`, `
+		oqf
+		// No directives
+		f`+"\x01"+`some_field // field with 1 arguments
+		// no field alias
+		dfbanana              // directive banana with no arguments
+		e
+		e
+	`)
+}

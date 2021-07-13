@@ -254,6 +254,7 @@ func (ctx *parserCtx) parseDirectives() (directivesAmount uint8, criticalErr boo
 			return directivesAmount, ctx.err(`expected directive name but got char "` + string(ctx.currentC()) + `"`)
 		}
 
+		// parse arguments
 		c, eof = ctx.mightIgnoreNextTokens()
 		if eof {
 			return directivesAmount, ctx.unexpectedEOF()
@@ -261,10 +262,12 @@ func (ctx *parserCtx) parseDirectives() (directivesAmount uint8, criticalErr boo
 		if c != '(' {
 			continue
 		}
-
 		ctx.res[hasArgsFlag] = 't'
-		// TODO, support this
-		return directivesAmount, ctx.err(`directive arguments are currently unsupported`)
+		ctx.charNr++
+		criticalErr = ctx.parseAssignmentSet(')')
+		if criticalErr {
+			return directivesAmount, criticalErr
+		}
 	}
 }
 
