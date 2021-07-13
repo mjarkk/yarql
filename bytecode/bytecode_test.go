@@ -49,6 +49,14 @@ func parseQueryAndExpectResult(t *testing.T, query, expectedResult string) {
 	Equal(t, formatHumanReadableQuery(expectedResult), formatResToHumandReadable(res), query)
 }
 
+func parseQueryAndExpectErr(t *testing.T, query, expectedErr string) {
+	_, errs := parseQuery(query)
+	if len(errs) == 0 {
+		Fail(t, "exected query to fail with error: "+expectedErr, query)
+	}
+	Equal(t, errs[0].Error(), expectedErr)
+}
+
 func TestParseSimpleQuery(t *testing.T) {
 	parseQueryAndExpectResult(t, `{}`, `
 		oqf // [operator] [query]
@@ -101,7 +109,9 @@ func TestParseQuerywithArgs(t *testing.T) {
 		e        // end of operator
 	`)
 
-	parseQueryAndExpectResult(t, `query banana(quality: [Int!]! = [10]) {}`, `
+	query := `query banana(quality: [Int!]! = [10]) {}`
+
+	parseQueryAndExpectResult(t, query, `
 		oqt      // operator of type query
 		banana   // operator name
 		A        // operator args
@@ -114,6 +124,8 @@ func TestParseQuerywithArgs(t *testing.T) {
 		e        // end of operator arguments
 		e        // end of operator
 	`)
+
+	injectCodeSurviveTest(query)
 }
 
 func TestParseMultipleSimpleQueries(t *testing.T) {
@@ -142,7 +154,7 @@ func TestParseMultipleQueries(t *testing.T) {
 		e   // end of operator 2
 	`)
 
-	injectCodeSurviveTest(query)
+	injectCodeSurviveTest(query, [][]byte{{'\r'}})
 }
 
 func TestParseQueryWithField(t *testing.T) {
@@ -395,7 +407,7 @@ func TestParseArgumentValueTypes(t *testing.T) {
 			e
 		`)
 
-		injectCodeSurviveTest(query)
+		injectCodeSurviveTest(query, [][]byte{{'+'}, {'.'}, {'e'}, {'"'}})
 	}
 }
 
@@ -422,11 +434,15 @@ func TestParseMultipleArguments(t *testing.T) {
 }
 
 func TestParseFragment(t *testing.T) {
-	parseQueryAndExpectResult(t, `fragment Foo on Bar {}`, `
+	query := `fragment Foo on Bar {}`
+
+	parseQueryAndExpectResult(t, query, `
 		FFoo // fragment with name Foo
 		Bar  // fragment type name
 		e    // end of fragment
 	`)
+
+	injectCodeSurviveTest(query)
 }
 
 func TestParseFragmentWithFields(t *testing.T) {
@@ -475,9 +491,11 @@ func TestParseOperatonDirectiveWithArgs(t *testing.T) {
 }
 
 func TestParseQueryWithFieldDirective(t *testing.T) {
-	parseQueryAndExpectResult(t, `query {
+	query := `query {
 		some_field @banana
-	}`, `
+	}`
+
+	parseQueryAndExpectResult(t, query, `
 		oqf
 		// No directives
 		f`+"\x01"+`some_field // field with 1 arguments
@@ -486,11 +504,14 @@ func TestParseQueryWithFieldDirective(t *testing.T) {
 		e
 		e
 	`)
+
+	injectCodeSurviveTest(query)
 }
 
 func TestParseQueryWithFragmentDirective(t *testing.T) {
 	// Inline fragment
-	parseQueryAndExpectResult(t, `{... on baz @foo {}}`, `
+	query := `{... on baz @foo {}}`
+	parseQueryAndExpectResult(t, query, `
 		oqf
 
 		st`+"\x01"+`baz // fragment with 1 directive
@@ -498,26 +519,37 @@ func TestParseQueryWithFragmentDirective(t *testing.T) {
 		e
 		e
 	`)
+	injectCodeSurviveTest(query)
 
 	// Pointer to fragment
-	parseQueryAndExpectResult(t, `{...baz@foo}`, `
+	query = `{...baz@foo}`
+	parseQueryAndExpectResult(t, query, `
 		oqf
 
 		sf`+"\x01"+`baz // fragment with 1 directive
 		dffoo           // directive with name foo and no arguments
 		e
 	`)
+	injectCodeSurviveTest(query)
+}
 
-	injectCodeSurviveTest(`{... on baz @foo {}}`)
+func TestMoreThan255Directives(t *testing.T) {
+	parseQueryAndExpectErr(t, `{bar`+strings.Repeat(" @foo", 256)+`}`, "cannot have more than 255 directives")
 }
 
 // tests if parser doesn't panic nor hangs on wired inputs
-func injectCodeSurviveTest(baseQuery string, extraChars ...[]byte) {
+func injectCodeSurviveTest(baseQuery string, extraChars ...[][]byte) {
 	toTest := [][][]byte{
-		{{}, {'_'}, {'-'}, {'0'}},
+		{{}, {'_'}, {'-'}, {'0'}, {','}},
 		{{';'}, {' '}, {'#'}, []byte(" - ")},
 		{{'['}, {']'}, {'{'}, {'}'}},
-		append([][]byte{{'('}, {'}'}}, extraChars...),
+		{{'('}, {'}'}, {'a'}},
+	}
+
+	if len(extraChars) > 0 {
+		for _, set := range extraChars {
+			toTest[len(toTest)-1] = append(toTest[len(toTest)-1], set...)
+		}
 	}
 
 	var wg sync.WaitGroup

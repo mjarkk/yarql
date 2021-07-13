@@ -188,11 +188,11 @@ func (ctx *parserCtx) parseOperatorArguments() bool {
 
 		// Parse `String` of `query a(some_var: String = "a") {`
 		ctx.res = append(ctx.res, 0)
-		_, eof = ctx.mightIgnoreNextTokens()
+		c, eof = ctx.mightIgnoreNextTokens()
 		if eof {
 			return ctx.unexpectedEOF()
 		}
-		criticalErr = ctx.parseGraphqlTypeName()
+		criticalErr = ctx.parseGraphqlTypeName(c)
 		if criticalErr {
 			return criticalErr
 		}
@@ -271,28 +271,25 @@ func (ctx *parserCtx) parseDirectives() (directivesAmount uint8, criticalErr boo
 	}
 }
 
-func (ctx *parserCtx) parseGraphqlTypeName() bool {
-	c, eof := ctx.checkC(ctx.charNr)
-	if eof {
-		return ctx.unexpectedEOF()
-	}
-
+func (ctx *parserCtx) parseGraphqlTypeName(c byte) bool {
+	var eof bool
 	operationLocation := len(ctx.res)
+
 	if c == '[' {
 		ctx.res = append(ctx.res, 'l')
 		ctx.charNr++
 
-		_, eof := ctx.mightIgnoreNextTokens()
+		c, eof = ctx.mightIgnoreNextTokens()
 		if eof {
 			return ctx.unexpectedEOF()
 		}
 
-		criticalErr := ctx.parseGraphqlTypeName()
+		criticalErr := ctx.parseGraphqlTypeName(c)
 		if criticalErr {
 			return criticalErr
 		}
 
-		c, eof := ctx.mightIgnoreNextTokens()
+		c, eof = ctx.mightIgnoreNextTokens()
 		if eof {
 			return ctx.unexpectedEOF()
 		}
@@ -601,7 +598,7 @@ func (ctx *parserCtx) parseInputValue() bool {
 		return false
 	}
 
-	if c == '-' || c == '.' || (c >= '0' && c <= '9') {
+	if c == '-' || c == '+' || c == '.' || (c >= '0' && c <= '9') {
 		return ctx.parseNumberInputValue()
 	}
 
@@ -693,6 +690,10 @@ func (ctx *parserCtx) parseNumberInputValue() bool {
 		}
 	} else if c == '+' {
 		ctx.charNr++
+		c, eof = ctx.checkC(ctx.charNr)
+		if eof {
+			return ctx.unexpectedEOF()
+		}
 	}
 
 	// Parse the first set of numbers (the 123 of +123.456e78)
