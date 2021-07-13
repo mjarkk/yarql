@@ -467,3 +467,24 @@ func TestParseQueryWithFieldDirective(t *testing.T) {
 		e
 	`)
 }
+
+func TestParseQueryWithFragmentDirective(t *testing.T) {
+	// Inline fragment
+	parseQueryAndExpectResult(t, `{... on baz @foo {}}`, `
+		oqf
+
+		st`+"\x01"+`baz // fragment with 1 directive
+		dffoo           // directive with name foo and no arguments
+		e
+		e
+	`)
+
+	// Pointer to fragment
+	parseQueryAndExpectResult(t, `{...baz@foo}`, `
+		oqf
+
+		sf`+"\x01"+`baz // fragment with 1 directive
+		dffoo           // directive with name foo and no arguments
+		e
+	`)
+}
