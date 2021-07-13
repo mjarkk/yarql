@@ -3,6 +3,7 @@ package graphql
 import (
 	"bytes"
 	"strings"
+	"sync"
 	"testing"
 
 	. "github.com/stretchr/testify/assert"
@@ -127,10 +128,12 @@ func TestParseMultipleSimpleQueries(t *testing.T) {
 }
 
 func TestParseMultipleQueries(t *testing.T) {
-	parseQueryAndExpectResult(t, `
+	query := `
 		query a {}
 		mutation b {}
-	`, `
+	`
+
+	parseQueryAndExpectResult(t, query, `
 		oqf // query operator 1
 		a   // operator 1 name
 		e   // end of operator 1
@@ -138,6 +141,8 @@ func TestParseMultipleQueries(t *testing.T) {
 		b   // operator 2 name
 		e   // end of operator 2
 	`)
+
+	injectCodeSurviveTest(query)
 }
 
 func TestParseQueryWithField(t *testing.T) {
@@ -263,6 +268,7 @@ func TestParseQueryWithFieldWithFragmentSpread(t *testing.T) {
 		e
 		e
 	`)
+
 }
 
 func TestParseQueryWithFieldWithInlineFragmentSpread(t *testing.T) {
@@ -313,9 +319,11 @@ func TestParseQueryWithFieldWithInlineFragmentSpread(t *testing.T) {
 }
 
 func TestParseAlias(t *testing.T) {
-	parseQueryAndExpectResult(t, `query {
+	query := `query {
 		foo: baz
-	}`, `
+	}`
+
+	parseQueryAndExpectResult(t, query, `
 		oqf
 		// No directives
 		f
@@ -324,12 +332,16 @@ func TestParseAlias(t *testing.T) {
 		e    // end of field
 		e
 	`)
+
+	injectCodeSurviveTest(query)
 }
 
 func TestParseArgumentsWithoutInput(t *testing.T) {
-	parseQueryAndExpectResult(t, `query {
+	query := `query {
 		baz()
-	}`, `
+	}`
+
+	parseQueryAndExpectResult(t, query, `
 		oqf
 		// No directives
 		f
@@ -340,6 +352,8 @@ func TestParseArgumentsWithoutInput(t *testing.T) {
 		e    // end of field
 		e
 	`)
+
+	injectCodeSurviveTest(query)
 }
 
 func TestParseArgumentValueTypes(t *testing.T) {
@@ -366,7 +380,8 @@ func TestParseArgumentValueTypes(t *testing.T) {
 	}
 
 	for _, option := range options {
-		parseQueryAndExpectResult(t, `query {baz(foo: `+option.input+`)}`, `
+		query := `query {baz(foo: ` + option.input + `)}`
+		parseQueryAndExpectResult(t, query, `
 			oqf
 			// No directives
 			f
@@ -379,6 +394,8 @@ func TestParseArgumentValueTypes(t *testing.T) {
 			e    // end of field
 			e
 		`)
+
+		injectCodeSurviveTest(query)
 	}
 }
 
@@ -441,7 +458,8 @@ func TestParseOperatonDirective(t *testing.T) {
 }
 
 func TestParseOperatonDirectiveWithArgs(t *testing.T) {
-	parseQueryAndExpectResult(t, `query a @banana(a: 1, b: 2) {}`, `
+	query := `query a @banana(a: 1, b: 2) {}`
+	parseQueryAndExpectResult(t, query, `
 		oqf`+"\x01"+`a // new operator with name a and 2 directives
 		dtbanana       // directive with arguments and name banana
 		vo             // value with type object (start directive arguments values)
@@ -452,6 +470,8 @@ func TestParseOperatonDirectiveWithArgs(t *testing.T) {
 		e              // end object (end directive arguments)
 		e              // end of operator
 	`)
+
+	injectCodeSurviveTest(query)
 }
 
 func TestParseQueryWithFieldDirective(t *testing.T) {
@@ -487,4 +507,60 @@ func TestParseQueryWithFragmentDirective(t *testing.T) {
 		dffoo           // directive with name foo and no arguments
 		e
 	`)
+
+	injectCodeSurviveTest(`{... on baz @foo {}}`)
+}
+
+// tests if parser doesn't panic nor hangs on wired inputs
+func injectCodeSurviveTest(baseQuery string, extraChars ...[]byte) {
+	toTest := [][][]byte{
+		{{}, {'_'}, {'-'}, {'0'}},
+		{{';'}, {' '}, {'#'}, []byte(" - ")},
+		{{'['}, {']'}, {'{'}, {'}'}},
+		append([][]byte{{'('}, {'}'}}, extraChars...),
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(len(toTest))
+
+	for _, charsToInject := range toTest {
+		go func(baseQuery []byte, charsToInject [][]byte) {
+			parser := parserCtx{
+				res:    []byte{},
+				query:  []byte{},
+				errors: []error{},
+			}
+
+			for i := range baseQuery {
+				tilIndex := baseQuery[:i]
+				formIndex := baseQuery[i:]
+
+				parser.query = append(parser.query[:0], formIndex...)
+				parser.parseQueryToBytecode()
+
+				for _, toInject := range charsToInject {
+					parser.query = append(parser.query[:0], tilIndex...)
+					parser.query = append(parser.query, toInject...)
+					parser.parseQueryToBytecode()
+				}
+
+				for _, toInject := range charsToInject {
+					parser.query = append(parser.query[:0], tilIndex...)
+					parser.query = append(parser.query, toInject...)
+					l := len(parser.query)
+
+					// Inject extra char(s)
+					parser.query = append(parser.query, formIndex...)
+					parser.parseQueryToBytecode()
+
+					// Replace char(s)
+					parser.query = append(parser.query[:l], baseQuery[i+1:]...)
+					parser.parseQueryToBytecode()
+				}
+			}
+			wg.Done()
+		}([]byte(baseQuery), charsToInject)
+	}
+
+	wg.Wait()
 }
