@@ -384,6 +384,11 @@ func TestParseArgumentValueTypes(t *testing.T) {
 		{`-20.1`, `vf-20.1`},                 // Float
 		{`10.1E3`, `vf10.1E3`},               // Float
 		{`-20.1e-3`, `vf-20.1E-3`},           // Float
+		{`"abc"`, `vsabc`},                   // String
+		{`""`, `vs`},                         // String
+		{`"\b"`, "vs\b"},                     // String
+		{`"a\u0021b"`, "vsa!b"},              // String
+		{`"a\u03A3b"`, "vsaΣb"},              // String
 		{`{}`, "vo\ne"},                      // Object
 		{`[]`, "vl\ne"},                      // List
 		{`{a: true}`, "vo\nua\nvb1\ne"},      // Object

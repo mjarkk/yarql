@@ -1,7 +1,10 @@
 package graphql
 
 import (
+	"encoding/hex"
 	"errors"
+	"unicode/utf16"
+	"unicode/utf8"
 )
 
 type parserCtx struct {
@@ -603,8 +606,7 @@ func (ctx *parserCtx) parseInputValue() bool {
 	}
 
 	if c == '"' {
-		// TODO parse string
-		return ctx.err("value kind unsupported")
+		return ctx.parseStringInputValue()
 	}
 
 	if c == '[' {
@@ -795,6 +797,104 @@ func (ctx *parserCtx) parseNumberInputValue() bool {
 	return false
 }
 
+func (ctx *parserCtx) parseStringInputValue() bool {
+	ctx.instructionNewValueString()
+
+	if ctx.matches(`"""`) == 0 {
+		// Parse block string
+		return ctx.err(`block strings are not supported`)
+	}
+
+	// Parse normal string
+	for {
+		ctx.charNr++
+		c, eof := ctx.checkC(ctx.charNr)
+		if eof {
+			return ctx.unexpectedEOF()
+		}
+
+		if c == 0 {
+			// TODO add support for this
+			continue
+		}
+
+		if c == '\n' || c == '\r' {
+			return ctx.err("newline and carriage returns not allowed in strings")
+		}
+
+		if c == '"' {
+			ctx.charNr++
+			return false
+		}
+
+		if c == '\\' {
+			ctx.charNr++
+			c, eof = ctx.checkC(ctx.charNr)
+			if eof {
+				return ctx.unexpectedEOF()
+			}
+
+			switch c {
+			case 0:
+				// TODO add support for this
+			case '\n', '\r':
+				return ctx.err("newline and carriage returns not allowed in strings")
+			case 'b':
+				ctx.res = append(ctx.res, '\b')
+			case 'f':
+				ctx.res = append(ctx.res, '\f')
+			case 'n':
+				ctx.res = append(ctx.res, '\n')
+			case 'r':
+				ctx.res = append(ctx.res, '\r')
+			case 't':
+				ctx.res = append(ctx.res, '\t')
+			case 'u':
+				ctx.charNr++
+				c1, _ := ctx.checkC(ctx.charNr)
+				ctx.charNr++
+				c2, _ := ctx.checkC(ctx.charNr)
+				ctx.charNr++
+				c3, _ := ctx.checkC(ctx.charNr)
+				ctx.charNr++
+				c4, eof := ctx.checkC(ctx.charNr)
+				if eof {
+					return ctx.unexpectedEOF()
+				}
+
+				// we need this 2 times where the largest buffer is required to be 4 bytes
+				res := make([]byte, 4)
+
+				_, err := hex.Decode(res, []byte{c1, c2, c3, c4})
+				if err != nil {
+					return ctx.err(err.Error())
+				}
+				// if res[0] != 0 {
+				// 	ctx.res = append(ctx.res, res[0])
+				// }
+				// if res[1] != 0 {
+				// 	ctx.res = append(ctx.res, res[1])
+				// }
+
+				r := utf16.Decode([]uint16{uint16(res[1]) | (uint16(res[0]) << 8)})[0]
+
+				// hex.Decode above only writes to the first and second byte
+				res[0] = 0
+				res[1] = 0
+				l := utf8.EncodeRune(res, r)
+
+				ctx.res = append(ctx.res, res[:l]...)
+			default:
+				// TODO support unicode
+				ctx.res = append(ctx.res, c)
+			}
+			continue
+		}
+
+		ctx.res = append(ctx.res, c)
+	}
+}
+
 //
 // ITERATOR HELPERS
 //
@@ -916,6 +1016,7 @@ func (ctx *parserCtx) matches(oneOf ...string) int {
 
 			keyLen := len(oneOf[0])
 			if oneOf[0][offset] != c {
+				ctx.charNr = startIdx
 				return -1
 			} else if keyLen == offset+1 {
 				ctx.charNr++

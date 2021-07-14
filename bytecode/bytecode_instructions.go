@@ -180,6 +180,10 @@ func (ctx *parserCtx) instructionNewValueInt() {
 	ctx.res = append(ctx.res, 0, actionValue, valueInt)
 }
 
+func (ctx *parserCtx) instructionNewValueString() {
+	ctx.res = append(ctx.res, 0, actionValue, valueString)
+}
+
 // represends:
 //
 // {a: "a", b: "b", ...}
