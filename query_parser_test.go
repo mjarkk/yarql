@@ -662,9 +662,7 @@ func TestQueryParserFieldDirectiveWithArguments(t *testing.T) {
 	}
 }
 
-// test if:
-// - parser doesn't panic on wired inputs
-// - parser doesn't hang on certain inputs
+// tests if parser doesn't panic nor hangs on wired inputs
 func injectCodeSurviveTest(baseQuery string, extraChars ...string) {
 	toTest := [][]string{
 		{"", "_", "-", "0"},
