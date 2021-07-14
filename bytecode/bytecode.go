@@ -798,14 +798,29 @@ func (ctx *parserCtx) parseNumberInputValue() bool {
 }
 
 func (ctx *parserCtx) parseStringInputValue() bool {
+	// FIXME block strings are not spec compliant
+
 	ctx.instructionNewValueString()
 
-	if ctx.matches(`"""`) == 0 {
-		// Parse block string
-		return ctx.err(`block strings are not supported`)
+	isBlock := ctx.matches(`"""`) == 0
+	if isBlock {
+		// Trim spaces and enters before text in block string
+		for {
+			c, eof := ctx.checkC(ctx.charNr)
+			if eof {
+				return ctx.unexpectedEOF()
+			}
+			if c == ' ' || c == '\t' || c == '\n' || c == '\r' {
+				ctx.charNr++
+				continue
+			}
+			ctx.charNr--
+			break
+		}
 	}
 
 	// Parse normal string
+mainLoop:
 	for {
 		ctx.charNr++
 		c, eof := ctx.checkC(ctx.charNr)
@@ -819,12 +834,50 @@ func (ctx *parserCtx) parseStringInputValue() bool {
 		}
 
 		if c == '\n' || c == '\r' {
-			return ctx.err("newline and carriage returns not allowed in strings")
+			if !isBlock {
+				return ctx.err("newline and carriage returns not allowed in strings")
+			}
+
+			ctx.res = append(ctx.res, c)
+			if c == '\r' {
+				c, eof = ctx.checkC(ctx.charNr + 1)
+				if !eof && c == '\n' {
+					ctx.res = append(ctx.res, '\n')
+					ctx.charNr++
+				}
+			}
+
+			for {
+				ctx.charNr++
+				c, eof := ctx.checkC(ctx.charNr)
+				if eof {
+					return ctx.unexpectedEOF()
+				}
+				if c == ' ' || c == '\t' {
+					continue
+				}
+				ctx.charNr--
+				continue mainLoop
+			}
 		}
 
 		if c == '"' {
-			ctx.charNr++
-			return false
+			if !isBlock {
+				ctx.charNr++
+				return false
+			}
+			if ctx.matches(`"""`) == 0 {
+				// Trim last newlines from the written output
+				for {
+					lastInst := ctx.res[len(ctx.res)-1]
+					if lastInst == '\n' || lastInst == '\r' || lastInst == ' ' {
+						ctx.res = ctx.res[:len(ctx.res)-1]
+						continue
+					}
+					break
+				}
+				return false
+			}
 		}
 
 		if c == '\\' {

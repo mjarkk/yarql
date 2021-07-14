@@ -23,7 +23,6 @@ func formatHumanReadableQuery(result string) string {
 	result = strings.TrimSpace(result)
 	result = strings.ReplaceAll(result, " ", "")
 	result = strings.ReplaceAll(result, "\t", "")
-	result = strings.ReplaceAll(result, "\r", "")
 	lines := strings.Split(result, "\n")
 	for i, line := range lines {
 		lines[i] = strings.Split(line, "//")[0]
@@ -39,7 +38,7 @@ func formatResToHumandReadable(result []byte) string {
 // parseQueryAndExpectResult is a readable tester for the bytecode
 // The `expectedResult` is formatted like so:
 // - Enter == null byte
-// - Spaces characters are removed ('\r','\t',' ')
+// - Spaces characters are removed ('\t', ' ')
 // - Comments can be made using // and will be trimmed away in the output
 func parseQueryAndExpectResult(t *testing.T, query, expectedResult string) {
 	res, errs := parseQuery(query)
@@ -373,19 +372,22 @@ func TestParseArgumentValueTypes(t *testing.T) {
 		input  string
 		output string
 	}{
-		{`true`, `vb1`},                      // boolean
-		{`false`, `vb0`},                     // boolean
-		{`null`, `vn`},                       // null
-		{`$banana`, `v$banana`},              // variable reference
-		{`BANANA`, `veBANANA`},               // Enum
-		{`10`, `vi10`},                       // Int
-		{`-20`, `vi-20`},                     // Int
-		{`10.1`, `vf10.1`},                   // Float
-		{`-20.1`, `vf-20.1`},                 // Float
-		{`10.1E3`, `vf10.1E3`},               // Float
-		{`-20.1e-3`, `vf-20.1E-3`},           // Float
-		{`"abc"`, `vsabc`},                   // String
+		{`true`, `vb1`},            // boolean
+		{`false`, `vb0`},           // boolean
+		{`null`, `vn`},             // null
+		{`$banana`, `v$banana`},    // variable reference
+		{`BANANA`, `veBANANA`},     // Enum
+		{`10`, `vi10`},             // Int
+		{`-20`, `vi-20`},           // Int
+		{`10.1`, `vf10.1`},         // Float
+		{`-20.1`, `vf-20.1`},       // Float
+		{`10.1E3`, `vf10.1E3`},     // Float
+		{`-20.1e-3`, `vf-20.1E-3`}, // Float
+		{`"abc"`, `vsabc`},         // String
+		{`"""abc"""`, `vsabc`},     // String (block string)
+		{`"""abc` + "\n" + `abc` + "\r\n" + `abc"""`, "vsabc\nabc\r\nabc"}, // String (block string)
 		{`""`, `vs`},                         // String
+		{`""""""`, `vs`},                     // String (block string)
 		{`"\b"`, "vs\b"},                     // String
 		{`"a\u0021b"`, "vsa!b"},              // String
 		{`"a\u03A3b"`, "vsaΣb"},              // String
@@ -412,8 +414,10 @@ func TestParseArgumentValueTypes(t *testing.T) {
 			e
 		`)
 
-		injectCodeSurviveTest(query, [][]byte{{'+'}, {'.'}, {'e'}, {'"'}})
+		injectCodeSurviveTest(query, [][]byte{{'+'}, {'.'}, {'e'}, {'"'}, {0}, {'\n'}, {'\r'}})
 	}
+
+	injectCodeSurviveTest(`query {baz(foo: "\a\b\c")}`, [][]byte{{'b'}, {'f'}, {'n'}, {'r'}, {'t'}, {'u'}})
 }
 
 func TestParseMultipleArguments(t *testing.T) {
@@ -545,15 +549,22 @@ func TestMoreThan255Directives(t *testing.T) {
 // tests if parser doesn't panic nor hangs on wired inputs
 func injectCodeSurviveTest(baseQuery string, extraChars ...[][]byte) {
 	toTest := [][][]byte{
-		{{}, {'_'}, {'-'}, {'0'}, {','}},
+		{{}, {'_'}, {'-'}, {'0'}},
 		{{';'}, {' '}, {'#'}, []byte(" - ")},
 		{{'['}, {']'}, {'{'}, {'}'}},
-		{{'('}, {'}'}, {'a'}},
+		{{'('}, {'}'}, {'a'}, {','}},
 	}
 
 	if len(extraChars) > 0 {
+		addToIdx := 0
 		for _, set := range extraChars {
-			toTest[len(toTest)-1] = append(toTest[len(toTest)-1], set...)
+			for _, extra := range set {
+				toTest[addToIdx] = append(toTest[addToIdx], extra)
+				addToIdx++
+				if addToIdx == len(toTest) {
+					addToIdx = 0
+				}
+			}
 		}
 	}
 
