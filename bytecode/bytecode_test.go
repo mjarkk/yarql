@@ -417,7 +417,8 @@ func TestParseArgumentValueTypes(t *testing.T) {
 		injectCodeSurviveTest(query, [][]byte{{'+'}, {'.'}, {'e'}, {'"'}, {0}, {'\n'}, {'\r'}})
 	}
 
-	injectCodeSurviveTest(`query {baz(foo: "\a\b\c")}`, [][]byte{{'b'}, {'f'}, {'n'}, {'r'}, {'t'}, {'u'}})
+	// To improve code cov
+	injectCodeSurviveTest(`query {baz(foo: "\a\b\c")}`, [][]byte{{'b'}, {'f'}, {'n'}, {'r'}, {'t'}, {'u'}, {'\b'}, {'\f'}, {'\n'}, {'\r'}, {'\t'}})
 }
 
 func TestParseMultipleArguments(t *testing.T) {
