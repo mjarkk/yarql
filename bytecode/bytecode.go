@@ -1,4 +1,4 @@
-package graphql
+package bytecode
 
 import (
 	"encoding/hex"
@@ -7,18 +7,18 @@ import (
 	"unicode/utf8"
 )
 
-type parserCtx struct {
-	res    []byte
-	query  []byte
+type ParserCtx struct {
+	Res    []byte
+	Query  []byte
 	charNr int
-	errors []error
+	Errors []error
 }
 
-func (ctx *parserCtx) parseQueryToBytecode() {
-	*ctx = parserCtx{
-		res:    ctx.res[:0],
-		query:  ctx.query,
-		errors: ctx.errors[:0],
+func (ctx *ParserCtx) ParseQueryToBytecode() {
+	*ctx = ParserCtx{
+		Res:    ctx.Res[:0],
+		Query:  ctx.Query,
+		Errors: ctx.Errors[:0],
 	}
 
 	for {
@@ -30,7 +30,7 @@ func (ctx *parserCtx) parseQueryToBytecode() {
 
 // - http://spec.graphql.org/June2018/#sec-Language.Operations
 // - http://spec.graphql.org/June2018/#FragmentDefinition
-func (ctx *parserCtx) parseOperatorOrFragment() (stop bool) {
+func (ctx *ParserCtx) parseOperatorOrFragment() (stop bool) {
 	c, eof := ctx.mightIgnoreNextTokens()
 	if eof {
 		return true
@@ -47,8 +47,8 @@ func (ctx *parserCtx) parseOperatorOrFragment() (stop bool) {
 		} else {
 			ctx.instructionNewOperation(operatorSubscription)
 		}
-		hasArgsFlagLocation := len(ctx.res) - 2
-		directivesCountLocation := len(ctx.res) - 1
+		hasArgsFlagLocation := len(ctx.Res) - 2
+		directivesCountLocation := len(ctx.Res) - 1
 
 		// Parse operation name
 		_, eof = ctx.mightIgnoreNextTokens()
@@ -65,7 +65,7 @@ func (ctx *parserCtx) parseOperatorOrFragment() (stop bool) {
 			return ctx.unexpectedEOF()
 		}
 		if c == '(' {
-			ctx.res[hasArgsFlagLocation] = 't'
+			ctx.Res[hasArgsFlagLocation] = 't'
 			ctx.charNr++
 			criticalErr := ctx.parseOperatorArguments()
 			if criticalErr {
@@ -75,7 +75,7 @@ func (ctx *parserCtx) parseOperatorOrFragment() (stop bool) {
 		}
 
 		amount, criticalErr := ctx.parseDirectives()
-		ctx.res[directivesCountLocation] = amount
+		ctx.Res[directivesCountLocation] = amount
 		if criticalErr {
 			return criticalErr
 		}
@@ -123,7 +123,7 @@ func (ctx *parserCtx) parseOperatorOrFragment() (stop bool) {
 		if eof {
 			return ctx.unexpectedEOF()
 		}
-		ctx.res = append(ctx.res, 0)
+		ctx.Res = append(ctx.Res, 0)
 		empty, criticalErr = ctx.parseAndWriteName()
 		if criticalErr {
 			return criticalErr
@@ -154,7 +154,7 @@ func (ctx *parserCtx) parseOperatorOrFragment() (stop bool) {
 	return false
 }
 
-func (ctx *parserCtx) parseOperatorArguments() bool {
+func (ctx *ParserCtx) parseOperatorArguments() bool {
 	ctx.instructionNewOperationArgs()
 
 	for {
@@ -190,7 +190,7 @@ func (ctx *parserCtx) parseOperatorArguments() bool {
 		ctx.charNr++
 
 		// Parse `String` of `query a(some_var: String = "a") {`
-		ctx.res = append(ctx.res, 0)
+		ctx.Res = append(ctx.Res, 0)
 		c, eof = ctx.mightIgnoreNextTokens()
 		if eof {
 			return ctx.unexpectedEOF()
@@ -199,7 +199,7 @@ func (ctx *parserCtx) parseOperatorArguments() bool {
 		if criticalErr {
 			return criticalErr
 		}
-		ctx.res = append(ctx.res, 0)
+		ctx.Res = append(ctx.Res, 0)
 
 		// Parse `=` of query `a(some_var: String = "a") {`
 		c, eof = ctx.mightIgnoreNextTokens()
@@ -207,16 +207,16 @@ func (ctx *parserCtx) parseOperatorArguments() bool {
 			return ctx.unexpectedEOF()
 		}
 		if c == ')' {
-			ctx.res = append(ctx.res, 'f')
+			ctx.Res = append(ctx.Res, 'f')
 			ctx.charNr++
 			ctx.instructionEnd()
 			return false
 		}
 		if c != '=' {
-			ctx.res = append(ctx.res, 'f')
+			ctx.Res = append(ctx.Res, 'f')
 			continue
 		}
-		ctx.res = append(ctx.res, 't')
+		ctx.Res = append(ctx.Res, 't')
 		ctx.charNr++
 
 		// Parse `"a"` of `query a(some_var: String = "a") {`
@@ -231,7 +231,7 @@ func (ctx *parserCtx) parseOperatorArguments() bool {
 	}
 }
 
-func (ctx *parserCtx) parseDirectives() (directivesAmount uint8, criticalErr bool) {
+func (ctx *ParserCtx) parseDirectives() (directivesAmount uint8, criticalErr bool) {
 	for {
 		c, eof := ctx.mightIgnoreNextTokens()
 		if eof {
@@ -248,7 +248,7 @@ func (ctx *parserCtx) parseDirectives() (directivesAmount uint8, criticalErr boo
 		directivesAmount++
 		ctx.charNr++
 		ctx.instructionNewDirective()
-		hasArgsFlag := len(ctx.res) - 1
+		hasArgsFlag := len(ctx.Res) - 1
 		empty, criticalErr := ctx.parseAndWriteName()
 		if criticalErr {
 			return directivesAmount, criticalErr
@@ -265,7 +265,7 @@ func (ctx *parserCtx) parseDirectives() (directivesAmount uint8, criticalErr boo
 		if c != '(' {
 			continue
 		}
-		ctx.res[hasArgsFlag] = 't'
+		ctx.Res[hasArgsFlag] = 't'
 		ctx.charNr++
 		criticalErr = ctx.parseAssignmentSet(')')
 		if criticalErr {
@@ -274,12 +274,12 @@ func (ctx *parserCtx) parseDirectives() (directivesAmount uint8, criticalErr boo
 	}
 }
 
-func (ctx *parserCtx) parseGraphqlTypeName(c byte) bool {
+func (ctx *ParserCtx) parseGraphqlTypeName(c byte) bool {
 	var eof bool
-	operationLocation := len(ctx.res)
+	operationLocation := len(ctx.Res)
 
 	if c == '[' {
-		ctx.res = append(ctx.res, 'l')
+		ctx.Res = append(ctx.Res, 'l')
 		ctx.charNr++
 
 		c, eof = ctx.mightIgnoreNextTokens()
@@ -306,14 +306,14 @@ func (ctx *parserCtx) parseGraphqlTypeName(c byte) bool {
 		}
 
 		if c == '!' {
-			ctx.res[operationLocation] = 'L'
+			ctx.Res[operationLocation] = 'L'
 			ctx.charNr++
 		}
 
 		return false
 	}
 
-	ctx.res = append(ctx.res, 'n')
+	ctx.Res = append(ctx.Res, 'n')
 	empty, criticalErr := ctx.parseAndWriteName()
 	if criticalErr {
 		return criticalErr
@@ -327,14 +327,14 @@ func (ctx *parserCtx) parseGraphqlTypeName(c byte) bool {
 		return ctx.unexpectedEOF()
 	}
 	if c == '!' {
-		ctx.res[operationLocation] = 'N'
+		ctx.Res[operationLocation] = 'N'
 		ctx.charNr++
 	}
 
 	return false
 }
 
-func (ctx *parserCtx) parseSelectionSet() bool {
+func (ctx *ParserCtx) parseSelectionSet() bool {
 	c, eof := ctx.mightIgnoreNextTokens()
 	if eof {
 		return ctx.unexpectedEOF()
@@ -347,7 +347,7 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 
 	for {
 		ctx.instructionNewField()
-		directivesCountLocation := len(ctx.res) - 1
+		directivesCountLocation := len(ctx.Res) - 1
 
 		empty, criticalError := ctx.parseAndWriteName()
 		if criticalError {
@@ -356,7 +356,7 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 
 		if empty {
 			// Revert changes from ctx.instructionNewField()
-			ctx.res = ctx.res[:len(ctx.res)-3]
+			ctx.Res = ctx.Res[:len(ctx.Res)-3]
 
 			if ctx.matches("...") == 0 {
 				// Is pointer to fragment or inline fragment
@@ -374,7 +374,7 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 				}
 
 				ctx.instructionNewFragmentSpread(isInline)
-				directivesCountLocation := len(ctx.res) - 1
+				directivesCountLocation := len(ctx.Res) - 1
 
 				empyt, criticalErr := ctx.parseAndWriteName()
 				if criticalErr {
@@ -395,7 +395,7 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 
 				if c == '@' {
 					amount, criticalErr := ctx.parseDirectives()
-					ctx.res[directivesCountLocation] = amount
+					ctx.Res[directivesCountLocation] = amount
 					if criticalErr {
 						return criticalErr
 					}
@@ -440,7 +440,7 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 			return ctx.unexpectedEOF()
 		}
 
-		ctx.res = append(ctx.res, 0)
+		ctx.Res = append(ctx.Res, 0)
 
 		if c == ':' {
 			ctx.charNr++
@@ -465,7 +465,7 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 
 		if c == '@' {
 			amount, criticalErr := ctx.parseDirectives()
-			ctx.res[directivesCountLocation] = amount
+			ctx.Res[directivesCountLocation] = amount
 			if criticalErr {
 				return criticalErr
 			}
@@ -525,7 +525,7 @@ func (ctx *parserCtx) parseSelectionSet() bool {
 
 // http://spec.graphql.org/June2018/#sec-Language.Arguments
 // http://spec.graphql.org/June2018/#ObjectValue
-func (ctx *parserCtx) parseAssignmentSet(closure byte) bool {
+func (ctx *ParserCtx) parseAssignmentSet(closure byte) bool {
 	ctx.instructionNewValueObject()
 
 	c, eof := ctx.mightIgnoreNextTokens()
@@ -582,7 +582,7 @@ func (ctx *parserCtx) parseAssignmentSet(closure byte) bool {
 	}
 }
 
-func (ctx *parserCtx) parseInputValue() bool {
+func (ctx *ParserCtx) parseInputValue() bool {
 	c, eof := ctx.mightIgnoreNextTokens()
 	if eof {
 		return ctx.unexpectedEOF()
@@ -677,15 +677,15 @@ func (ctx *parserCtx) parseInputValue() bool {
 	return false
 }
 
-func (ctx *parserCtx) parseNumberInputValue() bool {
+func (ctx *ParserCtx) parseNumberInputValue() bool {
 	ctx.instructionNewValueInt()
-	valueTypeAt := len(ctx.res) - 1
+	valueTypeAt := len(ctx.Res) - 1
 
 	var eof bool
 	c := ctx.currentC()
 	if c == '-' {
 		ctx.charNr++
-		ctx.res = append(ctx.res, '-')
+		ctx.Res = append(ctx.Res, '-')
 		c, eof = ctx.checkC(ctx.charNr)
 		if eof {
 			return ctx.unexpectedEOF()
@@ -701,7 +701,7 @@ func (ctx *parserCtx) parseNumberInputValue() bool {
 	// Parse the first set of numbers (the 123 of +123.456e78)
 	for {
 		if c >= '0' && c <= '9' {
-			ctx.res = append(ctx.res, c)
+			ctx.Res = append(ctx.Res, c)
 		} else if c == '.' || c == 'e' || c == 'E' {
 			break
 		} else if c == '_' {
@@ -722,8 +722,8 @@ func (ctx *parserCtx) parseNumberInputValue() bool {
 
 	// Parse the numbers behind the comma (the 456 of +123.456e78)
 	if c == '.' {
-		ctx.res[valueTypeAt] = valueFloat
-		ctx.res = append(ctx.res, '.')
+		ctx.Res[valueTypeAt] = valueFloat
+		ctx.Res = append(ctx.Res, '.')
 		for {
 			ctx.charNr++
 			c, eof = ctx.checkC(ctx.charNr)
@@ -732,7 +732,7 @@ func (ctx *parserCtx) parseNumberInputValue() bool {
 			}
 
 			if c >= '0' && c <= '9' {
-				ctx.res = append(ctx.res, c)
+				ctx.Res = append(ctx.Res, c)
 			} else if c == 'e' || c == 'E' {
 				break
 			} else if c == '_' {
@@ -751,8 +751,8 @@ func (ctx *parserCtx) parseNumberInputValue() bool {
 
 	// Parse the exponent (the 78 of +123.456e78)
 	if c == 'e' || c == 'E' {
-		ctx.res[valueTypeAt] = valueFloat
-		ctx.res = append(ctx.res, 'E')
+		ctx.Res[valueTypeAt] = valueFloat
+		ctx.Res = append(ctx.Res, 'E')
 
 		ctx.charNr++
 		c, eof = ctx.checkC(ctx.charNr)
@@ -761,7 +761,7 @@ func (ctx *parserCtx) parseNumberInputValue() bool {
 		}
 		if c == '+' || c == '-' {
 			if c == '-' {
-				ctx.res = append(ctx.res, c)
+				ctx.Res = append(ctx.Res, c)
 			}
 			ctx.charNr++
 			c, eof = ctx.checkC(ctx.charNr)
@@ -772,7 +772,7 @@ func (ctx *parserCtx) parseNumberInputValue() bool {
 
 		for {
 			if c >= '0' && c <= '9' {
-				ctx.res = append(ctx.res, c)
+				ctx.Res = append(ctx.Res, c)
 			} else if c == 'e' || c == 'E' || c == '.' {
 				// isPunctuator(c) returns . on this char but from here those are not allowed
 				// e and E are also not allowed from here
@@ -797,7 +797,7 @@ func (ctx *parserCtx) parseNumberInputValue() bool {
 	return false
 }
 
-func (ctx *parserCtx) parseStringInputValue() bool {
+func (ctx *ParserCtx) parseStringInputValue() bool {
 	// FIXME block strings are not spec compliant
 
 	ctx.instructionNewValueString()
@@ -838,11 +838,11 @@ mainLoop:
 				return ctx.err("newline and carriage returns not allowed in strings")
 			}
 
-			ctx.res = append(ctx.res, c)
+			ctx.Res = append(ctx.Res, c)
 			if c == '\r' {
 				c, eof = ctx.checkC(ctx.charNr + 1)
 				if !eof && c == '\n' {
-					ctx.res = append(ctx.res, '\n')
+					ctx.Res = append(ctx.Res, '\n')
 					ctx.charNr++
 				}
 			}
@@ -869,9 +869,9 @@ mainLoop:
 			if ctx.matches(`"""`) == 0 {
 				// Trim last newlines from the written output
 				for {
-					lastInst := ctx.res[len(ctx.res)-1]
+					lastInst := ctx.Res[len(ctx.Res)-1]
 					if lastInst == '\n' || lastInst == '\r' || lastInst == ' ' {
-						ctx.res = ctx.res[:len(ctx.res)-1]
+						ctx.Res = ctx.Res[:len(ctx.Res)-1]
 						continue
 					}
 					break
@@ -893,15 +893,15 @@ mainLoop:
 			case '\n', '\r':
 				return ctx.err("newline and carriage returns not allowed in strings")
 			case 'b':
-				ctx.res = append(ctx.res, '\b')
+				ctx.Res = append(ctx.Res, '\b')
 			case 'f':
-				ctx.res = append(ctx.res, '\f')
+				ctx.Res = append(ctx.Res, '\f')
 			case 'n':
-				ctx.res = append(ctx.res, '\n')
+				ctx.Res = append(ctx.Res, '\n')
 			case 'r':
-				ctx.res = append(ctx.res, '\r')
+				ctx.Res = append(ctx.Res, '\r')
 			case 't':
-				ctx.res = append(ctx.res, '\t')
+				ctx.Res = append(ctx.Res, '\t')
 			case 'u':
 				ctx.charNr++
 				c1, _ := ctx.checkC(ctx.charNr)
@@ -936,15 +936,15 @@ mainLoop:
 				res[1] = 0
 				l := utf8.EncodeRune(res, r)
 
-				ctx.res = append(ctx.res, res[:l]...)
+				ctx.Res = append(ctx.Res, res[:l]...)
 			default:
 				// TODO support unicode
-				ctx.res = append(ctx.res, c)
+				ctx.Res = append(ctx.Res, c)
 			}
 			continue
 		}
 
-		ctx.res = append(ctx.res, c)
+		ctx.Res = append(ctx.Res, c)
 	}
 }
 
@@ -952,26 +952,26 @@ mainLoop:
 // ITERATOR HELPERS
 //
 
-func (ctx *parserCtx) checkC(nr int) (res byte, end bool) {
+func (ctx *ParserCtx) checkC(nr int) (res byte, end bool) {
 	if ctx.eof(nr) {
 		return 0, true
 	}
 	return ctx.c(nr), false
 }
 
-func (ctx *parserCtx) c(nr int) byte {
-	return ctx.query[nr]
+func (ctx *ParserCtx) c(nr int) byte {
+	return ctx.Query[nr]
 }
 
-func (ctx *parserCtx) eof(nr int) bool {
-	return nr >= len(ctx.query)
+func (ctx *ParserCtx) eof(nr int) bool {
+	return nr >= len(ctx.Query)
 }
 
-func (ctx *parserCtx) currentC() byte {
+func (ctx *ParserCtx) currentC() byte {
 	return ctx.c(ctx.charNr)
 }
 
-func (ctx *parserCtx) mightIgnoreNextTokens() (nextC byte, eof bool) {
+func (ctx *ParserCtx) mightIgnoreNextTokens() (nextC byte, eof bool) {
 	for {
 		c, eof := ctx.checkC(ctx.charNr)
 		if eof {
@@ -992,13 +992,13 @@ func isPunctuator(c byte) bool {
 }
 
 // https://spec.graphql.org/June2018/#sec-Source-Text.Ignored-Tokens
-func (ctx *parserCtx) isIgnoredToken(c byte) bool {
+func (ctx *ParserCtx) isIgnoredToken(c byte) bool {
 	// TODO this doesn't support unicode bomb
 	return c == ' ' || c == '\t' || ctx.isLineTerminator() || ctx.isComment(true) || c == 0
 }
 
 // https://spec.graphql.org/June2018/#LineTerminator
-func (ctx *parserCtx) isLineTerminator() bool {
+func (ctx *ParserCtx) isLineTerminator() bool {
 	c := ctx.currentC()
 	if c == '\n' {
 		return true
@@ -1014,7 +1014,7 @@ func (ctx *parserCtx) isLineTerminator() bool {
 }
 
 // https://spec.graphql.org/June2018/#Comment
-func (ctx *parserCtx) isComment(parseComment bool) bool {
+func (ctx *ParserCtx) isComment(parseComment bool) bool {
 	if ctx.currentC() == '#' {
 		if parseComment {
 			ctx.parseComment()
@@ -1024,7 +1024,7 @@ func (ctx *parserCtx) isComment(parseComment bool) bool {
 	return false
 }
 
-func (ctx *parserCtx) parseComment() {
+func (ctx *ParserCtx) parseComment() {
 	for {
 		if ctx.eof(ctx.charNr) {
 			return
@@ -1036,7 +1036,7 @@ func (ctx *parserCtx) parseComment() {
 	}
 }
 
-func (ctx *parserCtx) matchesWord(oneOf ...string) int {
+func (ctx *ParserCtx) matchesWord(oneOf ...string) int {
 	startIdx := ctx.charNr
 
 	matches := ctx.matches(oneOf...)
@@ -1055,7 +1055,7 @@ func (ctx *parserCtx) matchesWord(oneOf ...string) int {
 	return matches
 }
 
-func (ctx *parserCtx) matches(oneOf ...string) int {
+func (ctx *ParserCtx) matches(oneOf ...string) int {
 	startIdx := ctx.charNr
 
 	if len(oneOf) == 1 {
@@ -1124,17 +1124,17 @@ func (e ErrorWLocation) Error() string {
 	return e.err.Error()
 }
 
-func (ctx *parserCtx) err(err string) bool {
+func (ctx *ParserCtx) err(err string) bool {
 	line := uint(1)
 	column := uint(0)
-	for idx, char := range ctx.query {
+	for idx, char := range ctx.Query {
 		if idx == ctx.charNr {
 			break
 		}
 
 		switch char {
 		case '\n':
-			if column == 0 && idx > 0 && ctx.query[idx-1] == '\r' {
+			if column == 0 && idx > 0 && ctx.Query[idx-1] == '\r' {
 				// don't count \r\n as 2 lines
 				continue
 			}
@@ -1148,7 +1148,7 @@ func (ctx *parserCtx) err(err string) bool {
 		}
 	}
 
-	ctx.errors = append(ctx.errors, ErrorWLocation{
+	ctx.Errors = append(ctx.Errors, ErrorWLocation{
 		errors.New(err),
 		line,
 		uint(column),
@@ -1156,18 +1156,18 @@ func (ctx *parserCtx) err(err string) bool {
 	return true
 }
 
-func (ctx *parserCtx) unexpectedEOF() bool {
+func (ctx *ParserCtx) unexpectedEOF() bool {
 	return ctx.err("unexpected EOF")
 }
 
-func (ctx *parserCtx) parseAndWriteName() (empty bool, criticalError bool) {
+func (ctx *ParserCtx) parseAndWriteName() (empty bool, criticalError bool) {
 	c, eof := ctx.checkC(ctx.charNr)
 	if eof {
 		return true, ctx.unexpectedEOF()
 	}
 
 	if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' {
-		ctx.res = append(ctx.res, c)
+		ctx.Res = append(ctx.Res, c)
 		ctx.charNr++
 	} else {
 		return true, false
@@ -1180,7 +1180,7 @@ func (ctx *parserCtx) parseAndWriteName() (empty bool, criticalError bool) {
 		}
 
 		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || (empty && c >= '0' && c <= '9') {
-			ctx.res = append(ctx.res, c)
+			ctx.Res = append(ctx.Res, c)
 			ctx.charNr++
 			continue
 		}

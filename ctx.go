@@ -15,20 +15,20 @@ import (
 // Ctx contains all the request information and responses
 type Ctx struct {
 	// Private
-	schema              *Schema         // The Go code schema (graphql schema)
-	errors              []error         // Query errors
-	operator            *operator       // Part of query to execute
-	jsonVariablesString string          // Raw query variables
-	jsonVariables       *fastjson.Value // Parsed query variables
-	path                []byte
-	context             context.Context
-	getFormFile         func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
-	extensions          map[string]interface{}
-	tracingEnabled      bool
-	tracing             *tracer
+	schema                 *Schema         // The Go code schema (graphql schema)
+	errors                 []error         // Query errors
+	operator               *operator       // Part of query to execute
+	jsonVariablesString    string          // Raw query variables
+	jsonVariables          *fastjson.Value // Parsed query variables
+	path                   []byte
+	context                context.Context
+	getFormFile            func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
+	extensions             map[string]interface{}
+	tracingEnabled         bool
+	tracing                *tracer
+	prefRecordingStartTime time.Time
 
 	// zero alloc values
-	prefRecordingStartTime time.Time
 	reflectValues          [256]reflect.Value
 	currentReflectValueIdx uint8
 	result                 []byte

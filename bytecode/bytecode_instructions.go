@@ -1,4 +1,4 @@
-package graphql
+package bytecode
 
 type action = byte
 
@@ -47,14 +47,14 @@ const (
 //
 // additional append:
 // [name...]
-func (ctx *parserCtx) instructionNewOperation(kind operatorKind) int {
-	res := len(ctx.res)
-	ctx.res = append(ctx.res, 0, actionOperator, kind, 'f', 0)
+func (ctx *ParserCtx) instructionNewOperation(kind operatorKind) int {
+	res := len(ctx.Res)
+	ctx.Res = append(ctx.Res, 0, actionOperator, kind, 'f', 0)
 	return res
 }
 
-func (ctx *parserCtx) instructionNewOperationArgs() {
-	ctx.res = append(ctx.res, 0, actionOperatorArgs)
+func (ctx *ParserCtx) instructionNewOperationArgs() {
+	ctx.Res = append(ctx.Res, 0, actionOperatorArgs)
 }
 
 // represends:
@@ -67,8 +67,8 @@ func (ctx *parserCtx) instructionNewOperationArgs() {
 //
 // additional required append:
 // [Name] 0 [Graphql Type] 0 ['t'/'f' (t = has default value (next instruction will value), f = no default value)]
-func (ctx *parserCtx) instructionNewOperationArg() {
-	ctx.res = append(ctx.res, 0, actionOperatorArg)
+func (ctx *ParserCtx) instructionNewOperationArg() {
+	ctx.Res = append(ctx.Res, 0, actionOperatorArg)
 }
 
 // represends:
@@ -81,9 +81,9 @@ func (ctx *parserCtx) instructionNewOperationArg() {
 //
 // additional required append:
 // [Name] 0 [Type Name]
-func (ctx *parserCtx) instructionNewFragment() int {
-	res := len(ctx.res)
-	ctx.res = append(ctx.res, 0, actionFragment)
+func (ctx *ParserCtx) instructionNewFragment() int {
+	res := len(ctx.Res)
+	ctx.Res = append(ctx.Res, 0, actionFragment)
 	return res
 }
 
@@ -99,8 +99,8 @@ func (ctx *parserCtx) instructionNewFragment() int {
 // [Fieldname] 0
 // OR
 // [Alias] 0 [Fieldname]
-func (ctx *parserCtx) instructionNewField() {
-	ctx.res = append(ctx.res, 0, actionField, 0)
+func (ctx *ParserCtx) instructionNewField() {
+	ctx.Res = append(ctx.Res, 0, actionField, 0)
 }
 
 // represends:
@@ -117,11 +117,11 @@ func (ctx *parserCtx) instructionNewField() {
 //
 // additional required append:
 // [Typename or Fragment Name]
-func (ctx *parserCtx) instructionNewFragmentSpread(isInline bool) {
+func (ctx *ParserCtx) instructionNewFragmentSpread(isInline bool) {
 	if isInline {
-		ctx.res = append(ctx.res, 0, actionSpread, 't', 0)
+		ctx.Res = append(ctx.Res, 0, actionSpread, 't', 0)
 	} else {
-		ctx.res = append(ctx.res, 0, actionSpread, 'f', 0)
+		ctx.Res = append(ctx.Res, 0, actionSpread, 'f', 0)
 	}
 }
 
@@ -134,8 +134,8 @@ func (ctx *parserCtx) instructionNewFragmentSpread(isInline bool) {
 //
 // additional required append:
 // [Directive name]
-func (ctx *parserCtx) instructionNewDirective() {
-	ctx.res = append(ctx.res, 0, actionDirective, 'f')
+func (ctx *ParserCtx) instructionNewDirective() {
+	ctx.Res = append(ctx.Res, 0, actionDirective, 'f')
 }
 
 // represends:
@@ -148,40 +148,40 @@ func (ctx *parserCtx) instructionNewDirective() {
 //
 // writes:
 // 0 [actionValue] [valueObject]
-func (ctx *parserCtx) instructionNewValueObject() {
-	ctx.res = append(ctx.res, 0, actionValue, valueObject)
+func (ctx *ParserCtx) instructionNewValueObject() {
+	ctx.Res = append(ctx.Res, 0, actionValue, valueObject)
 }
 
-func (ctx *parserCtx) instructionNewValueList() {
-	ctx.res = append(ctx.res, 0, actionValue, valueList)
+func (ctx *ParserCtx) instructionNewValueList() {
+	ctx.Res = append(ctx.Res, 0, actionValue, valueList)
 }
 
-func (ctx *parserCtx) instructionNewValueBoolean(val bool) {
+func (ctx *ParserCtx) instructionNewValueBoolean(val bool) {
 	if val {
-		ctx.res = append(ctx.res, 0, actionValue, valueBoolean, '1')
+		ctx.Res = append(ctx.Res, 0, actionValue, valueBoolean, '1')
 	} else {
-		ctx.res = append(ctx.res, 0, actionValue, valueBoolean, '0')
+		ctx.Res = append(ctx.Res, 0, actionValue, valueBoolean, '0')
 	}
 }
 
-func (ctx *parserCtx) instructionNewValueNull() {
-	ctx.res = append(ctx.res, 0, actionValue, valueNull)
+func (ctx *ParserCtx) instructionNewValueNull() {
+	ctx.Res = append(ctx.Res, 0, actionValue, valueNull)
 }
 
-func (ctx *parserCtx) instructionNewValueEnum() {
-	ctx.res = append(ctx.res, 0, actionValue, valueEnum)
+func (ctx *ParserCtx) instructionNewValueEnum() {
+	ctx.Res = append(ctx.Res, 0, actionValue, valueEnum)
 }
 
-func (ctx *parserCtx) instructionNewValueVariable() {
-	ctx.res = append(ctx.res, 0, actionValue, valueVariable)
+func (ctx *ParserCtx) instructionNewValueVariable() {
+	ctx.Res = append(ctx.Res, 0, actionValue, valueVariable)
 }
 
-func (ctx *parserCtx) instructionNewValueInt() {
-	ctx.res = append(ctx.res, 0, actionValue, valueInt)
+func (ctx *ParserCtx) instructionNewValueInt() {
+	ctx.Res = append(ctx.Res, 0, actionValue, valueInt)
 }
 
-func (ctx *parserCtx) instructionNewValueString() {
-	ctx.res = append(ctx.res, 0, actionValue, valueString)
+func (ctx *ParserCtx) instructionNewValueString() {
+	ctx.Res = append(ctx.Res, 0, actionValue, valueString)
 }
 
 // represends:
@@ -197,8 +197,8 @@ func (ctx *parserCtx) instructionNewValueString() {
 //
 // additional required append:
 // [fieldname]
-func (ctx *parserCtx) instructionStartNewValueObjectField() {
-	ctx.res = append(ctx.res, 0, actionObjectValueField)
+func (ctx *ParserCtx) instructionStartNewValueObjectField() {
+	ctx.Res = append(ctx.Res, 0, actionObjectValueField)
 }
 
 // represends:
@@ -214,6 +214,6 @@ func (ctx *parserCtx) instructionStartNewValueObjectField() {
 //
 // writes:
 // 0 [actionEndClosure]
-func (ctx *parserCtx) instructionEnd() {
-	ctx.res = append(ctx.res, 0, actionEnd)
+func (ctx *ParserCtx) instructionEnd() {
+	ctx.Res = append(ctx.Res, 0, actionEnd)
 }

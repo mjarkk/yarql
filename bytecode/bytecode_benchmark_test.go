@@ -1,21 +1,21 @@
-package graphql
+package bytecode
 
 import (
 	"testing"
 )
 
 func BenchmarkQueryParser(b *testing.B) {
-	ctx := parserCtx{
-		res:    make([]byte, 2048),
-		query:  []byte(schemaQuery),
+	ctx := ParserCtx{
+		Res:    make([]byte, 2048),
+		Query:  []byte(schemaQuery),
 		charNr: 0,
-		errors: []error{},
+		Errors: []error{},
 	}
 
 	for i := 0; i < b.N; i++ {
-		ctx.parseQueryToBytecode()
-		if len(ctx.errors) > 0 {
-			panic(ctx.errors[len(ctx.errors)-1])
+		ctx.ParseQueryToBytecode()
+		if len(ctx.Errors) > 0 {
+			panic(ctx.Errors[len(ctx.Errors)-1])
 		}
 	}
 }

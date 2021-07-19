@@ -1,4 +1,4 @@
-package graphql
+package bytecode
 
 import (
 	"bytes"
@@ -10,13 +10,13 @@ import (
 )
 
 func parseQuery(query string) ([]byte, []error) {
-	i := parserCtx{
-		res:    []byte{},
-		query:  []byte(query),
-		errors: []error{},
+	i := ParserCtx{
+		Res:    []byte{},
+		Query:  []byte(query),
+		Errors: []error{},
 	}
-	i.parseQueryToBytecode()
-	return i.res, i.errors
+	i.ParseQueryToBytecode()
+	return i.Res, i.Errors
 }
 
 func formatHumanReadableQuery(result string) string {
@@ -574,37 +574,37 @@ func injectCodeSurviveTest(baseQuery string, extraChars ...[][]byte) {
 
 	for _, charsToInject := range toTest {
 		go func(baseQuery []byte, charsToInject [][]byte) {
-			parser := parserCtx{
-				res:    []byte{},
-				query:  []byte{},
-				errors: []error{},
+			parser := ParserCtx{
+				Res:    []byte{},
+				Query:  []byte{},
+				Errors: []error{},
 			}
 
 			for i := range baseQuery {
 				tilIndex := baseQuery[:i]
 				formIndex := baseQuery[i:]
 
-				parser.query = append(parser.query[:0], formIndex...)
-				parser.parseQueryToBytecode()
+				parser.Query = append(parser.Query[:0], formIndex...)
+				parser.ParseQueryToBytecode()
 
 				for _, toInject := range charsToInject {
-					parser.query = append(parser.query[:0], tilIndex...)
-					parser.query = append(parser.query, toInject...)
-					parser.parseQueryToBytecode()
+					parser.Query = append(parser.Query[:0], tilIndex...)
+					parser.Query = append(parser.Query, toInject...)
+					parser.ParseQueryToBytecode()
 				}
 
 				for _, toInject := range charsToInject {
-					parser.query = append(parser.query[:0], tilIndex...)
-					parser.query = append(parser.query, toInject...)
-					l := len(parser.query)
+					parser.Query = append(parser.Query[:0], tilIndex...)
+					parser.Query = append(parser.Query, toInject...)
+					l := len(parser.Query)
 
 					// Inject extra char(s)
-					parser.query = append(parser.query, formIndex...)
-					parser.parseQueryToBytecode()
+					parser.Query = append(parser.Query, formIndex...)
+					parser.ParseQueryToBytecode()
 
 					// Replace char(s)
-					parser.query = append(parser.query[:l], baseQuery[i+1:]...)
-					parser.parseQueryToBytecode()
+					parser.Query = append(parser.Query[:l], baseQuery[i+1:]...)
+					parser.ParseQueryToBytecode()
 				}
 			}
 			wg.Done()
