@@ -7,7 +7,7 @@ import (
 	. "github.com/stretchr/testify/assert"
 )
 
-func bytecodeParseAndTest(t *testing.T, query string, queries interface{}, methods interface{}) (string, []error) {
+func bytecodeParse(t *testing.T, query string, queries interface{}, methods interface{}) (string, []error) {
 	s, err := ParseSchema(queries, methods, nil)
 	NoError(t, err, query)
 
@@ -25,9 +25,15 @@ func bytecodeParseAndTest(t *testing.T, query string, queries interface{}, metho
 	return string(bytes), errs
 }
 
-func TestBytecodeResolveOnlyOperation(t *testing.T) {
-	_, errs := bytecodeParseAndTest(t, `{}`, TestExecEmptyQueryDataQ{}, M{})
+func bytecodeParseAndExpectNoErrs(t *testing.T, query string, queries interface{}, methods interface{}) string {
+	res, errs := bytecodeParse(t, query, queries, methods)
 	for _, err := range errs {
 		panic(err.Error())
 	}
+	return res
+}
+
+func TestBytecodeResolveOnlyOperation(t *testing.T) {
+	res := bytecodeParseAndExpectNoErrs(t, `{}`, TestExecEmptyQueryDataQ{}, M{})
+	Equal(t, `{}`, res)
 }

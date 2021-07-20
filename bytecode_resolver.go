@@ -40,6 +40,7 @@ func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions)
 	}
 
 	ctx.resolveOp()
+	ctx.writeByte('}')
 
 	if !opts.NoMeta {
 		ctx.writeByte('}')
@@ -64,6 +65,7 @@ func (ctx *BytecodeCtx) err(msg string) bool {
 }
 
 func (ctx *BytecodeCtx) resolveOp() bool {
+	ctx.writeByte('{')
 	ctx.charNr += 3 // read 0, [actionOperator], [kind]
 
 	hasArguments := ctx.readBool()
