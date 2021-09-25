@@ -121,6 +121,7 @@ func (ctx *BytecodeCtx) resolveOperation() bool {
 		}
 	}
 
+	firstField := true
 	for {
 		switch ctx.readInst() {
 		case bytecode.ActionEnd:
@@ -129,17 +130,18 @@ func (ctx *BytecodeCtx) resolveOperation() bool {
 		case bytecode.ActionField:
 			// Parse field
 			// TODO not all things are queries
-			criticalErr := ctx.resolveField(ctx.schema.rootQuery, 0)
+			criticalErr := ctx.resolveField(ctx.schema.rootQuery, 0, !firstField)
 			if criticalErr {
 				return criticalErr
 			}
+			firstField = false
 		default:
 			return ctx.err("unsupported operation " + string(ctx.lastInst()))
 		}
 	}
 }
 
-func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8) bool {
+func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bool) bool {
 	// Read directives
 	// TODO
 	directivesCount := ctx.readInst()
@@ -175,6 +177,10 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8) bool {
 		// TODO
 		hasSubSelection = true
 		return ctx.err("field sub selection not supported")
+	}
+
+	if addCommaBefore {
+		ctx.writeByte(',')
 	}
 
 	ctx.writeByte('"')

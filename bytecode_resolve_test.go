@@ -48,3 +48,14 @@ func TestBytecodeResolveSingleField(t *testing.T) {
 	}, M{})
 	Equal(t, `{"a":"foo"}`, res)
 }
+
+func TestBytecodeResolveMultipleFields(t *testing.T) {
+	res := bytecodeParseAndExpectNoErrs(t, `{
+		a,
+		b,
+	}`, TestExecSimpleQueryData{
+		A: "foo",
+		B: "bar",
+	}, M{})
+	Equal(t, `{"a":"foo","b":"bar"}`, res)
+}
