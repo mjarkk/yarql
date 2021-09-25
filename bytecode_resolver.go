@@ -310,9 +310,40 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 		ctx.err("method value type unsupported")
 		ctx.write([]byte{'n', 'u', 'l', 'l'})
 	case valueTypeEnum:
-		// TODO
-		ctx.err("enum value type unsupported")
-		ctx.write([]byte{'n', 'u', 'l', 'l'})
+		enum := definedEnums[typeObj.enumTypeIndex]
+		switch enum.contentKind {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			underlayingValue := goValue.Int()
+			for _, entry := range enum.entries {
+				if entry.value.Int() == underlayingValue {
+					ctx.writeByte('"')
+					ctx.write(entry.keyBytes)
+					ctx.writeByte('"')
+					return false
+				}
+			}
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			underlayingValue := goValue.Uint()
+			for _, entry := range enum.entries {
+				if entry.value.Uint() == underlayingValue {
+					ctx.writeByte('"')
+					ctx.write(entry.keyBytes)
+					ctx.writeByte('"')
+					return false
+				}
+			}
+		case reflect.String:
+			underlayingValue := goValue.String()
+			for _, entry := range enum.entries {
+				if entry.value.String() == underlayingValue {
+					ctx.writeByte('"')
+					ctx.write(entry.keyBytes)
+					ctx.writeByte('"')
+					return false
+				}
+			}
+		}
+		ctx.write([]byte(`null`))
 	case valueTypeTime:
 		timeValue, ok := goValue.Interface().(time.Time)
 		if ok {
