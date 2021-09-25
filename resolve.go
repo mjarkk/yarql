@@ -266,7 +266,7 @@ loop:
 }
 
 func (ctx *Ctx) resolveSelectionContent(selectionIdx int, structType *obj, dept uint8, startLen int) {
-	dept = dept + 1
+	dept++
 
 mainLoop:
 	for _, selection := range ctx.schema.iter.selections[selectionIdx] {

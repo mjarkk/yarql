@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/mjarkk/go-graphql/bytecode"
@@ -18,8 +19,10 @@ func bytecodeParse(t *testing.T, query string, queries interface{}, methods inte
 			Query:  []byte{},
 			Errors: []error{},
 		},
-		result: []byte{},
-		charNr: 0,
+		result:                 []byte{},
+		charNr:                 0,
+		reflectValues:          [256]reflect.Value{},
+		currentReflectValueIdx: 0,
 	}
 	bytes, errs := ctx.BytecodeResolve([]byte(query), BytecodeParseOptions{NoMeta: true})
 	return string(bytes), errs
@@ -43,5 +46,5 @@ func TestBytecodeResolveSingleField(t *testing.T) {
 		A: "foo",
 		B: "bar",
 	}, M{})
-	Equal(t, `{}`, res)
+	Equal(t, `{"a":null}`, res)
 }
