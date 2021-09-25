@@ -173,3 +173,9 @@ func TestBytecodeResolveMethod(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, `{foo, bar, baz}`, schema, M{})
 	Equal(t, `{"foo":null,"bar":"foo","baz":"bar"}`, res)
 }
+
+func TestBytecodeResolveTypename(t *testing.T) {
+	schema := TestExecStructTypeMethodData{}
+	res := bytecodeParseAndExpectNoErrs(t, `{__typename}`, schema, M{})
+	Equal(t, `{"__typename":"TestExecStructTypeMethodData"}`, res)
+}

@@ -18,7 +18,7 @@ type BytecodeCtx struct {
 	query   bytecode.ParserCtx
 	charNr  int
 	context context.Context
-	// path    []byte // TODO
+	path    []byte
 
 	// Zero alloc values
 	result                 []byte
@@ -105,6 +105,7 @@ func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions)
 		query:   ctx.query,
 		charNr:  0,
 		context: opts.Context,
+		path:    ctx.path[:0],
 
 		result:                 ctx.result[:0],
 		reflectValues:          ctx.reflectValues,
@@ -283,27 +284,36 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 	ctx.writeQouted(alias)
 	ctx.writeByte(':')
 
-	typeObjField, ok := typeObj.objContents[nameStr]
-	if !ok {
-		ctx.writeNull()
-		ctx.errf("%s does not exists on %s", nameStr, typeObj.typeName)
-		return false
-	}
-
-	if typeObjField.customObjValue != nil {
-		ctx.setNextGoValue(*typeObjField.customObjValue)
-	} else {
-		goValue := ctx.getGoValue()
-		if typeObjField.valueType == valueTypeMethod && typeObjField.method.isTypeMethod {
-			ctx.setNextGoValue(goValue.Method(typeObjField.structFieldIdx))
-		} else {
-			ctx.setNextGoValue(goValue.Field(typeObjField.structFieldIdx))
-		}
-	}
-
+	criticalErr := false
 	fieldHasSelection := ctx.seekInst() != 'e'
-	criticalErr := ctx.resolveFieldDataValue(typeObjField, dept, fieldHasSelection)
-	ctx.currentReflectValueIdx--
+	if nameStr == "__typename" {
+		if fieldHasSelection {
+			return ctx.err("cannot have a selection set on this field")
+		}
+
+		ctx.writeQouted(typeObj.typeNameBytes)
+	} else {
+		typeObjField, ok := typeObj.objContents[nameStr]
+		if !ok {
+			ctx.writeNull()
+			ctx.errf("%s does not exists on %s", nameStr, typeObj.typeName)
+			return true // Bytecode might be fucked if we return to early here
+		}
+
+		if typeObjField.customObjValue != nil {
+			ctx.setNextGoValue(*typeObjField.customObjValue)
+		} else {
+			goValue := ctx.getGoValue()
+			if typeObjField.valueType == valueTypeMethod && typeObjField.method.isTypeMethod {
+				ctx.setNextGoValue(goValue.Method(typeObjField.structFieldIdx))
+			} else {
+				ctx.setNextGoValue(goValue.Field(typeObjField.structFieldIdx))
+			}
+		}
+
+		criticalErr = ctx.resolveFieldDataValue(typeObjField, dept, fieldHasSelection)
+		ctx.currentReflectValueIdx--
+	}
 
 	inst := ctx.readInst()
 	if inst == bytecode.ActionEnd {
@@ -344,9 +354,9 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 		for i := 0; i < goValueLen; i++ {
 			ctx.charNr = startCharNr
 
-			// prefPathLen := len(ctx.path)
-			// ctx.path = append(ctx.path, ',')
-			// ctx.path = strconv.AppendInt(ctx.path, int64(i), 10)
+			prefPathLen := len(ctx.path)
+			ctx.path = append(ctx.path, ',')
+			ctx.path = strconv.AppendInt(ctx.path, int64(i), 10)
 
 			ctx.setGoValue(goValue.Index(i))
 
@@ -355,7 +365,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 				ctx.writeByte(',')
 			}
 
-			// ctx.path = ctx.path[:prefPathLen]
+			ctx.path = ctx.path[:prefPathLen]
 		}
 		ctx.currentReflectValueIdx--
 		ctx.writeByte(']')
