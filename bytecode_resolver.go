@@ -180,9 +180,6 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 		return ctx.err("field aliases not supported")
 	}
 
-	// Read null and end of instruction
-	hasSubSelection := ctx.seekInst() != 'e'
-
 	if addCommaBefore {
 		ctx.writeByte(',')
 	}
@@ -209,7 +206,8 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 		}
 	}
 
-	criticalErr := ctx.resolveFieldDataValue(typeObjField, dept, hasSubSelection)
+	fieldHasSelection := ctx.seekInst() != 'e'
+	criticalErr := ctx.resolveFieldDataValue(typeObjField, dept, fieldHasSelection)
 	ctx.currentReflectValueIdx--
 
 	inst := ctx.readInst()
@@ -246,7 +244,11 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 		ctx.writeByte('[')
 		ctx.currentReflectValueIdx++
 		goValueLen := goValue.Len()
+
+		startCharNr := ctx.charNr
 		for i := 0; i < goValueLen; i++ {
+			ctx.charNr = startCharNr
+
 			// prefPathLen := len(ctx.path)
 			// ctx.path = append(ctx.path, ',')
 			// ctx.path = strconv.AppendInt(ctx.path, int64(i), 10)

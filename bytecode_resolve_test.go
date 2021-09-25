@@ -95,3 +95,18 @@ func TestBytecodeResolveArray(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, `{foo}`, schema, M{})
 	Equal(t, `{"foo":["foo","bar"]}`, res)
 }
+
+type TestBytecodeResolveStructsArrayData struct {
+	Foo []TestExecSimpleQueryData
+}
+
+func TestBytecodeResolveStructsArray(t *testing.T) {
+	schema := TestBytecodeResolveStructsArrayData{
+		Foo: []TestExecSimpleQueryData{
+			{A: "foo", B: "bar"},
+			{A: "baz", B: "boz"},
+		},
+	}
+	res := bytecodeParseAndExpectNoErrs(t, `{foo{a b}}`, schema, M{})
+	Equal(t, `{"foo":[{"a":"foo","b":"bar"},{"a":"baz","b":"boz"}]}`, res)
+}
