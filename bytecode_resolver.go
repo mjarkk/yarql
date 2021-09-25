@@ -59,6 +59,7 @@ func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions)
 	}
 
 	ctx.reflectValues[0] = ctx.schema.rootQueryValue
+	ctx.writeByte('{')
 	ctx.resolveOperation()
 	ctx.writeByte('}')
 
@@ -74,6 +75,10 @@ func (ctx *BytecodeCtx) readInst() byte {
 	c := ctx.query.Res[ctx.charNr]
 	ctx.charNr++
 	return c
+}
+
+func (ctx *BytecodeCtx) seekInst() byte {
+	return ctx.query.Res[ctx.charNr]
 }
 
 func (ctx *BytecodeCtx) skipInst(num int) {
@@ -99,7 +104,6 @@ func (ctx *BytecodeCtx) errf(msg string, args ...interface{}) bool {
 }
 
 func (ctx *BytecodeCtx) resolveOperation() bool {
-	ctx.writeByte('{')
 	ctx.charNr += 3 // read 0, [ActionOperator], [kind]
 
 	hasArguments := ctx.readBool()
@@ -121,6 +125,12 @@ func (ctx *BytecodeCtx) resolveOperation() bool {
 		}
 	}
 
+	return ctx.resolveSelectionSet(ctx.schema.rootQuery, 0)
+}
+
+func (ctx *BytecodeCtx) resolveSelectionSet(typeObj *obj, dept uint8) bool {
+	dept++
+
 	firstField := true
 	for {
 		switch ctx.readInst() {
@@ -130,7 +140,7 @@ func (ctx *BytecodeCtx) resolveOperation() bool {
 		case bytecode.ActionField:
 			// Parse field
 			// TODO not all things are queries
-			criticalErr := ctx.resolveField(ctx.schema.rootQuery, 0, !firstField)
+			criticalErr := ctx.resolveField(typeObj, dept, !firstField)
 			if criticalErr {
 				return criticalErr
 			}
@@ -167,17 +177,7 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 	}
 
 	// Read null and end of instruction
-	hasSubSelection := false
-	if ctx.readInst() != 'e' {
-		// TODO
-		hasSubSelection = true
-		return ctx.err("field sub selection not supported")
-	}
-	if ctx.readInst() != 0 {
-		// TODO
-		hasSubSelection = true
-		return ctx.err("field sub selection not supported")
-	}
+	hasSubSelection := ctx.seekInst() != 'e'
 
 	if addCommaBefore {
 		ctx.writeByte(',')
@@ -205,8 +205,19 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 		}
 	}
 
-	criticalErr := ctx.resolveFieldDataValue(typeObjField, dept+1, hasSubSelection)
+	criticalErr := ctx.resolveFieldDataValue(typeObjField, dept, hasSubSelection)
 	ctx.currentReflectValueIdx--
+
+	inst := ctx.readInst()
+	if inst == bytecode.ActionEnd {
+		if ctx.readInst() != 0 {
+			return ctx.errf("internal parsing error #2, %v", ctx.lastInst())
+		}
+	} else if inst == 0 {
+		// the 'e' is already parsed by resolveSelectionSet
+	} else {
+		return ctx.errf("internal parsing error #1, %v", ctx.lastInst())
+	}
 	return criticalErr
 }
 
@@ -217,16 +228,31 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 	case valueTypeUndefined:
 		ctx.write([]byte{'n', 'u', 'l', 'l'})
 	case valueTypeArray:
-		ctx.err("value type unsupported")
+		ctx.err("array value type unsupported")
 		ctx.write([]byte{'n', 'u', 'l', 'l'})
 	case valueTypeObj, valueTypeObjRef:
-		ctx.err("value type unsupported")
-		ctx.write([]byte{'n', 'u', 'l', 'l'})
+		if !hasSubSelection {
+			ctx.write([]byte("null"))
+			return ctx.err("must have a selection")
+		}
+
+		var ok bool
+		if typeObj.valueType == valueTypeObjRef {
+			typeObj, ok = ctx.schema.types[typeObj.typeName]
+			if !ok {
+				ctx.write([]byte("null"))
+				return false
+			}
+		}
+
+		ctx.writeByte('{')
+		criticalErr := ctx.resolveSelectionSet(typeObj, dept)
+		ctx.writeByte('}')
+		return criticalErr
 	case valueTypeData:
 		if hasSubSelection {
-			ctx.err("cannot have a sub selection on this field")
 			ctx.write([]byte("null"))
-			return false
+			return ctx.err("cannot have a selection on this field")
 		}
 
 		if typeObj.isID && typeObj.dataValueType != reflect.String {
@@ -245,13 +271,13 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 			return ctx.resolveFieldDataValue(typeObj, dept, hasSubSelection)
 		}
 	case valueTypeMethod:
-		ctx.err("value type unsupported")
+		ctx.err("method value type unsupported")
 		ctx.write([]byte{'n', 'u', 'l', 'l'})
 	case valueTypeEnum:
-		ctx.err("value type unsupported")
+		ctx.err("enum value type unsupported")
 		ctx.write([]byte{'n', 'u', 'l', 'l'})
 	case valueTypeTime:
-		ctx.err("value type unsupported")
+		ctx.err("time value type unsupported")
 		ctx.write([]byte{'n', 'u', 'l', 'l'})
 	}
 

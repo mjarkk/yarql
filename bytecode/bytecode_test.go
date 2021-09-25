@@ -226,6 +226,44 @@ func TestParseQueryWithFieldWithSelectionSet(t *testing.T) {
 	`)
 }
 
+func TestParseQueryWithFieldWithSelectionSetInline(t *testing.T) {
+	parseQueryAndExpectResult(t, `query {some_field {foo bar}}`, `
+		oqf         // query operator
+		// No directives
+		f           // new field
+		some_field  // field name
+		// no field alias
+		f           // new field
+		foo         // field name
+		// no field alias
+		e           // end of foo
+		f           // new field
+		bar         // field name
+		// no field alias
+		e           // end of bar
+		e           // end of some_field
+		e           // end operator
+	`)
+
+	parseQueryAndExpectResult(t, `{foo{a b}}`, `
+		oqf         // query operator
+		// No directives
+		f           // new field
+		foo  // field name
+		// no field alias
+		f           // new field
+		a           // field name
+		// no field alias
+		e           // end of foo
+		f           // new field
+		b           // field name
+		// no field alias
+		e           // end of bar
+		e           // end of some_field
+		e           // end operator
+	`)
+}
+
 func TestParseQueryWithFieldWithFragmentSpread(t *testing.T) {
 	parseQueryAndExpectResult(t, `query {
 		some_field {

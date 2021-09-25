@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 
@@ -58,4 +59,17 @@ func TestBytecodeResolveMultipleFields(t *testing.T) {
 		B: "bar",
 	}, M{})
 	Equal(t, `{"a":"foo","b":"bar"}`, res)
+}
+
+func TestBytecodeResolveNestedFields(t *testing.T) {
+	schema := TestExecStructInStructInlineData{}
+	json.Unmarshal([]byte(`{"foo": {"a": "foo", "b": "bar", "c": "baz"}}`), &schema)
+
+	out := bytecodeParseAndExpectNoErrs(t, `{foo{a b}}`, schema, M{})
+
+	res := TestExecStructInStructInlineData{}
+	err := json.Unmarshal([]byte(out), &res)
+	NoError(t, err)
+	Equal(t, "foo", res.Foo.A)
+	Equal(t, "bar", res.Foo.B)
 }

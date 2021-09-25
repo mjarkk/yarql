@@ -498,7 +498,7 @@ func (ctx *ParserCtx) parseSelectionSet() bool {
 				return criticalErr
 			}
 
-			ctx.charNr++
+			// ctx.charNr++
 
 			c, eof = ctx.mightIgnoreNextTokens()
 			if eof {
@@ -1157,6 +1157,7 @@ func (ctx *ParserCtx) err(err string) bool {
 }
 
 func (ctx *ParserCtx) unexpectedEOF() bool {
+	// panic("DEBUG")
 	return ctx.err("unexpected EOF")
 }
 
