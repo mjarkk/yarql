@@ -73,3 +73,17 @@ func TestBytecodeResolveNestedFields(t *testing.T) {
 	Equal(t, "foo", res.Foo.A)
 	Equal(t, "bar", res.Foo.B)
 }
+
+func TestBytecodeResolveMultipleNestedFields(t *testing.T) {
+	schema := TestExecSchemaRequestWithFieldsData{}
+	res := bytecodeParseAndExpectNoErrs(t, `{
+		a {
+			foo
+			bar
+		}
+		b {
+			baz
+		}
+	}`, schema, M{})
+	Equal(t, `{"a":{"foo":null,"bar":""},"b":{"baz":""}}`, res)
+}
