@@ -13,16 +13,22 @@ import (
 )
 
 type BytecodeCtx struct {
+	// private
 	schema  *Schema
 	query   bytecode.ParserCtx
 	charNr  int
 	context context.Context
+	// path    []byte // TODO
 
 	// Zero alloc values
 	result                 []byte
 	reflectValues          [256]reflect.Value
 	currentReflectValueIdx uint8
 	funcInputs             []reflect.Value
+
+	// public / kinda public fields
+	values map[string]interface{} // API User values, user can put all their shitty things in here like poems or tax papers
+
 }
 
 func (ctx *BytecodeCtx) getGoValue() reflect.Value {
@@ -42,12 +48,35 @@ type BytecodeParseOptions struct {
 	NoMeta         bool            // Returns only the data
 	Context        context.Context // Request context
 	OperatorTarget string
+	Values         map[string]interface{} // Passed directly to the request context
 
 	// TODO support:
 	// Variables      string // Expects valid JSON or empty string
-	// Values         map[string]interface{}                          // Passed directly to the request context
 	// GetFormFile    func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
 	// Tracing        bool                                            // https://github.com/apollographql/apollo-tracing
+}
+
+func (ctx *BytecodeCtx) GetValue(key string) (value interface{}) {
+	if ctx.values == nil {
+		return nil
+	}
+	return ctx.values[key]
+}
+func (ctx *BytecodeCtx) GetValueOk(key string) (value interface{}, found bool) {
+	if ctx.values == nil {
+		return nil, false
+	}
+	val, ok := ctx.values[key]
+	return val, ok
+}
+func (ctx *BytecodeCtx) SetValue(key string, value interface{}) {
+	if ctx.values == nil {
+		ctx.values = map[string]interface{}{
+			key: value,
+		}
+	} else {
+		ctx.values[key] = value
+	}
 }
 
 func (ctx *BytecodeCtx) write(b []byte) {
@@ -81,6 +110,8 @@ func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions)
 		reflectValues:          ctx.reflectValues,
 		currentReflectValueIdx: 0,
 		funcInputs:             ctx.funcInputs,
+
+		values: opts.Values,
 	}
 	ctx.query.Query = append(ctx.query.Query[:0], query...)
 
@@ -215,7 +246,7 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 		return ctx.err("operation directives unsupported")
 	}
 
-	// Read field name
+	// Read field name/alias
 	startOfAlias := ctx.charNr
 	endOfAlias := ctx.charNr
 	for {
@@ -229,6 +260,7 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 	startOfName := startOfAlias
 	endOfName := endOfAlias
 
+	// If alias is used read the name
 	if ctx.readInst() != 0 {
 		startOfName = ctx.charNr - 1
 		for {
@@ -349,7 +381,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 	case valueTypeData:
 		if hasSubSelection {
 			ctx.writeNull()
-			return ctx.err("cannot have a selection on this field")
+			return ctx.err("cannot have a selection set on this field")
 		}
 
 		if typeObj.isID && typeObj.dataValueType != reflect.String {
