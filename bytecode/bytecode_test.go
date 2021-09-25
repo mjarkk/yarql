@@ -15,7 +15,7 @@ func parseQuery(query string) ([]byte, []error) {
 		Query:  []byte(query),
 		Errors: []error{},
 	}
-	i.ParseQueryToBytecode()
+	i.ParseQueryToBytecode(nil)
 	return i.Res, i.Errors
 }
 
@@ -623,12 +623,12 @@ func injectCodeSurviveTest(baseQuery string, extraChars ...[][]byte) {
 				formIndex := baseQuery[i:]
 
 				parser.Query = append(parser.Query[:0], formIndex...)
-				parser.ParseQueryToBytecode()
+				parser.ParseQueryToBytecode(nil)
 
 				for _, toInject := range charsToInject {
 					parser.Query = append(parser.Query[:0], tilIndex...)
 					parser.Query = append(parser.Query, toInject...)
-					parser.ParseQueryToBytecode()
+					parser.ParseQueryToBytecode(nil)
 				}
 
 				for _, toInject := range charsToInject {
@@ -638,11 +638,11 @@ func injectCodeSurviveTest(baseQuery string, extraChars ...[][]byte) {
 
 					// Inject extra char(s)
 					parser.Query = append(parser.Query, formIndex...)
-					parser.ParseQueryToBytecode()
+					parser.ParseQueryToBytecode(nil)
 
 					// Replace char(s)
 					parser.Query = append(parser.Query[:l], baseQuery[i+1:]...)
-					parser.ParseQueryToBytecode()
+					parser.ParseQueryToBytecode(nil)
 				}
 			}
 			wg.Done()

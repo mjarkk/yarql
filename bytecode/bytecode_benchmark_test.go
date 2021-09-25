@@ -13,7 +13,7 @@ func BenchmarkQueryParser(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		ctx.ParseQueryToBytecode()
+		ctx.ParseQueryToBytecode(nil)
 		if len(ctx.Errors) > 0 {
 			panic(ctx.Errors[len(ctx.Errors)-1])
 		}

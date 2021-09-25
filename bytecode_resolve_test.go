@@ -10,7 +10,7 @@ import (
 	. "github.com/stretchr/testify/assert"
 )
 
-func bytecodeParse(t *testing.T, query string, queries interface{}, methods interface{}) (string, []error) {
+func bytecodeParseWithOpts(t *testing.T, query string, queries interface{}, methods interface{}, opts BytecodeParseOptions) (string, []error) {
 	s, err := ParseSchema(queries, methods, nil)
 	NoError(t, err, query)
 
@@ -26,8 +26,12 @@ func bytecodeParse(t *testing.T, query string, queries interface{}, methods inte
 		reflectValues:          [256]reflect.Value{},
 		currentReflectValueIdx: 0,
 	}
-	bytes, errs := ctx.BytecodeResolve([]byte(query), BytecodeParseOptions{NoMeta: true})
+	bytes, errs := ctx.BytecodeResolve([]byte(query), opts)
 	return string(bytes), errs
+}
+
+func bytecodeParse(t *testing.T, query string, queries interface{}, methods interface{}) (string, []error) {
+	return bytecodeParseWithOpts(t, query, queries, methods, BytecodeParseOptions{NoMeta: true})
 }
 
 func bytecodeParseAndExpectNoErrs(t *testing.T, query string, queries interface{}, methods interface{}) string {
@@ -52,14 +56,44 @@ func TestBytecodeResolveSingleField(t *testing.T) {
 }
 
 func TestBytecodeResolveMultipleFields(t *testing.T) {
+	schema := TestExecSimpleQueryData{
+		A: "foo",
+		B: "bar",
+	}
 	res := bytecodeParseAndExpectNoErrs(t, `{
 		a,
 		b,
-	}`, TestExecSimpleQueryData{
+	}`, schema, M{})
+	Equal(t, `{"a":"foo","b":"bar"}`, res)
+}
+
+func TestBytecodeResolveOperatorWithName(t *testing.T) {
+	schema := TestExecSimpleQueryData{
 		A: "foo",
 		B: "bar",
-	}, M{})
-	Equal(t, `{"a":"foo","b":"bar"}`, res)
+	}
+
+	testCases := []struct {
+		target         string
+		expectedResult string
+	}{
+		{"", `{"b":"bar"}`},
+		{"a", `{"a":"foo"}`},
+		{"b", `{"b":"bar"}`},
+	}
+
+	for _, testCase := range testCases {
+		t.Run("target "+testCase.target, func(t *testing.T) {
+			res, errs := bytecodeParseWithOpts(t, `query a {a} query b {b}`, schema, M{}, BytecodeParseOptions{
+				NoMeta:         true,
+				OperatorTarget: testCase.target,
+			})
+			for _, err := range errs {
+				panic(err)
+			}
+			Equal(t, testCase.expectedResult, res)
+		})
+	}
 }
 
 func TestBytecodeResolveNestedFields(t *testing.T) {

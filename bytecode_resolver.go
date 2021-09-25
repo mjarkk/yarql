@@ -39,7 +39,15 @@ func (ctx *BytecodeCtx) setGoValue(value reflect.Value) {
 }
 
 type BytecodeParseOptions struct {
-	NoMeta bool
+	NoMeta         bool            // Returns only the data
+	Context        context.Context // Request context
+	OperatorTarget string
+
+	// TODO support:
+	// Variables      string // Expects valid JSON or empty string
+	// Values         map[string]interface{}                          // Passed directly to the request context
+	// GetFormFile    func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
+	// Tracing        bool                                            // https://github.com/apollographql/apollo-tracing
 }
 
 func (ctx *BytecodeCtx) write(b []byte) {
@@ -50,28 +58,58 @@ func (ctx *BytecodeCtx) writeByte(b byte) {
 	ctx.result = append(ctx.result, b)
 }
 
+func (ctx *BytecodeCtx) writeQouted(b []byte) {
+	ctx.writeByte('"')
+	ctx.write(b)
+	ctx.writeByte('"')
+}
+
+var nullBytes = []byte("null")
+
+func (ctx *BytecodeCtx) writeNull() {
+	ctx.write(nullBytes)
+}
+
 func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions) ([]byte, []error) {
 	*ctx = BytecodeCtx{
-		schema:                 ctx.schema,
-		query:                  ctx.query,
+		schema:  ctx.schema,
+		query:   ctx.query,
+		charNr:  0,
+		context: opts.Context,
+
 		result:                 ctx.result[:0],
 		reflectValues:          ctx.reflectValues,
 		currentReflectValueIdx: 0,
+		funcInputs:             ctx.funcInputs,
 	}
 	ctx.query.Query = append(ctx.query.Query[:0], query...)
 
-	ctx.query.ParseQueryToBytecode()
+	if len(opts.OperatorTarget) > 0 {
+		ctx.query.ParseQueryToBytecode(&opts.OperatorTarget)
+	} else {
+		ctx.query.ParseQueryToBytecode(nil)
+	}
 
 	if !opts.NoMeta {
 		ctx.write([]byte(`{"data":`))
 	}
 
-	ctx.reflectValues[0] = ctx.schema.rootQueryValue
-	ctx.writeByte('{')
-	ctx.resolveOperation()
-	ctx.writeByte('}')
+	ctx.charNr = ctx.query.TargetIdx
+	if ctx.charNr == -1 {
+		ctx.write([]byte("{}"))
+		if len(opts.OperatorTarget) > 0 {
+			ctx.err("no operator with name " + opts.OperatorTarget + " found")
+		} else {
+			ctx.err("no operator found")
+		}
+	} else {
+		ctx.writeByte('{')
+		ctx.resolveOperation()
+		ctx.writeByte('}')
+	}
 
 	if !opts.NoMeta {
+		// TODO write remainer of meta to output
 		ctx.writeByte('}')
 	}
 
@@ -102,6 +140,7 @@ func (ctx *BytecodeCtx) readBool() bool {
 }
 
 func (ctx *BytecodeCtx) err(msg string) bool {
+	// TODO support path
 	ctx.query.Errors = append(ctx.query.Errors, errors.New(msg))
 	return true
 }
@@ -112,7 +151,17 @@ func (ctx *BytecodeCtx) errf(msg string, args ...interface{}) bool {
 }
 
 func (ctx *BytecodeCtx) resolveOperation() bool {
-	ctx.charNr += 3 // read 0, [ActionOperator], [kind]
+	ctx.charNr += 2 // read 0, [ActionOperator], [kind]
+
+	kind := ctx.readInst()
+	switch kind {
+	case bytecode.OperatorQuery:
+		ctx.reflectValues[0] = ctx.schema.rootQueryValue
+	case bytecode.OperatorMutation:
+		ctx.reflectValues[0] = ctx.schema.rootMethodValue
+	case bytecode.OperatorSubscription:
+		return ctx.err("subscriptions are not supported")
+	}
 
 	hasArguments := ctx.readBool()
 	if hasArguments {
@@ -188,13 +237,12 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 		ctx.writeByte(',')
 	}
 
-	ctx.writeByte('"')
-	ctx.write(name)
-	ctx.write([]byte{'"', ':'})
+	ctx.writeQouted(name)
+	ctx.writeByte(':')
 
 	typeObjField, ok := typeObj.objContents[nameStr]
 	if !ok {
-		ctx.write([]byte{'n', 'u', 'l', 'l'})
+		ctx.writeNull()
 		ctx.errf("%s does not exists on %s", nameStr, typeObj.typeName)
 		return false
 	}
@@ -232,15 +280,15 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 
 	switch typeObj.valueType {
 	case valueTypeUndefined:
-		ctx.write([]byte{'n', 'u', 'l', 'l'})
+		ctx.writeNull()
 	case valueTypeArray:
 		if (goValue.Kind() != reflect.Array && goValue.Kind() != reflect.Slice) || goValue.IsNil() {
-			ctx.write([]byte("null"))
+			ctx.writeNull()
 			return false
 		}
 
 		if typeObj.innerContent == nil {
-			ctx.write([]byte("null"))
+			ctx.writeNull()
 			return ctx.err("internal parsing error #3")
 		}
 		typeObj = typeObj.innerContent
@@ -270,7 +318,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 		ctx.writeByte(']')
 	case valueTypeObj, valueTypeObjRef:
 		if !hasSubSelection {
-			ctx.write([]byte("null"))
+			ctx.writeNull()
 			return ctx.err("must have a selection")
 		}
 
@@ -278,7 +326,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 		if typeObj.valueType == valueTypeObjRef {
 			typeObj, ok = ctx.schema.types[typeObj.typeName]
 			if !ok {
-				ctx.write([]byte("null"))
+				ctx.writeNull()
 				return false
 			}
 		}
@@ -289,7 +337,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 		return criticalErr
 	case valueTypeData:
 		if hasSubSelection {
-			ctx.write([]byte("null"))
+			ctx.writeNull()
 			return ctx.err("cannot have a selection on this field")
 		}
 
@@ -303,7 +351,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 		}
 	case valueTypePtr:
 		if goValue.Kind() != reflect.Ptr || goValue.IsNil() {
-			ctx.write([]byte("null"))
+			ctx.writeNull()
 		} else {
 			ctx.reflectValues[ctx.currentReflectValueIdx] = goValue.Elem()
 			return ctx.resolveFieldDataValue(typeObj, dept, hasSubSelection)
@@ -312,7 +360,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 		method := typeObj.method
 
 		if !method.isTypeMethod && goValue.IsNil() {
-			ctx.write([]byte("null"))
+			ctx.writeNull()
 			return false
 		}
 
@@ -336,7 +384,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 			if !errOut.IsNil() {
 				err, ok := errOut.Interface().(error)
 				if !ok {
-					ctx.write([]byte("null"))
+					ctx.writeNull()
 					return ctx.err("returned a invalid kind of error")
 				} else if err != nil {
 					ctx.err(err.Error())
@@ -349,7 +397,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 			if err != nil {
 				// Context ended
 				ctx.err(err.Error())
-				ctx.write([]byte("null"))
+				ctx.writeNull()
 				return false
 			}
 		}
@@ -364,9 +412,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 			underlayingValue := goValue.Int()
 			for _, entry := range enum.entries {
 				if entry.value.Int() == underlayingValue {
-					ctx.writeByte('"')
-					ctx.write(entry.keyBytes)
-					ctx.writeByte('"')
+					ctx.writeQouted(entry.keyBytes)
 					return false
 				}
 			}
@@ -374,9 +420,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 			underlayingValue := goValue.Uint()
 			for _, entry := range enum.entries {
 				if entry.value.Uint() == underlayingValue {
-					ctx.writeByte('"')
-					ctx.write(entry.keyBytes)
-					ctx.writeByte('"')
+					ctx.writeQouted(entry.keyBytes)
 					return false
 				}
 			}
@@ -384,14 +428,12 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 			underlayingValue := goValue.String()
 			for _, entry := range enum.entries {
 				if entry.value.String() == underlayingValue {
-					ctx.writeByte('"')
-					ctx.write(entry.keyBytes)
-					ctx.writeByte('"')
+					ctx.writeQouted(entry.keyBytes)
 					return false
 				}
 			}
 		}
-		ctx.write([]byte(`null`))
+		ctx.writeNull()
 	case valueTypeTime:
 		timeValue, ok := goValue.Interface().(time.Time)
 		if ok {
@@ -399,7 +441,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 			timeToString(&ctx.result, timeValue)
 			ctx.writeByte('"')
 		} else {
-			ctx.write([]byte("null"))
+			ctx.writeNull()
 		}
 	}
 
@@ -426,13 +468,13 @@ func (ctx *BytecodeCtx) valueToJson(in reflect.Value, kind reflect.Kind) {
 		floatToJson(64, in.Float(), &ctx.result)
 	case reflect.Ptr:
 		if in.IsNil() {
-			ctx.write([]byte("null"))
+			ctx.writeNull()
 		} else {
 			element := in.Elem()
 			ctx.valueToJson(element, element.Kind())
 		}
 	default:
-		ctx.write([]byte("null"))
+		ctx.writeNull()
 	}
 }
 

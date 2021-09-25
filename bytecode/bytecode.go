@@ -5,20 +5,27 @@ import (
 	"errors"
 	"unicode/utf16"
 	"unicode/utf8"
+	"unsafe"
 )
 
 type ParserCtx struct {
-	Res    []byte
-	Query  []byte
-	charNr int
-	Errors []error
+	Res       []byte
+	Query     []byte
+	charNr    int
+	Errors    []error
+	target    *string
+	hasTarget bool
+	TargetIdx int // -1 = no matching target was found, >= 0 = res index of target
 }
 
-func (ctx *ParserCtx) ParseQueryToBytecode() {
+func (ctx *ParserCtx) ParseQueryToBytecode(target *string) {
 	*ctx = ParserCtx{
-		Res:    ctx.Res[:0],
-		Query:  ctx.Query,
-		Errors: ctx.Errors[:0],
+		Res:       ctx.Res[:0],
+		Query:     ctx.Query,
+		Errors:    ctx.Errors[:0],
+		target:    target,
+		hasTarget: target != nil && len(*target) > 0,
+		TargetIdx: -1,
 	}
 
 	for {
@@ -36,10 +43,17 @@ func (ctx *ParserCtx) parseOperatorOrFragment() (stop bool) {
 		return true
 	}
 
+	operationStartsAt := len(ctx.Res)
 	if c == '{' {
+		if !ctx.hasTarget {
+			ctx.TargetIdx = operationStartsAt
+		}
 		ctx.instructionNewOperation(OperatorQuery)
 	} else if matches := ctx.matches("query", "mutation", "subscription"); matches != -1 {
 		// Set the operation kind
+		if !ctx.hasTarget {
+			ctx.TargetIdx = operationStartsAt
+		}
 		if matches == 0 {
 			ctx.instructionNewOperation(OperatorQuery)
 		} else if matches == 1 {
@@ -55,9 +69,16 @@ func (ctx *ParserCtx) parseOperatorOrFragment() (stop bool) {
 		if eof {
 			return ctx.unexpectedEOF()
 		}
+
+		startOfName := len(ctx.Res)
 		_, criticalErr := ctx.parseAndWriteName()
 		if criticalErr {
 			return criticalErr
+		}
+
+		name := ctx.Res[startOfName:]
+		if len(name) > 0 && ctx.hasTarget && b2s(name) == *ctx.target {
+			ctx.TargetIdx = operationStartsAt
 		}
 
 		c, eof = ctx.mightIgnoreNextTokens()
@@ -1188,4 +1209,10 @@ func (ctx *ParserCtx) parseAndWriteName() (empty bool, criticalError bool) {
 
 		return false, false
 	}
+}
+
+// b2s converts a byte array into a string without allocating new memory
+// Note that any changes to a will result in a diffrent string
+func b2s(a []byte) string {
+	return *(*string)(unsafe.Pointer(&a))
 }
