@@ -891,10 +891,12 @@ func (ctx *Ctx) valueToJson(in reflect.Value, kind reflect.Kind) {
 	}
 }
 
+// The ISO 8601 layout might also be "2006-01-02T15:04:05.999Z" but it's mentioned less than the current so i presume what we're now using is correct
+var timeISO8601Layout = "2006-01-02T15:04:05.000Z"
+
 func parseTime(val string) (time.Time, error) {
 	// Parse to ISO 8601
-	// The ISO 8601 layout might also be "2006-01-02T15:04:05.999Z" but it's mentioned less than the current so i presume what we're now using is correct
-	parsedTime, err := time.Parse("2006-01-02T15:04:05.000Z", val)
+	parsedTime, err := time.Parse(timeISO8601Layout, val)
 	if err != nil {
 		return time.Time{}, errors.New("time value doesn't match the ISO 8601 layout")
 	}
@@ -902,7 +904,7 @@ func parseTime(val string) (time.Time, error) {
 }
 
 func timeToString(target *[]byte, t time.Time) {
-	*target = t.AppendFormat(*target, "2006-01-02T15:04:05.000Z")
+	*target = t.AppendFormat(*target, timeISO8601Layout)
 }
 
 func (s *Schema) objToQlTypeName(item *obj, target *bytes.Buffer) {

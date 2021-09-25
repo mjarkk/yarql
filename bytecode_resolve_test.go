@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/mjarkk/go-graphql/bytecode"
 	. "github.com/stretchr/testify/assert"
@@ -109,4 +110,17 @@ func TestBytecodeResolveStructsArray(t *testing.T) {
 	}
 	res := bytecodeParseAndExpectNoErrs(t, `{foo{a b}}`, schema, M{})
 	Equal(t, `{"foo":[{"a":"foo","b":"bar"},{"a":"baz","b":"boz"}]}`, res)
+}
+
+type TestBytecodeResolveTimeData struct {
+	T time.Time
+}
+
+func TestBytecodeResolveTime(t *testing.T) {
+	now := time.Now()
+	expect := now.Format(timeISO8601Layout)
+
+	schema := TestBytecodeResolveTimeData{now}
+	res := bytecodeParseAndExpectNoErrs(t, `{t}`, schema, M{})
+	Equal(t, `{"t":"`+expect+`"}`, res)
 }

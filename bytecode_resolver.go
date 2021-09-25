@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"time"
 	"unsafe"
 
 	"github.com/mjarkk/go-graphql/bytecode"
@@ -313,9 +314,14 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 		ctx.err("enum value type unsupported")
 		ctx.write([]byte{'n', 'u', 'l', 'l'})
 	case valueTypeTime:
-		// TODO
-		ctx.err("time value type unsupported")
-		ctx.write([]byte{'n', 'u', 'l', 'l'})
+		timeValue, ok := goValue.Interface().(time.Time)
+		if ok {
+			ctx.writeByte('"')
+			timeToString(&ctx.result, timeValue)
+			ctx.writeByte('"')
+		} else {
+			ctx.write([]byte("null"))
+		}
 	}
 
 	return false
