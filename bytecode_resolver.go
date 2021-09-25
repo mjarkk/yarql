@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -12,14 +13,16 @@ import (
 )
 
 type BytecodeCtx struct {
-	schema *Schema
-	query  bytecode.ParserCtx
-	result []byte
-	charNr int
+	schema  *Schema
+	query   bytecode.ParserCtx
+	charNr  int
+	context context.Context
 
 	// Zero alloc values
+	result                 []byte
 	reflectValues          [256]reflect.Value
 	currentReflectValueIdx uint8
+	funcInputs             []reflect.Value
 }
 
 func (ctx *BytecodeCtx) getGoValue() reflect.Value {
@@ -306,9 +309,54 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 			return ctx.resolveFieldDataValue(typeObj, dept, hasSubSelection)
 		}
 	case valueTypeMethod:
-		// TODO
-		ctx.err("method value type unsupported")
-		ctx.write([]byte{'n', 'u', 'l', 'l'})
+		method := typeObj.method
+
+		if !method.isTypeMethod && goValue.IsNil() {
+			ctx.write([]byte("null"))
+			return false
+		}
+
+		ctx.funcInputs = ctx.funcInputs[:0]
+		for _, in := range method.ins {
+			if in.isCtx {
+				// TODO THIS IS A DIFFRENT CONTEXT AND WILL PANIC
+				ctx.funcInputs = append(ctx.funcInputs, ctx.schema.ctxReflection)
+				fmt.Println("context argument currently unsupported")
+				return ctx.err("internal server error #4")
+			} else {
+				ctx.funcInputs = append(ctx.funcInputs, reflect.New(*in.type_).Elem())
+			}
+		}
+
+		// TODO parse arguments
+
+		outs := goValue.Call(ctx.funcInputs)
+		if method.errorOutNr != nil {
+			errOut := outs[*method.errorOutNr]
+			if !errOut.IsNil() {
+				err, ok := errOut.Interface().(error)
+				if !ok {
+					ctx.write([]byte("null"))
+					return ctx.err("returned a invalid kind of error")
+				} else if err != nil {
+					ctx.err(err.Error())
+				}
+			}
+		}
+
+		if ctx.context != nil {
+			err := ctx.context.Err()
+			if err != nil {
+				// Context ended
+				ctx.err(err.Error())
+				ctx.write([]byte("null"))
+				return false
+			}
+		}
+
+		ctx.setGoValue(outs[method.outNr])
+		criticalErr := ctx.resolveFieldDataValue(&method.outType, dept, hasSubSelection)
+		return criticalErr
 	case valueTypeEnum:
 		enum := definedEnums[typeObj.enumTypeIndex]
 		switch enum.contentKind {

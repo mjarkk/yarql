@@ -124,3 +124,9 @@ func TestBytecodeResolveTime(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, `{t}`, schema, M{})
 	Equal(t, `{"t":"`+expect+`"}`, res)
 }
+
+func TestBytecodeResolveMethod(t *testing.T) {
+	schema := TestExecStructTypeMethodData{}
+	res := bytecodeParseAndExpectNoErrs(t, `{foo, bar, baz}`, schema, M{})
+	Equal(t, `{"foo":null,"bar":"foo","baz":"bar"}`, res)
+}
