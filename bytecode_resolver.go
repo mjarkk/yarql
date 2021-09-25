@@ -196,7 +196,6 @@ func (ctx *BytecodeCtx) resolveSelectionSet(typeObj *obj, dept uint8) bool {
 			return false
 		case bytecode.ActionField:
 			// Parse field
-			// TODO not all things are queries
 			criticalErr := ctx.resolveField(typeObj, dept, !firstField)
 			if criticalErr {
 				return criticalErr
