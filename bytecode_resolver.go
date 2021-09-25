@@ -27,6 +27,10 @@ func (ctx *BytecodeCtx) getGoValue() reflect.Value {
 
 func (ctx *BytecodeCtx) setNextGoValue(value reflect.Value) {
 	ctx.currentReflectValueIdx++
+	ctx.setGoValue(value)
+}
+
+func (ctx *BytecodeCtx) setGoValue(value reflect.Value) {
 	ctx.reflectValues[ctx.currentReflectValueIdx] = value
 }
 
@@ -228,9 +232,36 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 	case valueTypeUndefined:
 		ctx.write([]byte{'n', 'u', 'l', 'l'})
 	case valueTypeArray:
-		// TODO
-		ctx.err("array value type unsupported")
-		ctx.write([]byte{'n', 'u', 'l', 'l'})
+		if (goValue.Kind() != reflect.Array && goValue.Kind() != reflect.Slice) || goValue.IsNil() {
+			ctx.write([]byte("null"))
+			return false
+		}
+
+		if typeObj.innerContent == nil {
+			ctx.write([]byte("null"))
+			return ctx.err("internal parsing error #3")
+		}
+		typeObj = typeObj.innerContent
+
+		ctx.writeByte('[')
+		ctx.currentReflectValueIdx++
+		goValueLen := goValue.Len()
+		for i := 0; i < goValueLen; i++ {
+			// prefPathLen := len(ctx.path)
+			// ctx.path = append(ctx.path, ',')
+			// ctx.path = strconv.AppendInt(ctx.path, int64(i), 10)
+
+			ctx.setGoValue(goValue.Index(i))
+
+			ctx.resolveFieldDataValue(typeObj, dept, hasSubSelection)
+			if i < goValueLen-1 {
+				ctx.writeByte(',')
+			}
+
+			// ctx.path = ctx.path[:prefPathLen]
+		}
+		ctx.currentReflectValueIdx--
+		ctx.writeByte(']')
 	case valueTypeObj, valueTypeObjRef:
 		if !hasSubSelection {
 			ctx.write([]byte("null"))

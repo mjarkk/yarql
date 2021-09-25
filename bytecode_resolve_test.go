@@ -87,3 +87,11 @@ func TestBytecodeResolveMultipleNestedFields(t *testing.T) {
 	}`, schema, M{})
 	Equal(t, `{"a":{"foo":null,"bar":""},"b":{"baz":""}}`, res)
 }
+
+func TestBytecodeResolveArray(t *testing.T) {
+	schema := TestExecArrayData{
+		Foo: []string{"foo", "bar"},
+	}
+	res := bytecodeParseAndExpectNoErrs(t, `{foo}`, schema, M{})
+	Equal(t, `{"foo":["foo","bar"]}`, res)
+}
