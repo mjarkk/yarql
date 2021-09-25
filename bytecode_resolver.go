@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
 	"unsafe"
 
 	"github.com/mjarkk/go-graphql/bytecode"
@@ -160,11 +161,21 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8) bool {
 
 	if ctx.readInst() != 0 {
 		// TODO
-		return ctx.err("Field aliases not supported")
+		return ctx.err("field aliases not supported")
 	}
 
 	// Read null and end of instruction
-	ctx.skipInst(2)
+	hasSubSelection := false
+	if ctx.readInst() != 'e' {
+		// TODO
+		hasSubSelection = true
+		return ctx.err("field sub selection not supported")
+	}
+	if ctx.readInst() != 0 {
+		// TODO
+		hasSubSelection = true
+		return ctx.err("field sub selection not supported")
+	}
 
 	ctx.writeByte('"')
 	ctx.write(name)
@@ -188,17 +199,87 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8) bool {
 		}
 	}
 
-	criticalErr := ctx.resolveFieldDataValue(typeObjField, dept+1)
+	criticalErr := ctx.resolveFieldDataValue(typeObjField, dept+1, hasSubSelection)
 	ctx.currentReflectValueIdx--
 	return criticalErr
 }
 
-func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8) bool {
-	// goValue := ctx.getGoValue()
+func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSelection bool) bool {
+	goValue := ctx.getGoValue()
 
-	ctx.write([]byte{'n', 'u', 'l', 'l'})
+	switch typeObj.valueType {
+	case valueTypeUndefined:
+		ctx.write([]byte{'n', 'u', 'l', 'l'})
+	case valueTypeArray:
+		ctx.err("value type unsupported")
+		ctx.write([]byte{'n', 'u', 'l', 'l'})
+	case valueTypeObj, valueTypeObjRef:
+		ctx.err("value type unsupported")
+		ctx.write([]byte{'n', 'u', 'l', 'l'})
+	case valueTypeData:
+		if hasSubSelection {
+			ctx.err("cannot have a sub selection on this field")
+			ctx.write([]byte("null"))
+			return false
+		}
+
+		if typeObj.isID && typeObj.dataValueType != reflect.String {
+			// Graphql ID fields are always strings
+			ctx.writeByte('"')
+			ctx.valueToJson(goValue, typeObj.dataValueType)
+			ctx.writeByte('"')
+		} else {
+			ctx.valueToJson(goValue, typeObj.dataValueType)
+		}
+	case valueTypePtr:
+		if goValue.Kind() != reflect.Ptr || goValue.IsNil() {
+			ctx.write([]byte("null"))
+		} else {
+			ctx.reflectValues[ctx.currentReflectValueIdx] = goValue.Elem()
+			return ctx.resolveFieldDataValue(typeObj, dept, hasSubSelection)
+		}
+	case valueTypeMethod:
+		ctx.err("value type unsupported")
+		ctx.write([]byte{'n', 'u', 'l', 'l'})
+	case valueTypeEnum:
+		ctx.err("value type unsupported")
+		ctx.write([]byte{'n', 'u', 'l', 'l'})
+	case valueTypeTime:
+		ctx.err("value type unsupported")
+		ctx.write([]byte{'n', 'u', 'l', 'l'})
+	}
 
 	return false
+}
+
+func (ctx *BytecodeCtx) valueToJson(in reflect.Value, kind reflect.Kind) {
+	switch kind {
+	case reflect.String:
+		stringToJson(in.String(), &ctx.result)
+	case reflect.Bool:
+		if in.Bool() {
+			ctx.write([]byte("true"))
+		} else {
+			ctx.write([]byte("false"))
+		}
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		ctx.result = strconv.AppendInt(ctx.result, in.Int(), 10)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		ctx.result = strconv.AppendUint(ctx.result, in.Uint(), 10)
+	case reflect.Float32:
+		floatToJson(32, in.Float(), &ctx.result)
+	case reflect.Float64:
+		floatToJson(64, in.Float(), &ctx.result)
+	case reflect.Ptr:
+		if in.IsNil() {
+			ctx.write([]byte("null"))
+		} else {
+			element := in.Elem()
+			ctx.valueToJson(element, element.Kind())
+		}
+	default:
+		ctx.write([]byte("null"))
+	}
 }
 
 // b2s converts a byte array into a string without allocating new memory

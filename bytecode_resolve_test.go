@@ -46,5 +46,5 @@ func TestBytecodeResolveSingleField(t *testing.T) {
 		A: "foo",
 		B: "bar",
 	}, M{})
-	Equal(t, `{"a":null}`, res)
+	Equal(t, `{"a":"foo"}`, res)
 }

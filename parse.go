@@ -62,7 +62,6 @@ const (
 	valueTypePtr
 	valueTypeMethod
 	valueTypeEnum
-	valueTypeString
 	valueTypeTime
 )
 
