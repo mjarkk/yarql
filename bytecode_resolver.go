@@ -228,6 +228,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 	case valueTypeUndefined:
 		ctx.write([]byte{'n', 'u', 'l', 'l'})
 	case valueTypeArray:
+		// TODO
 		ctx.err("array value type unsupported")
 		ctx.write([]byte{'n', 'u', 'l', 'l'})
 	case valueTypeObj, valueTypeObjRef:
@@ -271,12 +272,15 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 			return ctx.resolveFieldDataValue(typeObj, dept, hasSubSelection)
 		}
 	case valueTypeMethod:
+		// TODO
 		ctx.err("method value type unsupported")
 		ctx.write([]byte{'n', 'u', 'l', 'l'})
 	case valueTypeEnum:
+		// TODO
 		ctx.err("enum value type unsupported")
 		ctx.write([]byte{'n', 'u', 'l', 'l'})
 	case valueTypeTime:
+		// TODO
 		ctx.err("time value type unsupported")
 		ctx.write([]byte{'n', 'u', 'l', 'l'})
 	}
