@@ -39,7 +39,7 @@ func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions)
 		ctx.write([]byte(`{"data":`))
 	}
 
-	ctx.resolveOp()
+	ctx.resolveOperation()
 	ctx.writeByte('}')
 
 	if !opts.NoMeta {
@@ -49,10 +49,15 @@ func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions)
 	return ctx.result, ctx.query.Errors
 }
 
+// readInst reads the current instruction and increments the charNr
 func (ctx *BytecodeCtx) readInst() byte {
 	c := ctx.query.Res[ctx.charNr]
 	ctx.charNr++
 	return c
+}
+
+func (ctx *BytecodeCtx) lastInst() byte {
+	return ctx.query.Res[ctx.charNr-1]
 }
 
 func (ctx *BytecodeCtx) readBool() bool {
@@ -64,9 +69,9 @@ func (ctx *BytecodeCtx) err(msg string) bool {
 	return true
 }
 
-func (ctx *BytecodeCtx) resolveOp() bool {
+func (ctx *BytecodeCtx) resolveOperation() bool {
 	ctx.writeByte('{')
-	ctx.charNr += 3 // read 0, [actionOperator], [kind]
+	ctx.charNr += 3 // read 0, [ActionOperator], [kind]
 
 	hasArguments := ctx.readBool()
 	if hasArguments {
@@ -88,9 +93,17 @@ func (ctx *BytecodeCtx) resolveOp() bool {
 	}
 
 	for {
-		if ctx.readInst() != 'f' {
+		switch ctx.readInst() {
+		case bytecode.ActionEnd:
 			// End of operator
 			return false
+		case bytecode.ActionField:
+			// Parse field
+			if ctx.resolveField() {
+				return true
+			}
+		default:
+			return ctx.err("unsupported operation " + string(ctx.lastInst()))
 		}
 
 		criticalErr := ctx.resolveField()
@@ -101,6 +114,24 @@ func (ctx *BytecodeCtx) resolveOp() bool {
 }
 
 func (ctx *BytecodeCtx) resolveField() bool {
+	// Read directives
+	// TODO
+	directivesCount := ctx.readInst()
+	if directivesCount > 0 {
+		return ctx.err("operation directives unsupported")
+	}
+
+	// Read field name
+	startOfName := ctx.charNr
+	endOfName := ctx.charNr
+	for {
+		if ctx.readInst() == 0 {
+			endOfName = ctx.charNr - 1
+			break
+		}
+	}
+	name := ctx.query.Res[startOfName:endOfName]
+
 	// TODO
 	return ctx.err("field not supported")
 }

@@ -37,15 +37,15 @@ func (ctx *ParserCtx) parseOperatorOrFragment() (stop bool) {
 	}
 
 	if c == '{' {
-		ctx.instructionNewOperation(operatorQuery)
+		ctx.instructionNewOperation(OperatorQuery)
 	} else if matches := ctx.matches("query", "mutation", "subscription"); matches != -1 {
 		// Set the operation kind
 		if matches == 0 {
-			ctx.instructionNewOperation(operatorQuery)
+			ctx.instructionNewOperation(OperatorQuery)
 		} else if matches == 1 {
-			ctx.instructionNewOperation(operatorMutation)
+			ctx.instructionNewOperation(OperatorMutation)
 		} else {
-			ctx.instructionNewOperation(operatorSubscription)
+			ctx.instructionNewOperation(OperatorSubscription)
 		}
 		hasArgsFlagLocation := len(ctx.Res) - 2
 		directivesCountLocation := len(ctx.Res) - 1
@@ -722,7 +722,7 @@ func (ctx *ParserCtx) parseNumberInputValue() bool {
 
 	// Parse the numbers behind the comma (the 456 of +123.456e78)
 	if c == '.' {
-		ctx.Res[valueTypeAt] = valueFloat
+		ctx.Res[valueTypeAt] = ValueFloat
 		ctx.Res = append(ctx.Res, '.')
 		for {
 			ctx.charNr++
@@ -751,7 +751,7 @@ func (ctx *ParserCtx) parseNumberInputValue() bool {
 
 	// Parse the exponent (the 78 of +123.456e78)
 	if c == 'e' || c == 'E' {
-		ctx.Res[valueTypeAt] = valueFloat
+		ctx.Res[valueTypeAt] = ValueFloat
 		ctx.Res = append(ctx.Res, 'E')
 
 		ctx.charNr++

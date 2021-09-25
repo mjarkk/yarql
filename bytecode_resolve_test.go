@@ -37,3 +37,11 @@ func TestBytecodeResolveOnlyOperation(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, `{}`, TestExecEmptyQueryDataQ{}, M{})
 	Equal(t, `{}`, res)
 }
+
+func TestBytecodeResolveSingleField(t *testing.T) {
+	res := bytecodeParseAndExpectNoErrs(t, `{a}`, TestExecSimpleQueryData{
+		A: "foo",
+		B: "bar",
+	}, M{})
+	Equal(t, `{}`, res)
+}
