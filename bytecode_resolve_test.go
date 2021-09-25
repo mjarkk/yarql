@@ -67,6 +67,15 @@ func TestBytecodeResolveMultipleFields(t *testing.T) {
 	Equal(t, `{"a":"foo","b":"bar"}`, res)
 }
 
+func TestBytecodeResolveAlias(t *testing.T) {
+	schema := TestExecSimpleQueryData{
+		A: "foo",
+		B: "bar",
+	}
+	res := bytecodeParseAndExpectNoErrs(t, `{b:a}`, schema, M{})
+	Equal(t, `{"b":"foo"}`, res)
+}
+
 func TestBytecodeResolveOperatorWithName(t *testing.T) {
 	schema := TestExecSimpleQueryData{
 		A: "foo",

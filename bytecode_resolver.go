@@ -216,27 +216,39 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 	}
 
 	// Read field name
-	startOfName := ctx.charNr
-	endOfName := ctx.charNr
+	startOfAlias := ctx.charNr
+	endOfAlias := ctx.charNr
 	for {
 		if ctx.readInst() == 0 {
-			endOfName = ctx.charNr - 1
+			endOfAlias = ctx.charNr - 1
 			break
 		}
 	}
-	name := ctx.query.Res[startOfName:endOfName]
-	nameStr := b2s(name)
+	alias := ctx.query.Res[startOfAlias:endOfAlias]
+
+	startOfName := startOfAlias
+	endOfName := endOfAlias
 
 	if ctx.readInst() != 0 {
-		// TODO
-		return ctx.err("field aliases not supported")
+		startOfName = ctx.charNr - 1
+		for {
+			if ctx.seekInst() == 0 {
+				endOfName = ctx.charNr
+				ctx.charNr++
+				break
+			}
+			ctx.charNr++
+		}
 	}
+
+	name := ctx.query.Res[startOfName:endOfName]
+	nameStr := b2s(name)
 
 	if addCommaBefore {
 		ctx.writeByte(',')
 	}
 
-	ctx.writeQouted(name)
+	ctx.writeQouted(alias)
 	ctx.writeByte(':')
 
 	typeObjField, ok := typeObj.objContents[nameStr]
