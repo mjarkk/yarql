@@ -320,9 +320,7 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 		if ctx.readInst() != 0 {
 			return ctx.errf("internal parsing error #2, %v", ctx.lastInst())
 		}
-	} else if inst == 0 {
-		// the 'e' is already parsed by resolveSelectionSet
-	} else {
+	} else if inst != 0 {
 		return ctx.errf("internal parsing error #1, %v", ctx.lastInst())
 	}
 	return criticalErr
