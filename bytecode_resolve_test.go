@@ -206,3 +206,14 @@ func TestBytecodeResolveOutputPointer(t *testing.T) {
 	res = bytecodeParseAndExpectNoErrs(t, `{foo}`, TestExecPtrInPtrData{&ptrToData}, M{})
 	Equal(t, `{"foo":"bar"}`, res)
 }
+
+func TestBytecodeResolveMethodPointerInput(t *testing.T) {
+	res := bytecodeParseAndExpectNoErrs(t, `{bar()}`, TestExecStructTypeMethodWithPtrArgData{}, M{})
+	Equal(t, `{"bar":null}`, res)
+
+	res = bytecodeParseAndExpectNoErrs(t, `{bar(a: null)}`, TestExecStructTypeMethodWithPtrArgData{}, M{})
+	Equal(t, `{"bar":null}`, res)
+
+	res = bytecodeParseAndExpectNoErrs(t, `{bar(a: "foo")}`, TestExecStructTypeMethodWithPtrArgData{}, M{})
+	Equal(t, `{"bar":"foo"}`, res)
+}
