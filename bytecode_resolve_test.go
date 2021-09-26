@@ -217,3 +217,20 @@ func TestBytecodeResolveMethodPointerInput(t *testing.T) {
 	res = bytecodeParseAndExpectNoErrs(t, `{bar(a: "foo")}`, TestExecStructTypeMethodWithPtrArgData{}, M{})
 	Equal(t, `{"bar":"foo"}`, res)
 }
+
+type TestBytecodeResolveMethodListInputData struct{}
+
+func (TestBytecodeResolveMethodListInputData) ResolveBar(c *Ctx, args struct{ A []string }) []string {
+	return args.A
+}
+
+func TestBytecodeResolveMethodListInput(t *testing.T) {
+	res := bytecodeParseAndExpectNoErrs(t, `{bar()}`, TestBytecodeResolveMethodListInputData{}, M{})
+	Equal(t, `{"bar":null}`, res)
+
+	res = bytecodeParseAndExpectNoErrs(t, `{bar(a: null)}`, TestBytecodeResolveMethodListInputData{}, M{})
+	Equal(t, `{"bar":null}`, res)
+
+	res = bytecodeParseAndExpectNoErrs(t, `{bar(a: ["foo", "baz"])}`, TestBytecodeResolveMethodListInputData{}, M{})
+	Equal(t, `{"bar":["foo","baz"]}`, res)
+}

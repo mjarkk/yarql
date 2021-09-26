@@ -576,7 +576,7 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value) bool {
 		}
 	}
 
-	ctx.skipInst(1)
+	ctx.skipInst(1) // read ActionValue
 	switch ctx.readInst() {
 	case bytecode.ValueVariable:
 		// TODO
@@ -662,7 +662,6 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value) bool {
 			return ctx.err("cannot assign float to " + goValue.String())
 		}
 	case bytecode.ValueString:
-		// TODO support pointers
 		if goValue.Kind() != reflect.String {
 			return ctx.err("cannot assign string to " + goValue.String())
 		}
@@ -670,7 +669,6 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value) bool {
 		startString, endString := getValue()
 		goValue.SetString(b2s(ctx.query.Res[startString:endString]))
 	case bytecode.ValueBoolean:
-		// TODO support pointers
 		if goValue.Kind() != reflect.Bool {
 			return ctx.err("cannot assign boolean to " + goValue.String())
 		}
@@ -683,8 +681,29 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value) bool {
 		// TODO
 		return ctx.err("enum input value kind unsupported")
 	case bytecode.ValueList:
-		// TODO
-		return ctx.err("list input value kind unsupported")
+		goValueKind := goValue.Kind()
+		if goValueKind == reflect.Array {
+			// TODO support this
+			return ctx.err("fixed length arrays not supported")
+		}
+		if goValueKind != reflect.Slice {
+			return ctx.err("cannot assign list to " + goValue.String())
+		}
+
+		arr := reflect.MakeSlice(goValue.Type(), 0, 0)
+		arrItemType := arr.Type().Elem()
+
+		ctx.skipInst(1) // read NULL
+		for ctx.seekInst() != 'e' {
+			arrayEntry := reflect.New(arrItemType).Elem()
+			criticalErr := ctx.bindInputToGoValue(&arrayEntry)
+			if criticalErr {
+				return criticalErr
+			}
+			arr = reflect.Append(arr, arrayEntry)
+		}
+
+		goValue.Set(arr)
 	case bytecode.ValueObject:
 		// TODO
 		return ctx.err("object input value kind unsupported")
