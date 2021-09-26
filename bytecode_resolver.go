@@ -2,6 +2,7 @@ package graphql
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -77,6 +78,14 @@ func (ctx *BytecodeCtx) SetValue(key string, value interface{}) {
 	} else {
 		ctx.values[key] = value
 	}
+}
+
+// returns the path json encoded
+func (ctx *BytecodeCtx) GetPath() json.RawMessage {
+	if len(ctx.path) == 0 {
+		return []byte("[]")
+	}
+	return append(append([]byte{'['}, ctx.path[1:]...), ']')
 }
 
 func (ctx *BytecodeCtx) write(b []byte) {
@@ -172,14 +181,23 @@ func (ctx *BytecodeCtx) readBool() bool {
 }
 
 func (ctx *BytecodeCtx) err(msg string) bool {
-	// TODO support path
-	ctx.query.Errors = append(ctx.query.Errors, errors.New(msg))
+	err := errors.New(msg)
+	if len(ctx.path) == 0 {
+		ctx.query.Errors = append(ctx.query.Errors, err)
+	} else {
+		copiedPath := make([]byte, len(ctx.path)-1)
+		copy(copiedPath, ctx.path[1:])
+
+		ctx.query.Errors = append(ctx.query.Errors, ErrorWPath{
+			err:  err,
+			path: copiedPath,
+		})
+	}
 	return true
 }
 
 func (ctx *BytecodeCtx) errf(msg string, args ...interface{}) bool {
-	ctx.query.Errors = append(ctx.query.Errors, fmt.Errorf(msg, args...))
-	return true
+	return ctx.err(fmt.Sprintf(msg, args...))
 }
 
 func (ctx *BytecodeCtx) resolveOperation() bool {
@@ -258,6 +276,12 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 	}
 	alias := ctx.query.Res[startOfAlias:endOfAlias]
 
+	prefPathLen := len(ctx.path)
+	ctx.path = append(ctx.path, []byte(`,"`)...)
+	ctx.path = append(ctx.path, alias...)
+	ctx.path = append(ctx.path, '"')
+	// Note that from here on we should restore the path on errors
+
 	startOfName := startOfAlias
 	endOfName := endOfAlias
 
@@ -288,31 +312,35 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 	fieldHasSelection := ctx.seekInst() != 'e'
 	if nameStr == "__typename" {
 		if fieldHasSelection {
-			return ctx.err("cannot have a selection set on this field")
+			criticalErr = ctx.err("cannot have a selection set on this field")
+		} else {
+			ctx.writeQouted(typeObj.typeNameBytes)
 		}
-
-		ctx.writeQouted(typeObj.typeNameBytes)
 	} else {
 		typeObjField, ok := typeObj.objContents[nameStr]
 		if !ok {
 			ctx.writeNull()
-			ctx.errf("%s does not exists on %s", nameStr, typeObj.typeName)
-			return true // Bytecode might be fucked if we return to early here
-		}
-
-		if typeObjField.customObjValue != nil {
-			ctx.setNextGoValue(*typeObjField.customObjValue)
+			criticalErr = ctx.errf("%s does not exists on %s", nameStr, typeObj.typeName)
 		} else {
 			goValue := ctx.getGoValue()
-			if typeObjField.valueType == valueTypeMethod && typeObjField.method.isTypeMethod {
+			if typeObjField.customObjValue != nil {
+				ctx.setNextGoValue(*typeObjField.customObjValue)
+			} else if typeObjField.valueType == valueTypeMethod && typeObjField.method.isTypeMethod {
 				ctx.setNextGoValue(goValue.Method(typeObjField.structFieldIdx))
 			} else {
 				ctx.setNextGoValue(goValue.Field(typeObjField.structFieldIdx))
 			}
-		}
 
-		criticalErr = ctx.resolveFieldDataValue(typeObjField, dept, fieldHasSelection)
-		ctx.currentReflectValueIdx--
+			criticalErr = ctx.resolveFieldDataValue(typeObjField, dept, fieldHasSelection)
+			ctx.currentReflectValueIdx--
+		}
+	}
+
+	// Restore the path
+	ctx.path = ctx.path[:prefPathLen]
+
+	if criticalErr {
+		return criticalErr
 	}
 
 	inst := ctx.readInst()
@@ -323,7 +351,7 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 	} else if inst != 0 {
 		return ctx.errf("internal parsing error #1, %v", ctx.lastInst())
 	}
-	return criticalErr
+	return false
 }
 
 func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSelection bool) bool {
