@@ -179,7 +179,7 @@ func TestBytecodeResolveMethodWithArg(t *testing.T) {
 	Equal(t, `{"bar":"foo"}`, res)
 }
 
-func TestBytecdoeResolveMethodWithIntArgs(t *testing.T) {
+func TestBytecodeResolveMethodWithIntArgs(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, `{foo(a: 1, b: 2, c: 3, d: 1.1) {a b c d}}`, TestExecInputAllKindsOfNumbersData{}, M{})
 	Equal(t, `{"foo":{"a":1,"b":2,"c":3,"d":1.1}}`, res)
 }
@@ -188,4 +188,21 @@ func TestBytecodeResolveTypename(t *testing.T) {
 	schema := TestExecStructTypeMethodData{}
 	res := bytecodeParseAndExpectNoErrs(t, `{__typename}`, schema, M{})
 	Equal(t, `{"__typename":"TestExecStructTypeMethodData"}`, res)
+}
+
+func TestBytecodeResolveOutputPointer(t *testing.T) {
+	res := bytecodeParseAndExpectNoErrs(t, `{foo}`, TestExecPtrData{}, M{})
+	Equal(t, `{"foo":null}`, res)
+
+	data := "bar"
+	res = bytecodeParseAndExpectNoErrs(t, `{foo}`, TestExecPtrData{&data}, M{})
+	Equal(t, `{"foo":"bar"}`, res)
+
+	// Nested pointers
+	res = bytecodeParseAndExpectNoErrs(t, `{foo}`, TestExecPtrInPtrData{}, M{})
+	Equal(t, `{"foo":null}`, res)
+
+	ptrToData := &data
+	res = bytecodeParseAndExpectNoErrs(t, `{foo}`, TestExecPtrInPtrData{&ptrToData}, M{})
+	Equal(t, `{"foo":"bar"}`, res)
 }

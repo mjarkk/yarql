@@ -267,7 +267,7 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 
 	// Read field name/alias
 	startOfAlias := ctx.charNr
-	endOfAlias := ctx.charNr
+	var endOfAlias int
 	for {
 		if ctx.readInst() == 0 {
 			endOfAlias = ctx.charNr - 1
@@ -433,7 +433,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 			ctx.writeNull()
 		} else {
 			ctx.reflectValues[ctx.currentReflectValueIdx] = goValue.Elem()
-			return ctx.resolveFieldDataValue(typeObj, dept, hasSubSelection)
+			return ctx.resolveFieldDataValue(typeObj.innerContent, dept, hasSubSelection)
 		}
 	case valueTypeMethod:
 		method := typeObj.method
@@ -547,16 +547,33 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value) bool {
 	// TODO convert to go value kind to graphql value kind in errors
 
+	if goValue.Kind() == reflect.Ptr {
+		if ctx.query.Res[ctx.charNr+1] == bytecode.ValueNull {
+			// keep goValue at it's default
+			ctx.skipInst(2)
+			return false
+		}
+
+		goValueElem := goValue.Type().Elem()
+		newVal := reflect.New(goValueElem)
+		newValElem := newVal.Elem()
+
+		criticalErr := ctx.bindInputToGoValue(&newValElem)
+		if criticalErr {
+			return criticalErr
+		}
+
+		goValue.Set(newVal)
+		return false
+	}
+
 	getValue := func() (start int, end int) {
 		start = ctx.charNr
-		end = ctx.charNr
 		for {
 			if ctx.readInst() == 0 {
-				end = ctx.charNr - 1
-				break
+				return start, ctx.charNr - 1
 			}
 		}
-		return
 	}
 
 	ctx.skipInst(1)
