@@ -421,12 +421,29 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 				// TODO THIS IS A DIFFRENT CONTEXT AND WILL PANIC
 				ctx.funcInputs = append(ctx.funcInputs, ctx.schema.ctxReflection)
 				fmt.Println("context argument currently unsupported")
-				return ctx.err("internal server error #4")
 			} else {
 				ctx.funcInputs = append(ctx.funcInputs, reflect.New(*in.type_).Elem())
 			}
 		}
 
+		if ctx.seekInst() == 'v' {
+			criticalErr := ctx.walkInputObject(
+				func(key []byte) bool {
+					keyStr := b2s(key)
+					inField, ok := method.inFields[keyStr]
+					if !ok {
+						return ctx.err("undefined input: " + keyStr)
+					}
+					goField := ctx.funcInputs[inField.inputIdx].Field(inField.input.goFieldIdx)
+
+					return ctx.bindInputToGoValue(&goField)
+				},
+			)
+			if criticalErr {
+				return criticalErr
+			}
+			hasSubSelection = ctx.seekInst() != 'e'
+		}
 		// TODO parse arguments
 
 		outs := goValue.Call(ctx.funcInputs)
@@ -497,6 +514,167 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 	}
 
 	return false
+}
+
+func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value) bool {
+	// TODO convert to go value kind to graphql value kind in errors
+
+	getValue := func() (start int, end int) {
+		start = ctx.charNr
+		end = ctx.charNr
+		for {
+			if ctx.readInst() == 0 {
+				end = ctx.charNr - 1
+				break
+			}
+		}
+		return
+	}
+
+	ctx.skipInst(1)
+	switch ctx.readInst() {
+	case bytecode.ValueVariable:
+		// TODO
+		return ctx.err("variable input value kind unsupported")
+	case bytecode.ValueInt:
+		startInt, endInt := getValue()
+		intValue := b2s(ctx.query.Res[startInt:endInt])
+
+		switch goValue.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			value, err := strconv.ParseInt(intValue, 10, 64)
+			if err != nil {
+				return ctx.err(err.Error())
+			}
+
+			switch goValue.Kind() {
+			case reflect.Int8:
+				if int64(int8(value)) != value {
+					return ctx.err("cannot assign " + intValue + " to a 8bit intager")
+				}
+			case reflect.Int16:
+				if int64(int16(value)) != value {
+					return ctx.err("cannot assign " + intValue + " to a 16bit intager")
+				}
+			case reflect.Int32:
+				if int64(int32(value)) != value {
+					return ctx.err("cannot assign " + intValue + " to a 32bit intager")
+				}
+			}
+
+			goValue.SetInt(value)
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			value, err := strconv.ParseUint(intValue, 10, 64)
+			if err != nil {
+				return ctx.err(err.Error())
+			}
+
+			switch goValue.Kind() {
+			case reflect.Uint8:
+				if uint64(uint8(value)) != value {
+					return ctx.err("cannot assign " + intValue + " to a 8bit unsigned intager")
+				}
+			case reflect.Uint16:
+				if uint64(uint16(value)) != value {
+					return ctx.err("cannot assign " + intValue + " to a 16bit unsigned intager")
+				}
+			case reflect.Uint32:
+				if uint64(uint32(value)) != value {
+					return ctx.err("cannot assign " + intValue + " to a 32bit unsigned intager")
+				}
+			}
+
+			goValue.SetUint(value)
+		case reflect.Float32, reflect.Float64:
+			value, err := strconv.ParseInt(intValue, 10, 64)
+			if err != nil {
+				return ctx.err(err.Error())
+			}
+
+			goValue.SetFloat(float64(value))
+		case reflect.Bool:
+			value, err := strconv.ParseInt(intValue, 10, 64)
+			if err != nil {
+				return ctx.err(err.Error())
+			}
+
+			goValue.SetBool(value > 0)
+		default:
+			return ctx.err("cannot assign int to " + goValue.String())
+		}
+
+	case bytecode.ValueFloat:
+		switch goValue.Kind() {
+		case reflect.Float32, reflect.Float64:
+			startFloat, endFloat := getValue()
+			floatValue, err := strconv.ParseFloat(b2s(ctx.query.Res[startFloat:endFloat]), 64)
+			if err != nil {
+				return ctx.err(err.Error())
+			}
+
+			goValue.SetFloat(floatValue)
+		default:
+			return ctx.err("cannot assign float to " + goValue.String())
+		}
+	case bytecode.ValueString:
+		// TODO support pointers
+		if goValue.Kind() != reflect.String {
+			return ctx.err("cannot assign string to " + goValue.String())
+		}
+
+		startString, endString := getValue()
+		goValue.SetString(b2s(ctx.query.Res[startString:endString]))
+	case bytecode.ValueBoolean:
+		// TODO support pointers
+		if goValue.Kind() != reflect.Bool {
+			return ctx.err("cannot assign boolean to " + goValue.String())
+		}
+		goValue.SetBool(ctx.readInst() == '1')
+		ctx.skipInst(1)
+	case bytecode.ValueNull:
+		// keep goValue at it's default
+		ctx.skipInst(1)
+	case bytecode.ValueEnum:
+		// TODO
+		return ctx.err("enum input value kind unsupported")
+	case bytecode.ValueList:
+		// TODO
+		return ctx.err("list input value kind unsupported")
+	case bytecode.ValueObject:
+		// TODO
+		return ctx.err("object input value kind unsupported")
+	}
+	return false
+}
+
+// walkInputObject walks over an input object and triggers onValueOfKey after reading a key and reached it value
+// onValueOfKey is expected to parse the value before returning
+func (ctx *BytecodeCtx) walkInputObject(onValueOfKey func(key []byte) bool) bool {
+	// Read ActionValue and ValueObject and NULL
+	ctx.skipInst(3)
+
+	for {
+		// Check if the current or next value is the end
+		c := ctx.readInst()
+		if c == 'e' || c == 0 && ctx.readInst() == 'e' {
+			// end of object
+			ctx.skipInst(1) // skip next NULL byte
+			return false
+		}
+		keyStart := ctx.charNr
+		keyEnd := ctx.charNr
+		for {
+			if ctx.readInst() == 0 {
+				keyEnd = ctx.charNr - 1
+				break
+			}
+		}
+		key := ctx.query.Res[keyStart:keyEnd]
+		criticalErr := onValueOfKey(key)
+		if criticalErr {
+			return criticalErr
+		}
+	}
 }
 
 func (ctx *BytecodeCtx) valueToJson(in reflect.Value, kind reflect.Kind) {

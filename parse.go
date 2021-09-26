@@ -124,7 +124,7 @@ type objMethod struct {
 type inputMap map[string]*input
 
 type referToInput struct {
-	inputIdx int
+	inputIdx int // the method's argument index
 	input    input
 }
 

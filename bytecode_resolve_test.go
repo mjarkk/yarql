@@ -174,6 +174,16 @@ func TestBytecodeResolveMethod(t *testing.T) {
 	Equal(t, `{"foo":null,"bar":"foo","baz":"bar"}`, res)
 }
 
+func TestBytecodeResolveMethodWithArg(t *testing.T) {
+	res := bytecodeParseAndExpectNoErrs(t, `{bar(a: "foo")}`, TestExecStructTypeMethodWithArgsData{}, M{})
+	Equal(t, `{"bar":"foo"}`, res)
+}
+
+func TestBytecdoeResolveMethodWithIntArgs(t *testing.T) {
+	res := bytecodeParseAndExpectNoErrs(t, `{foo(a: 1, b: 2, c: 3, d: 1.1) {a b c d}}`, TestExecInputAllKindsOfNumbersData{}, M{})
+	Equal(t, `{"foo":{"a":1,"b":2,"c":3,"d":1.1}}`, res)
+}
+
 func TestBytecodeResolveTypename(t *testing.T) {
 	schema := TestExecStructTypeMethodData{}
 	res := bytecodeParseAndExpectNoErrs(t, `{__typename}`, schema, M{})
