@@ -234,3 +234,8 @@ func TestBytecodeResolveMethodListInput(t *testing.T) {
 	res = bytecodeParseAndExpectNoErrs(t, `{bar(a: ["foo", "baz"])}`, TestBytecodeResolveMethodListInputData{}, M{})
 	Equal(t, `{"bar":["foo","baz"]}`, res)
 }
+
+func TestBytecodeResolveMethodNestedInputs(t *testing.T) {
+	res := bytecodeParseAndExpectNoErrs(t, `{bar(a: {b: "foo"})}`, TestExecStructTypeMethodWithStructArgData{}, M{})
+	Equal(t, `{"bar":"foo"}`, res)
+}

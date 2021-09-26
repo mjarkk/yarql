@@ -257,7 +257,6 @@ loop:
 			if !include {
 				break loop
 			}
-			break
 		default:
 			return false, fmt.Errorf("unknown directive %s", directiveName)
 		}

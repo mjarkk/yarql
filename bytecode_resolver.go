@@ -463,8 +463,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 						return ctx.err("undefined input: " + keyStr)
 					}
 					goField := ctx.funcInputs[inField.inputIdx].Field(inField.input.goFieldIdx)
-
-					return ctx.bindInputToGoValue(&goField)
+					return ctx.bindInputToGoValue(&goField, &inField.input)
 				},
 			)
 			if criticalErr {
@@ -544,7 +543,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 	return false
 }
 
-func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value) bool {
+func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input) bool {
 	// TODO convert to go value kind to graphql value kind in errors
 
 	if goValue.Kind() == reflect.Ptr {
@@ -558,7 +557,7 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value) bool {
 		newVal := reflect.New(goValueElem)
 		newValElem := newVal.Elem()
 
-		criticalErr := ctx.bindInputToGoValue(&newValElem)
+		criticalErr := ctx.bindInputToGoValue(&newValElem, valueStructure.elem)
 		if criticalErr {
 			return criticalErr
 		}
@@ -696,7 +695,7 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value) bool {
 		ctx.skipInst(1) // read NULL
 		for ctx.seekInst() != 'e' {
 			arrayEntry := reflect.New(arrItemType).Elem()
-			criticalErr := ctx.bindInputToGoValue(&arrayEntry)
+			criticalErr := ctx.bindInputToGoValue(&arrayEntry, valueStructure.elem)
 			if criticalErr {
 				return criticalErr
 			}
@@ -705,8 +704,29 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value) bool {
 
 		goValue.Set(arr)
 	case bytecode.ValueObject:
-		// TODO
-		return ctx.err("object input value kind unsupported")
+		if goValue.Kind() != reflect.Struct {
+			return ctx.err("cannot assign object to " + goValue.String())
+		}
+
+		if valueStructure.isStructPointers {
+			valueStructure = ctx.schema.inTypes[valueStructure.structName]
+		}
+
+		// walkInputObject expects to start at ActionValue while we just read over it
+		ctx.skipInst(-2)
+
+		criticalErr := ctx.walkInputObject(func(key []byte) bool {
+			structFieldValueStructure, ok := valueStructure.structContent[b2s(key)]
+			if !ok {
+				return ctx.err("undefined property " + b2s(key))
+			}
+
+			field := goValue.Field(structFieldValueStructure.goFieldIdx)
+			return ctx.bindInputToGoValue(&field, &structFieldValueStructure)
+		})
+		if criticalErr {
+			return criticalErr
+		}
 	}
 	return false
 }
@@ -726,7 +746,7 @@ func (ctx *BytecodeCtx) walkInputObject(onValueOfKey func(key []byte) bool) bool
 			return false
 		}
 		keyStart := ctx.charNr
-		keyEnd := ctx.charNr
+		var keyEnd int
 		for {
 			if ctx.readInst() == 0 {
 				keyEnd = ctx.charNr - 1
