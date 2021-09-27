@@ -43,7 +43,7 @@ const (
 // ^- Kind
 //
 // writes:
-// 0 [actionNewOperator] [kind] [f (has no arguments (t = has arguments))] [nr of directives in uint8]
+// 0 [actionNewOperator] [kind] [t/f (has arguments)] [nr of directives in uint8]
 //
 // additional append:
 // [name...]

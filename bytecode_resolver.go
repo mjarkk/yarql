@@ -16,12 +16,13 @@ import (
 
 type BytecodeCtx struct {
 	// private
-	schema      *Schema
-	query       bytecode.ParserCtx
-	charNr      int
-	context     context.Context
-	path        []byte
-	getFormFile func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
+	schema              *Schema
+	query               bytecode.ParserCtx
+	charNr              int
+	context             context.Context
+	path                []byte
+	getFormFile         func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
+	operatorArgumentsAt int
 
 	// Zero alloc values
 	result                 []byte
@@ -153,7 +154,35 @@ func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions)
 	}
 
 	if !opts.NoMeta {
-		// TODO write remainer of meta to output
+		// Write add errors to output
+		ctx.write([]byte(`,"errors":[`))
+		for i, err := range ctx.query.Errors {
+			if i > 0 {
+				ctx.writeByte(',')
+			}
+			ctx.write([]byte(`{"message":`))
+			stringToJson(err.Error(), &ctx.result)
+
+			errWPath, isErrWPath := err.(ErrorWPath)
+			if isErrWPath && len(errWPath.path) > 0 {
+				ctx.write([]byte(`,"path":[`))
+				ctx.write(errWPath.path)
+				ctx.writeByte(']')
+			}
+			errWLocation, isErrWLocation := err.(ErrorWLocation)
+			if isErrWLocation {
+				ctx.write([]byte(`,"locations":[{"line":`))
+				ctx.result = strconv.AppendUint(ctx.result, uint64(errWLocation.line), 10)
+				ctx.write([]byte(`,"column":`))
+				ctx.result = strconv.AppendUint(ctx.result, uint64(errWLocation.column), 10)
+				ctx.write([]byte(`}]`))
+			}
+			ctx.writeByte('}')
+		}
+
+		// TODO support content for the extensions map
+		ctx.write([]byte(`],"extensions":{}`))
+
 		ctx.writeByte('}')
 	}
 
@@ -177,10 +206,6 @@ func (ctx *BytecodeCtx) skipInst(num int) {
 
 func (ctx *BytecodeCtx) lastInst() byte {
 	return ctx.query.Res[ctx.charNr-1]
-}
-
-func (ctx *BytecodeCtx) readBool() bool {
-	return ctx.readInst() == 't'
 }
 
 func (ctx *BytecodeCtx) err(msg string) bool {
@@ -216,12 +241,7 @@ func (ctx *BytecodeCtx) resolveOperation() bool {
 		return ctx.err("subscriptions are not supported")
 	}
 
-	hasArguments := ctx.readBool()
-	if hasArguments {
-		// TODO
-		return ctx.err("arguments currently unsupported")
-	}
-
+	hasArguments := ctx.readInst() == 't'
 	directivesCount := ctx.readInst()
 	if directivesCount > 0 {
 		// TODO
@@ -233,6 +253,21 @@ func (ctx *BytecodeCtx) resolveOperation() bool {
 		if ctx.readInst() == 0 {
 			break
 		}
+	}
+
+	if hasArguments {
+		argsEndAt := ctx.query.Res[ctx.charNr : ctx.charNr+4]
+
+		argsEndAtNr := uint32(argsEndAt[0]) |
+			(uint32(argsEndAt[1]) << 8) |
+			(uint32(argsEndAt[2]) << 16) |
+			(uint32(argsEndAt[3]) << 24)
+
+		// Skip over arguments end location and null byte
+		ctx.skipInst(5)
+		ctx.operatorArgumentsAt = ctx.charNr
+
+		ctx.charNr = int(argsEndAtNr) + 1
 	}
 
 	return ctx.resolveSelectionSet(ctx.schema.rootQuery, 0)
@@ -353,16 +388,25 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 			return ctx.errf("internal parsing error #2, %v", ctx.lastInst())
 		}
 	} else if inst != 0 {
-		return ctx.errf("internal parsing error #1, %v", ctx.lastInst())
+		return ctx.errf("internal parsing error #1, %v = %s", ctx.lastInst(), string(ctx.lastInst()))
 	}
 	return false
 }
 
 func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSelection bool) bool {
 	goValue := ctx.getGoValue()
+	if ctx.seekInst() == bytecode.ActionValue && typeObj.valueType != valueTypeMethod {
+		// Check there is no method behind a pointer
+		resolvedTypeObj := typeObj
+		for resolvedTypeObj.valueType == valueTypePtr {
+			resolvedTypeObj = resolvedTypeObj.innerContent
+		}
 
-	if ctx.seekInst() == bytecode.ActionValue && typeObj.valueType != valueTypeMethod && typeObj.valueType != valueTypePtr {
-		return ctx.err("field arguments not allowed")
+		if resolvedTypeObj.valueType != valueTypeMethod {
+			// arguments are not allowed on any other value than methods
+			ctx.writeNull()
+			return ctx.err("field arguments not allowed")
+		}
 	}
 
 	switch typeObj.valueType {
@@ -454,9 +498,14 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 		ctx.funcInputs = ctx.funcInputs[:0]
 		for _, in := range method.ins {
 			if in.isCtx {
-				// TODO THIS IS A DIFFRENT CONTEXT AND WILL PANIC
+				// TODO this is a dirty hack to get the context working again
+				// With this hack extensions and the errors are not added to our context when the user calls those methods
+				ctx.schema.ctx.errors = ctx.query.Errors
+				ctx.schema.ctx.path = ctx.path
+				ctx.schema.ctx.extensions = map[string]interface{}{}
+				ctx.schema.ctx.context = ctx.context
+
 				ctx.funcInputs = append(ctx.funcInputs, ctx.schema.ctxReflection)
-				fmt.Println("context argument currently unsupported")
 			} else {
 				ctx.funcInputs = append(ctx.funcInputs, reflect.New(*in.type_).Elem())
 			}
@@ -479,7 +528,6 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 			}
 			hasSubSelection = ctx.seekInst() != 'e'
 		}
-		// TODO parse arguments
 
 		outs := goValue.Call(ctx.funcInputs)
 		if method.errorOutNr != nil {
