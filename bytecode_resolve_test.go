@@ -239,3 +239,25 @@ func TestBytecodeResolveMethodNestedInputs(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, `{bar(a: {b: "foo"})}`, TestExecStructTypeMethodWithStructArgData{}, M{})
 	Equal(t, `{"bar":"foo"}`, res)
 }
+
+type TestBytecodeResolveEnumData struct {
+	foo __TypeKind
+}
+
+func TestBytecodeResolveEnum(t *testing.T) {
+	res := bytecodeParseAndExpectNoErrs(t, `{foo}`, TestBytecodeResolveEnumData{
+		foo: typeKindObject,
+	}, M{})
+	Equal(t, `{"foo":"OBJECT"}`, res)
+}
+
+type TestBytecodeResolveEnumInputData struct{}
+
+func (TestBytecodeResolveEnumInputData) ResolveFoo(args struct{ A __TypeKind }) __TypeKind {
+	return args.A
+}
+
+func TestBytecodeResolveEnumInput(t *testing.T) {
+	res := bytecodeParseAndExpectNoErrs(t, `{foo(a: OBJECT)}`, TestBytecodeResolveEnumInputData{}, M{})
+	Equal(t, `{"foo":"OBJECT"}`, res)
+}

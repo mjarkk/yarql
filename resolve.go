@@ -413,7 +413,6 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 }
 
 func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAnalyzedData *input) error {
-
 	if goAnalyzedData.isFile {
 		goAnalyzedData.kind = reflect.String
 		if queryValue.isNull {

@@ -310,6 +310,7 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 
 	criticalErr := false
 	fieldHasSelection := ctx.seekInst() != 'e'
+
 	if nameStr == "__typename" {
 		if fieldHasSelection {
 			criticalErr = ctx.err("cannot have a selection set on this field")
@@ -356,6 +357,10 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 
 func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSelection bool) bool {
 	goValue := ctx.getGoValue()
+
+	if ctx.seekInst() == bytecode.ActionValue && typeObj.valueType != valueTypeMethod && typeObj.valueType != valueTypePtr {
+		return ctx.err("field arguments not allowed")
+	}
 
 	switch typeObj.valueType {
 	case valueTypeUndefined:
@@ -575,11 +580,16 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 		}
 	}
 
-	ctx.skipInst(1) // read ActionValue
-	switch ctx.readInst() {
-	case bytecode.ValueVariable:
+	if ctx.query.Res[ctx.charNr+1] == bytecode.ValueVariable {
 		// TODO
 		return ctx.err("variable input value kind unsupported")
+
+		// varNameStart, varNameEnd := getValue()
+		// varName := b2s(ctx.query.Res[varNameStart:varNameEnd])
+	}
+
+	ctx.skipInst(1) // read ActionValue
+	switch ctx.readInst() {
 	case bytecode.ValueInt:
 		startInt, endInt := getValue()
 		intValue := b2s(ctx.query.Res[startInt:endInt])
@@ -677,8 +687,31 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 		// keep goValue at it's default
 		ctx.skipInst(1)
 	case bytecode.ValueEnum:
-		// TODO
-		return ctx.err("enum input value kind unsupported")
+		if !valueStructure.isEnum {
+			return ctx.err("cannot assign enum to non enum value")
+		}
+
+		nameStart, nameEnd := getValue()
+		name := b2s(ctx.query.Res[nameStart:nameEnd])
+
+		enum := definedEnums[valueStructure.enumTypeIndex]
+		for _, entry := range enum.entries {
+			if entry.key == name {
+				switch enum.contentKind {
+				case reflect.String:
+					goValue.SetString(entry.value.String())
+				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+					goValue.SetInt(entry.value.Int())
+				case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+					goValue.SetUint(entry.value.Uint())
+				default:
+					return ctx.err("internal error, type missmatch on enum")
+				}
+				return false
+			}
+		}
+
+		return ctx.errf("unknown enum value %s for enum %s", name, enum.typeName)
 	case bytecode.ValueList:
 		goValueKind := goValue.Kind()
 		if goValueKind == reflect.Array {
