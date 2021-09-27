@@ -153,7 +153,35 @@ func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions)
 	}
 
 	if !opts.NoMeta {
-		// TODO write remainder of meta to output
+		// Write add errors to output
+		ctx.write([]byte(`,"errors":[`))
+		for i, err := range ctx.query.Errors {
+			if i > 0 {
+				ctx.writeByte(',')
+			}
+			ctx.write([]byte(`{"message":`))
+			stringToJson(err.Error(), &ctx.result)
+
+			errWPath, isErrWPath := err.(ErrorWPath)
+			if isErrWPath && len(errWPath.path) > 0 {
+				ctx.write([]byte(`,"path":[`))
+				ctx.write(errWPath.path)
+				ctx.writeByte(']')
+			}
+			errWLocation, isErrWLocation := err.(ErrorWLocation)
+			if isErrWLocation {
+				ctx.write([]byte(`,"locations":[{"line":`))
+				ctx.result = strconv.AppendUint(ctx.result, uint64(errWLocation.line), 10)
+				ctx.write([]byte(`,"column":`))
+				ctx.result = strconv.AppendUint(ctx.result, uint64(errWLocation.column), 10)
+				ctx.write([]byte(`}]`))
+			}
+			ctx.writeByte('}')
+		}
+
+		// TODO support content for the extensions map
+		ctx.write([]byte(`],"extensions":{}`))
+
 		ctx.writeByte('}')
 	}
 
@@ -353,16 +381,25 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 			return ctx.errf("internal parsing error #2, %v", ctx.lastInst())
 		}
 	} else if inst != 0 {
-		return ctx.errf("internal parsing error #1, %v", ctx.lastInst())
+		return ctx.errf("internal parsing error #1, %v = %s", ctx.lastInst(), string(ctx.lastInst()))
 	}
 	return false
 }
 
 func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSelection bool) bool {
 	goValue := ctx.getGoValue()
+	if ctx.seekInst() == bytecode.ActionValue && typeObj.valueType != valueTypeMethod {
+		// Check there is no method behind a pointer
+		resolvedTypeObj := typeObj
+		for resolvedTypeObj.valueType == valueTypePtr {
+			resolvedTypeObj = resolvedTypeObj.innerContent
+		}
 
-	if ctx.seekInst() == bytecode.ActionValue && typeObj.valueType != valueTypeMethod && typeObj.valueType != valueTypePtr {
-		return ctx.err("field arguments not allowed")
+		if resolvedTypeObj.valueType != valueTypeMethod {
+			// arguments are not allowed on any other value than methods
+			ctx.writeNull()
+			return ctx.err("field arguments not allowed")
+		}
 	}
 
 	switch typeObj.valueType {

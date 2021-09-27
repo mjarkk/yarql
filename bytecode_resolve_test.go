@@ -274,3 +274,35 @@ func TestBytecodeResolveEnumInput(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, `{foo(a: OBJECT)}`, TestBytecodeResolveEnumInputData{}, M{})
 	Equal(t, `{"foo":"OBJECT"}`, res)
 }
+
+func TestBytecodeResolveCorrectMeta(t *testing.T) {
+	query := `{
+		a {
+			foo
+			bar
+		}
+		b {
+			baz
+		}
+	}`
+	schema := TestExecSchemaRequestWithFieldsData{}
+	res, _ := bytecodeParseWithOpts(t, query, schema, M{}, BytecodeParseOptions{})
+	if !json.Valid([]byte(res)) {
+		panic("invalid json: " + res)
+	}
+	Equal(t, `{"data":{"a":{"foo":null,"bar":""},"b":{"baz":""}},"errors":[],"extensions":{}}`, res)
+}
+
+func TestBytecodeResolveCorrectMetaWithError(t *testing.T) {
+	query := `{
+		a {
+			foo(a: "")
+		}
+	}`
+	schema := TestExecSchemaRequestWithFieldsData{}
+	res, _ := bytecodeParseWithOpts(t, query, schema, M{}, BytecodeParseOptions{})
+	if !json.Valid([]byte(res)) {
+		panic("invalid json: " + res)
+	}
+	Equal(t, `{"data":{"a":{"foo":null}},"errors":[{"message":"field arguments not allowed","path":["a","foo"]}],"extensions":{}}`, res)
+}
