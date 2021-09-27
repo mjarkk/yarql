@@ -521,7 +521,6 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 			}
 			hasSubSelection = ctx.seekInst() != 'e'
 		}
-		// TODO parse arguments
 
 		outs := goValue.Call(ctx.funcInputs)
 		if method.errorOutNr != nil {
