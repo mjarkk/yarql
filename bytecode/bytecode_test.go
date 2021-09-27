@@ -9,6 +9,15 @@ import (
 	. "github.com/stretchr/testify/assert"
 )
 
+func uint32ToBytesStr(value uint32) string {
+	return strings.ReplaceAll(string([]byte{
+		byte(0xff & value),
+		byte(0xff & (value >> 8)),
+		byte(0xff & (value >> 16)),
+		byte(0xff & (value >> 24)),
+	}), "\x00", "\n")
+}
+
 func parseQuery(query string) ([]byte, []error) {
 	i := ParserCtx{
 		Res:    []byte{},
@@ -97,31 +106,32 @@ func TestParseQueryWithName(t *testing.T) {
 }
 
 func TestParseQuerywithArgs(t *testing.T) {
-	parseQueryAndExpectResult(t, `query banana(quality: [Int]) {}`, `
-		oqt      // operator of type query
-		banana   // operator name
-		A        // operator args
-        aquality // argument with name banana
-        lnInt    // argument of type list with an inner type Int
-		f        // this argument has default values
-		e        // end of operator arguments
-		e        // end of operator
+	endsAt := "\n" + uint32ToBytesStr(37)
+	parseQueryAndExpectResult(t, `query banana($quality: [Int]) {}`, `
+		oqt              // operator of type query
+		banana`+endsAt+` // operator name
+		A                // operator args
+        aquality         // argument with name banana
+        lnInt            // argument of type list with an inner type Int
+		f                // this argument has default values
+		e                // end of operator arguments
+		e                // end of operator
 	`)
 
-	query := `query banana(quality: [Int!]! = [10]) {}`
-
+	query := `query banana($quality: [Int!]! = [10]) {}`
+	endsAt = "\n" + uint32ToBytesStr(47)
 	parseQueryAndExpectResult(t, query, `
-		oqt      // operator of type query
-		banana   // operator name
-		A        // operator args
-        aquality // argument with name banana
-        LNInt    // argument of type required list with an inner type Int also required
-		t        // this argument has default values
-		vl       // list value
-		vi10     // value of type int with value 10
-		e        // end of list value
-		e        // end of operator arguments
-		e        // end of operator
+		oqt              // operator of type query
+		banana`+endsAt+` // operator name
+		A                // operator args
+	    aquality         // argument with name banana
+	    LNInt            // argument of type required list with an inner type Int also required
+		t                // this argument has default values
+		vl               // list value
+		vi10             // value of type int with value 10
+		e                // end of list value
+		e                // end of operator arguments
+		e                // end of operator
 	`)
 
 	injectCodeSurviveTest(query)

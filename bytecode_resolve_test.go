@@ -306,3 +306,10 @@ func TestBytecodeResolveCorrectMetaWithError(t *testing.T) {
 	}
 	Equal(t, `{"data":{"a":{"foo":null}},"errors":[{"message":"field arguments not allowed","path":["a","foo"]}],"extensions":{}}`, res)
 }
+
+func TestBytecodeResolveWithArgs(t *testing.T) {
+	query := `query A($a: Int) {}`
+	schema := TestExecEmptyQueryDataQ{}
+	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
+	Equal(t, `{}`, res)
+}

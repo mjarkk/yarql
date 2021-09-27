@@ -16,12 +16,13 @@ import (
 
 type BytecodeCtx struct {
 	// private
-	schema      *Schema
-	query       bytecode.ParserCtx
-	charNr      int
-	context     context.Context
-	path        []byte
-	getFormFile func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
+	schema              *Schema
+	query               bytecode.ParserCtx
+	charNr              int
+	context             context.Context
+	path                []byte
+	getFormFile         func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
+	operatorArgumentsAt int
 
 	// Zero alloc values
 	result                 []byte
@@ -207,10 +208,6 @@ func (ctx *BytecodeCtx) lastInst() byte {
 	return ctx.query.Res[ctx.charNr-1]
 }
 
-func (ctx *BytecodeCtx) readBool() bool {
-	return ctx.readInst() == 't'
-}
-
 func (ctx *BytecodeCtx) err(msg string) bool {
 	err := errors.New(msg)
 	if len(ctx.path) == 0 {
@@ -244,12 +241,7 @@ func (ctx *BytecodeCtx) resolveOperation() bool {
 		return ctx.err("subscriptions are not supported")
 	}
 
-	hasArguments := ctx.readBool()
-	if hasArguments {
-		// TODO
-		return ctx.err("arguments currently unsupported")
-	}
-
+	hasArguments := ctx.readInst() == 't'
 	directivesCount := ctx.readInst()
 	if directivesCount > 0 {
 		// TODO
@@ -261,6 +253,21 @@ func (ctx *BytecodeCtx) resolveOperation() bool {
 		if ctx.readInst() == 0 {
 			break
 		}
+	}
+
+	if hasArguments {
+		argsEndAt := ctx.query.Res[ctx.charNr : ctx.charNr+4]
+
+		argsEndAtNr := uint32(argsEndAt[0]) |
+			(uint32(argsEndAt[1]) << 8) |
+			(uint32(argsEndAt[2]) << 16) |
+			(uint32(argsEndAt[3]) << 24)
+
+		// Skip over arguments end location and null byte
+		ctx.skipInst(5)
+		ctx.operatorArgumentsAt = ctx.charNr
+
+		ctx.charNr = int(argsEndAtNr) + 1
 	}
 
 	return ctx.resolveSelectionSet(ctx.schema.rootQuery, 0)
