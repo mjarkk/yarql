@@ -16,13 +16,13 @@ import (
 
 type BytecodeCtx struct {
 	// private
-	schema              *Schema
-	query               bytecode.ParserCtx
-	charNr              int
-	context             context.Context
-	path                []byte
-	getFormFile         func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
-	operatorArgumentsAt int
+	schema                   *Schema
+	query                    bytecode.ParserCtx
+	charNr                   int
+	context                  context.Context
+	path                     []byte
+	getFormFile              func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
+	operatorArgumentsStartAt int
 
 	// Zero alloc values
 	result                 []byte
@@ -228,6 +228,14 @@ func (ctx *BytecodeCtx) errf(msg string, args ...interface{}) bool {
 	return ctx.err(fmt.Sprintf(msg, args...))
 }
 
+func (ctx *BytecodeCtx) readUint32(startAt int) uint32 {
+	data := ctx.query.Res[startAt : startAt+4]
+	return uint32(data[0]) |
+		(uint32(data[1]) << 8) |
+		(uint32(data[2]) << 16) |
+		(uint32(data[3]) << 24)
+}
+
 func (ctx *BytecodeCtx) resolveOperation() bool {
 	ctx.charNr += 2 // read 0, [ActionOperator], [kind]
 
@@ -256,18 +264,11 @@ func (ctx *BytecodeCtx) resolveOperation() bool {
 	}
 
 	if hasArguments {
-		argsEndAt := ctx.query.Res[ctx.charNr : ctx.charNr+4]
-
-		argsEndAtNr := uint32(argsEndAt[0]) |
-			(uint32(argsEndAt[1]) << 8) |
-			(uint32(argsEndAt[2]) << 16) |
-			(uint32(argsEndAt[3]) << 24)
+		argumentsLen := ctx.readUint32(ctx.charNr)
 
 		// Skip over arguments end location and null byte
-		ctx.skipInst(5)
-		ctx.operatorArgumentsAt = ctx.charNr
-
-		ctx.charNr = int(argsEndAtNr) + 1
+		ctx.operatorArgumentsStartAt = ctx.charNr + 5
+		ctx.skipInst(int(argumentsLen) + 5)
 	}
 
 	return ctx.resolveSelectionSet(ctx.schema.rootQuery, 0)
@@ -599,6 +600,35 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 	return false
 }
 
+func (ctx *BytecodeCtx) findOperatorArgument(nameToFind string) (foundArgument bool) {
+	ctx.charNr = ctx.operatorArgumentsStartAt
+	for {
+		ctx.skipInst(2)
+		if ctx.readInst() == 'e' {
+			return false
+		}
+		startOfArg := ctx.charNr
+		argLen := ctx.readUint32(ctx.charNr)
+		ctx.charNr += 4
+
+		nameStart := ctx.charNr
+		var nameEnd int
+		for {
+			if ctx.readInst() == 0 {
+				nameEnd = ctx.charNr - 1
+				break
+			}
+		}
+
+		name := b2s(ctx.query.Res[nameStart:nameEnd])
+		if name == nameToFind {
+			return true
+		}
+
+		ctx.charNr += startOfArg + int(argLen) + 1
+	}
+}
+
 func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input) bool {
 	// TODO convert to go value kind to graphql value kind in errors
 
@@ -631,16 +661,19 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 		}
 	}
 
-	if ctx.query.Res[ctx.charNr+1] == bytecode.ValueVariable {
-		// TODO
-		return ctx.err("variable input value kind unsupported")
-
-		// varNameStart, varNameEnd := getValue()
-		// varName := b2s(ctx.query.Res[varNameStart:varNameEnd])
-	}
-
 	ctx.skipInst(1) // read ActionValue
+
 	switch ctx.readInst() {
+	case bytecode.ValueVariable:
+		varNameStart, varNameEnd := getValue()
+		varName := b2s(ctx.query.Res[varNameStart:varNameEnd])
+
+		restorePositionTo := ctx.charNr
+		foundArgument := ctx.findOperatorArgument(varName)
+		if !foundArgument {
+			return ctx.err("variable " + varName + " not defined")
+		}
+		ctx.charNr = restorePositionTo
 	case bytecode.ValueInt:
 		startInt, endInt := getValue()
 		intValue := b2s(ctx.query.Res[startInt:endInt])

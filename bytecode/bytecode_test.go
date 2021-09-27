@@ -106,32 +106,34 @@ func TestParseQueryWithName(t *testing.T) {
 }
 
 func TestParseQuerywithArgs(t *testing.T) {
-	endsAt := "\n" + uint32ToBytesStr(37)
+	argsLen := "\n" + uint32ToBytesStr(25)
+	argLen := uint32ToBytesStr(21)
 	parseQueryAndExpectResult(t, `query banana($quality: [Int]) {}`, `
-		oqt              // operator of type query
-		banana`+endsAt+` // operator name
-		A                // operator args
-        aquality         // argument with name banana
-        lnInt            // argument of type list with an inner type Int
-		f                // this argument has default values
-		e                // end of operator arguments
-		e                // end of operator
+		oqt                // operator of type query
+		banana`+argsLen+`  // operator name
+		A                  // operator args
+        a`+argLen+`quality // argument with name banana
+        lnInt              // argument of type list with an inner type Int
+		f                  // this argument has no default values
+		e                  // end of operator arguments
+		e                  // end of operator
 	`)
 
 	query := `query banana($quality: [Int!]! = [10]) {}`
-	endsAt = "\n" + uint32ToBytesStr(47)
+	argsLen = "\n" + uint32ToBytesStr(35)
+	argLen = uint32ToBytesStr(31)
 	parseQueryAndExpectResult(t, query, `
-		oqt              // operator of type query
-		banana`+endsAt+` // operator name
-		A                // operator args
-	    aquality         // argument with name banana
-	    LNInt            // argument of type required list with an inner type Int also required
-		t                // this argument has default values
-		vl               // list value
-		vi10             // value of type int with value 10
-		e                // end of list value
-		e                // end of operator arguments
-		e                // end of operator
+		oqt                // operator of type query
+		banana`+argsLen+`  // operator name
+		A                  // operator args
+		a`+argLen+`quality // argument with name banana
+		LNInt              // argument of type required list with an inner type Int also required
+		t                  // this argument has default values
+		vl                 // list value
+		vi10               // value of type int with value 10
+		e                  // end of list value
+		e                  // end of operator arguments
+		e                  // end of operator
 	`)
 
 	injectCodeSurviveTest(query)

@@ -63,12 +63,16 @@ func (ctx *ParserCtx) instructionNewOperationArgs() {
 //             ^- ActionOperatorArg
 //
 // writes:
-// 0 [ActionOperatorArg]
+// 0 [ActionOperatorArg] [0000 (encoded uint32 telling how long this full instruction is)]
 //
 // additional required append:
-// [Name] 0 [Graphql Type] 0 ['t'/'f' (t = has default value (next instruction will value), f = no default value)]
-func (ctx *ParserCtx) instructionNewOperationArg() {
-	ctx.Res = append(ctx.Res, 0, ActionOperatorArg)
+// [Name] 0 [Graphql Type] 0 [t/f (has a default value?)]
+//
+// returns:
+// the start location of the 4 bit encoded uint32
+func (ctx *ParserCtx) instructionNewOperationArg() int {
+	ctx.Res = append(ctx.Res, 0, ActionOperatorArg, 0, 0, 0, 0)
+	return len(ctx.Res) - 4
 }
 
 // represends:

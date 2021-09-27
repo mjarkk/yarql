@@ -99,13 +99,16 @@ func (ctx *ParserCtx) parseOperatorOrFragment() (stop bool) {
 			// the other bytes are used to store the end location of the argument
 			ctx.Res = append(ctx.Res, 0, 0, 0, 0, 0)
 			endAt := len(ctx.Res) - 4
+			argumentsStartAt := uint32(len(ctx.Res))
 
 			ctx.charNr++
-			argsEndAt, criticalErr := ctx.parseOperatorArguments()
+			criticalErr := ctx.parseOperatorArguments()
 			if criticalErr {
 				return criticalErr
 			}
-			ctx.writeUint32(argsEndAt, endAt)
+
+			argumentsLen := uint32(len(ctx.Res)) - argumentsStartAt
+			ctx.writeUint32(argumentsLen, endAt)
 		}
 
 		amount, criticalErr := ctx.parseDirectives()
@@ -188,91 +191,96 @@ func (ctx *ParserCtx) parseOperatorOrFragment() (stop bool) {
 	return false
 }
 
-func (ctx *ParserCtx) parseOperatorArguments() (endsAt uint32, criticalErr bool) {
+func (ctx *ParserCtx) parseOperatorArguments() bool {
 	ctx.instructionNewOperationArgs()
-
-	getEndsAt := func() uint32 {
-		return uint32(len(ctx.Res))
-	}
 
 	for {
 		c, eof := ctx.mightIgnoreNextTokens()
 		if eof {
-			return getEndsAt(), ctx.unexpectedEOF()
+			return ctx.unexpectedEOF()
 		}
 
 		if c == ')' {
 			ctx.charNr++
 			ctx.instructionEnd()
-			return getEndsAt(), false
+			return false
 		}
 
-		// Parse `$` of `query a($some_var: String = "a") {`
-		ctx.instructionNewOperationArg()
 		if c != '$' {
-			return getEndsAt(), ctx.err(`expected "$" but got "` + string(c) + `"`)
+			return ctx.err(`expected "$" but got "` + string(c) + `"`)
 		}
 		ctx.charNr++
 
-		// Parse `some_name` of `query a($some_var: String = "a") {`
-		empty, criticalErr := ctx.parseAndWriteName()
+		criticalErr := ctx.parseOperatorArgument()
 		if criticalErr {
-			return getEndsAt(), criticalErr
+			return criticalErr
 		}
-		if empty {
-			return getEndsAt(), ctx.err(`expected argument name but got "` + string(ctx.currentC()) + `"`)
-		}
+	}
+}
 
-		// Parse `:` of `query a($some_var: String = "a") {`
-		c, eof = ctx.mightIgnoreNextTokens()
-		if eof {
-			return getEndsAt(), ctx.unexpectedEOF()
-		}
-		if c != ':' {
-			return getEndsAt(), ctx.err(`expected ":" name but got "` + string(ctx.currentC()) + `"`)
-		}
-		ctx.charNr++
+func (ctx *ParserCtx) parseOperatorArgument() bool {
+	// Parse `$` of `query a($some_var: String = "a") {`
+	startOfArgument := len(ctx.Res)
+	argLengthLocation := ctx.instructionNewOperationArg()
 
-		// Parse `String` of `query a($some_var: String = "a") {`
-		ctx.Res = append(ctx.Res, 0)
-		c, eof = ctx.mightIgnoreNextTokens()
-		if eof {
-			return getEndsAt(), ctx.unexpectedEOF()
-		}
-		criticalErr = ctx.parseGraphqlTypeName(c)
-		if criticalErr {
-			return getEndsAt(), criticalErr
-		}
-		ctx.Res = append(ctx.Res, 0)
+	// Parse `some_name` of `query a($some_var: String = "a") {`
+	empty, criticalErr := ctx.parseAndWriteName()
+	if criticalErr {
+		return criticalErr
+	}
+	if empty {
+		return ctx.err(`expected argument name but got "` + string(ctx.currentC()) + `"`)
+	}
 
-		// Parse `=` of query `a($some_var: String = "a") {`
-		c, eof = ctx.mightIgnoreNextTokens()
-		if eof {
-			return getEndsAt(), ctx.unexpectedEOF()
-		}
-		if c == ')' {
-			ctx.Res = append(ctx.Res, 'f')
-			ctx.charNr++
-			ctx.instructionEnd()
-			return uint32(len(ctx.Res)), false
-		}
-		if c != '=' {
-			ctx.Res = append(ctx.Res, 'f')
-			continue
-		}
+	// Parse `:` of `query a($some_var: String = "a") {`
+	c, eof := ctx.mightIgnoreNextTokens()
+	if eof {
+		return ctx.unexpectedEOF()
+	}
+	if c != ':' {
+		return ctx.err(`expected ":" name but got "` + string(ctx.currentC()) + `"`)
+	}
+	ctx.charNr++
+
+	// Parse `String` of `query a($some_var: String = "a") {`
+	ctx.Res = append(ctx.Res, 0)
+	c, eof = ctx.mightIgnoreNextTokens()
+	if eof {
+		return ctx.unexpectedEOF()
+	}
+	criticalErr = ctx.parseGraphqlTypeName(c)
+	if criticalErr {
+		return criticalErr
+	}
+	ctx.Res = append(ctx.Res, 0)
+
+	// Parse `=` of query `a($some_var: String = "a") {`
+	// If no = is found return and set the has default to false
+	c, eof = ctx.mightIgnoreNextTokens()
+	if eof {
+		return ctx.unexpectedEOF()
+	}
+	if c == '=' {
 		ctx.Res = append(ctx.Res, 't')
 		ctx.charNr++
 
 		// Parse `"a"` of `query a($some_var: String = "a") {`
 		_, eof = ctx.mightIgnoreNextTokens()
 		if eof {
-			return getEndsAt(), ctx.unexpectedEOF()
+			return ctx.unexpectedEOF()
 		}
+
 		criticalErr = ctx.parseInputValue()
 		if criticalErr {
-			return getEndsAt(), criticalErr
+			return criticalErr
 		}
+	} else {
+		ctx.Res = append(ctx.Res, 'f')
 	}
+
+	endOfArgument := len(ctx.Res)
+	ctx.writeUint32(uint32(endOfArgument-startOfArgument), argLengthLocation)
+	return false
 }
 
 func (ctx *ParserCtx) parseDirectives() (directivesAmount uint8, criticalErr bool) {
