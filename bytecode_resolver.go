@@ -153,7 +153,7 @@ func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions)
 	}
 
 	if !opts.NoMeta {
-		// TODO write remainer of meta to output
+		// TODO write remainder of meta to output
 		ctx.writeByte('}')
 	}
 
