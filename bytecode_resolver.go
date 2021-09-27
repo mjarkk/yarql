@@ -629,6 +629,90 @@ func (ctx *BytecodeCtx) findOperatorArgument(nameToFind string) (foundArgument b
 	}
 }
 
+func (ctx *BytecodeCtx) bindOperatorArgumentTo(goValue *reflect.Value, valueStructure *input, argumentName string) bool {
+	// TODO Check for the required flag (L & N)
+	// We don't currently do that
+
+	// TODO the error messages in this function are garbage
+
+	c := ctx.readInst()
+	for {
+		if c != 'L' && c != 'l' {
+			break
+		}
+		if valueStructure.kind != reflect.Slice {
+			return ctx.err("variable $" + argumentName + " cannot be bind to " + valueStructure.kind.String())
+		}
+		valueStructure = valueStructure.elem
+		c = ctx.readInst()
+	}
+
+	if c == 'n' || c == 'N' {
+		// N = required type
+		// n = not required type
+
+		typeNameStart := ctx.charNr
+		var typeNameEnd int
+		for {
+			if ctx.readInst() == 0 {
+				typeNameEnd = ctx.charNr - 1
+				break
+			}
+		}
+
+		typeName := b2s(ctx.query.Res[typeNameStart:typeNameEnd])
+		if valueStructure.isEnum {
+			enum := definedEnums[valueStructure.enumTypeIndex]
+			if typeName != enum.typeName && typeName != "String" {
+				return ctx.err("expected variable type " + enum.typeName + " but got " + typeName)
+			}
+		} else if valueStructure.isID {
+			if typeName != "ID" && typeName != "String" {
+				return ctx.err("expected variable type ID but got " + typeName)
+			}
+		} else if valueStructure.isFile {
+			if typeName != "File" && typeName != "String" {
+				return ctx.err("expected variable type File but got " + typeName)
+			}
+		} else if valueStructure.isTime {
+			if typeName != "Time" && typeName != "String" {
+				return ctx.err("expected variable type Time but got " + typeName)
+			}
+		} else {
+			switch goValue.Kind() {
+			case reflect.Bool:
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+				if typeName != "Int" {
+					return ctx.err("expected variable type Int but got " + typeName)
+				}
+			case reflect.Float32, reflect.Float64:
+				if typeName != "Float" {
+					return ctx.err("expected variable type Float but got " + typeName)
+				}
+			case reflect.Array, reflect.Slice:
+				if typeName != "List" {
+					return ctx.err("expected variable type List but got " + typeName)
+				}
+			case reflect.String:
+				if typeName != "String" {
+					return ctx.err("expected variable type String but got " + typeName)
+				}
+			case reflect.Struct:
+				if typeName != valueStructure.structName {
+					return ctx.err("expected variable type " + valueStructure.structName + " but got " + typeName)
+				}
+			default:
+				return ctx.err("cannot set field using variable")
+			}
+			// check the struct name or data type name (String, Float, etc..)
+		}
+
+		// valueStructure.structName
+	}
+
+	return false
+}
+
 func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input) bool {
 	// TODO convert to go value kind to graphql value kind in errors
 
@@ -671,9 +755,14 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 		restorePositionTo := ctx.charNr
 		foundArgument := ctx.findOperatorArgument(varName)
 		if !foundArgument {
+			ctx.charNr = restorePositionTo
 			return ctx.err("variable " + varName + " not defined")
 		}
+		criticalErr := ctx.bindOperatorArgumentTo(goValue, valueStructure, varName)
 		ctx.charNr = restorePositionTo
+		if criticalErr {
+			return criticalErr
+		}
 	case bytecode.ValueInt:
 		startInt, endInt := getValue()
 		intValue := b2s(ctx.query.Res[startInt:endInt])
