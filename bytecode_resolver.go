@@ -674,13 +674,30 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 			return ctx.err("cannot assign float to " + goValue.String())
 		}
 	case bytecode.ValueString:
-		if goValue.Kind() != reflect.String && !valueStructure.isTime && !valueStructure.isFile {
-			return ctx.err("cannot assign string to " + goValue.String())
-		}
-
 		startString, endString := getValue()
 		stringValue := b2s(ctx.query.Res[startString:endString])
-		if valueStructure.isFile {
+
+		if valueStructure.isID {
+			switch goValue.Kind() {
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				intValue, err := strconv.Atoi(stringValue)
+				if err != nil {
+					return ctx.err("id argument must match a number type")
+				}
+				goValue.SetInt(int64(intValue))
+			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+				intValue, err := strconv.Atoi(stringValue)
+				if err != nil {
+					return ctx.err("id argument must match a number type")
+				}
+				if intValue < 0 {
+					return ctx.err("id argument must match a number above 0")
+				}
+				goValue.SetUint(uint64(intValue))
+			default:
+				return ctx.err("cannot assign string to ID field")
+			}
+		} else if valueStructure.isFile {
 			if ctx.getFormFile == nil {
 				return ctx.err("form files are not supported")
 			}
@@ -695,8 +712,10 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 				return ctx.err(err.Error())
 			}
 			goValue.Set(reflect.ValueOf(parsedTime))
-		} else {
+		} else if goValue.Kind() != reflect.String {
 			goValue.SetString(stringValue)
+		} else {
+			return ctx.err("cannot assign string to " + goValue.String())
 		}
 	case bytecode.ValueBoolean:
 		if goValue.Kind() != reflect.Bool {
