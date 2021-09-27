@@ -712,7 +712,7 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 				return ctx.err(err.Error())
 			}
 			goValue.Set(reflect.ValueOf(parsedTime))
-		} else if goValue.Kind() != reflect.String {
+		} else if goValue.Kind() == reflect.String {
 			goValue.SetString(stringValue)
 		} else {
 			return ctx.err("cannot assign string to " + goValue.String())
