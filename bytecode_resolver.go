@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime/multipart"
 	"reflect"
 	"strconv"
 	"time"
@@ -15,11 +16,12 @@ import (
 
 type BytecodeCtx struct {
 	// private
-	schema  *Schema
-	query   bytecode.ParserCtx
-	charNr  int
-	context context.Context
-	path    []byte
+	schema      *Schema
+	query       bytecode.ParserCtx
+	charNr      int
+	context     context.Context
+	path        []byte
+	getFormFile func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
 
 	// Zero alloc values
 	result                 []byte
@@ -49,11 +51,11 @@ type BytecodeParseOptions struct {
 	NoMeta         bool            // Returns only the data
 	Context        context.Context // Request context
 	OperatorTarget string
-	Values         map[string]interface{} // Passed directly to the request context
+	Values         map[string]interface{}                          // Passed directly to the request context
+	GetFormFile    func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
 
 	// TODO support:
 	// Variables      string // Expects valid JSON or empty string
-	// GetFormFile    func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
 	// Tracing        bool                                            // https://github.com/apollographql/apollo-tracing
 }
 
@@ -110,11 +112,12 @@ func (ctx *BytecodeCtx) writeNull() {
 
 func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions) ([]byte, []error) {
 	*ctx = BytecodeCtx{
-		schema:  ctx.schema,
-		query:   ctx.query,
-		charNr:  0,
-		context: opts.Context,
-		path:    ctx.path[:0],
+		schema:      ctx.schema,
+		query:       ctx.query,
+		charNr:      0,
+		context:     opts.Context,
+		path:        ctx.path[:0],
+		getFormFile: opts.GetFormFile,
 
 		result:                 ctx.result[:0],
 		reflectValues:          ctx.reflectValues,
@@ -671,12 +674,30 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 			return ctx.err("cannot assign float to " + goValue.String())
 		}
 	case bytecode.ValueString:
-		if goValue.Kind() != reflect.String {
+		if goValue.Kind() != reflect.String && !valueStructure.isTime && !valueStructure.isFile {
 			return ctx.err("cannot assign string to " + goValue.String())
 		}
 
 		startString, endString := getValue()
-		goValue.SetString(b2s(ctx.query.Res[startString:endString]))
+		stringValue := b2s(ctx.query.Res[startString:endString])
+		if valueStructure.isFile {
+			if ctx.getFormFile == nil {
+				return ctx.err("form files are not supported")
+			}
+			file, err := ctx.getFormFile(stringValue)
+			if err != nil {
+				return ctx.err(err.Error())
+			}
+			goValue.Set(reflect.ValueOf(file))
+		} else if valueStructure.isTime {
+			parsedTime, err := parseTime(stringValue)
+			if err != nil {
+				return ctx.err(err.Error())
+			}
+			goValue.Set(reflect.ValueOf(parsedTime))
+		} else {
+			goValue.SetString(stringValue)
+		}
 	case bytecode.ValueBoolean:
 		if goValue.Kind() != reflect.Bool {
 			return ctx.err("cannot assign boolean to " + goValue.String())

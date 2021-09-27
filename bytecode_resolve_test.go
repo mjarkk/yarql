@@ -168,6 +168,19 @@ func TestBytecodeResolveTime(t *testing.T) {
 	Equal(t, `{"t":"`+expect+`"}`, res)
 }
 
+func TestBytecodeResolveTimeIO(t *testing.T) {
+	now := time.Now()
+	testTimeInput := []byte{}
+	timeToString(&testTimeInput, now)
+
+	query := `{foo(t: "` + string(testTimeInput) + `")}`
+	out := bytecodeParseAndExpectNoErrs(t, query, TestExecTimeIOData{}, M{})
+
+	exectedOutTime := []byte{}
+	timeToString(&exectedOutTime, now.AddDate(3, 2, 1).Add(time.Hour+time.Second))
+	Equal(t, `{"foo":"`+string(exectedOutTime)+`"}`, out)
+}
+
 func TestBytecodeResolveMethod(t *testing.T) {
 	schema := TestExecStructTypeMethodData{}
 	res := bytecodeParseAndExpectNoErrs(t, `{foo, bar, baz}`, schema, M{})

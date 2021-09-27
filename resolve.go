@@ -499,6 +499,9 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 			}
 			goField.Set(reflect.ValueOf(parsedTime))
 		} else if goAnalyzedData.isFile {
+			if ctx.getFormFile == nil {
+				return errors.New("form files are not supported")
+			}
 			file, err := ctx.getFormFile(str)
 			if err != nil {
 				return err
