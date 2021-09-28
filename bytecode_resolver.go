@@ -841,7 +841,26 @@ func (ctx *BytecodeCtx) bindExternalVariableValue(goValue *reflect.Value, valueS
 }
 
 func (ctx *BytecodeCtx) assignStringToValue(goValue *reflect.Value, valueStructure *input, stringValue string) bool {
-	if valueStructure.isID {
+	if valueStructure.isEnum {
+		enum := definedEnums[valueStructure.enumTypeIndex]
+		for _, entry := range enum.entries {
+			if entry.key == stringValue {
+				switch enum.contentKind {
+				case reflect.String:
+					goValue.SetString(entry.value.String())
+				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+					goValue.SetInt(entry.value.Int())
+				case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+					goValue.SetUint(entry.value.Uint())
+				default:
+					return ctx.err("internal error, type missmatch on enum")
+				}
+				return false
+			}
+		}
+
+		return ctx.errf("unknown enum value %s for enum %s", stringValue, enum.typeName)
+	} else if valueStructure.isID {
 		switch goValue.Kind() {
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			intValue, err := strconv.Atoi(stringValue)
