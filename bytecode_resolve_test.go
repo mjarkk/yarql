@@ -18,9 +18,10 @@ func bytecodeParse(t *testing.T, query string, queries interface{}, methods inte
 	ctx := BytecodeCtx{
 		schema: s,
 		query: bytecode.ParserCtx{
-			Res:    []byte{},
-			Query:  []byte{},
-			Errors: []error{},
+			Res:               []byte{},
+			FragmentLocations: []int{},
+			Query:             []byte{},
+			Errors:            []error{},
 		},
 		result:                 []byte{},
 		charNr:                 0,
@@ -595,6 +596,32 @@ func TestBytecodeResolveInlineSpread(t *testing.T) {
 			fieldD
 		}
 	}`
+	schema := TestBytecodeResolveInlineSpreadData{
+		Inner: TestBytecodeResolveInlineSpreadDataInner{
+			"a",
+			"b",
+			"c",
+			"d",
+		},
+	}
+	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
+	Equal(t, `{"inner":{"fieldA":"a","fieldB":"b","fieldC":"c","fieldD":"d"}}`, res)
+}
+
+func TestBytecodeResolveSpread(t *testing.T) {
+	query := `{
+		inner {
+			fieldA
+			... baz
+			fieldD
+		}
+	}
+
+	fragment baz on Bar {
+		fieldB
+		fieldC
+	}`
+
 	schema := TestBytecodeResolveInlineSpreadData{
 		Inner: TestBytecodeResolveInlineSpreadDataInner{
 			"a",

@@ -326,8 +326,11 @@ func (ctx *BytecodeCtx) resolveSpread(typeObj *obj, dept uint8, firstField *bool
 	}
 
 	// Read name
+	nameStart := ctx.charNr
+	var endName int
 	for {
 		if ctx.readInst() == 0 {
+			endName = ctx.charNr - 1
 			break
 		}
 	}
@@ -338,9 +341,34 @@ func (ctx *BytecodeCtx) resolveSpread(typeObj *obj, dept uint8, firstField *bool
 		return criticalErr
 	}
 
-	ctx.err("non inline spread operator not supported")
+	nameLen := endName - nameStart
+	nameStr := b2s(ctx.query.Res[nameStart:endName])
+	ctxQueryResLen := len(ctx.query.Res)
 
-	return false
+	for _, location := range ctx.query.FragmentLocations {
+		fragmentNameStart := location + 1
+		fragmentNameEnd := fragmentNameStart + nameLen
+		if fragmentNameEnd >= ctxQueryResLen {
+			continue
+		}
+		if b2s(ctx.query.Res[fragmentNameStart:fragmentNameEnd]) == nameStr {
+			originalCharNr := ctx.charNr
+			ctx.charNr = fragmentNameEnd + 2
+
+			// Read the type
+			for {
+				if ctx.readInst() == 0 {
+					break
+				}
+			}
+
+			criticalErr := ctx.resolveSelectionSet(typeObj, dept, firstField)
+			ctx.charNr = originalCharNr
+			return criticalErr
+		}
+	}
+
+	return ctx.err("fragment " + nameStr + " not defined")
 }
 
 func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bool) bool {
@@ -348,7 +376,7 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 	// TODO
 	directivesCount := ctx.readInst()
 	if directivesCount > 0 {
-		return ctx.err("operation directives unsupported")
+		return ctx.err("field directives unsupported")
 	}
 
 	// Read field name/alias

@@ -6,10 +6,11 @@ import (
 
 func BenchmarkQueryParser(b *testing.B) {
 	ctx := ParserCtx{
-		Res:    make([]byte, 2048),
-		Query:  []byte(schemaQuery),
-		charNr: 0,
-		Errors: []error{},
+		Res:               make([]byte, 2048),
+		FragmentLocations: make([]int, 8),
+		Query:             []byte(schemaQuery),
+		charNr:            0,
+		Errors:            []error{},
 	}
 
 	for i := 0; i < b.N; i++ {

@@ -9,23 +9,25 @@ import (
 )
 
 type ParserCtx struct {
-	Res       []byte
-	Query     []byte
-	charNr    int
-	Errors    []error
-	target    *string
-	hasTarget bool
-	TargetIdx int // -1 = no matching target was found, >= 0 = res index of target
+	Res               []byte
+	FragmentLocations []int
+	Query             []byte
+	charNr            int
+	Errors            []error
+	target            *string
+	hasTarget         bool
+	TargetIdx         int // -1 = no matching target was found, >= 0 = res index of target
 }
 
 func (ctx *ParserCtx) ParseQueryToBytecode(target *string) {
 	*ctx = ParserCtx{
-		Res:       ctx.Res[:0],
-		Query:     ctx.Query,
-		Errors:    ctx.Errors[:0],
-		target:    target,
-		hasTarget: target != nil && len(*target) > 0,
-		TargetIdx: -1,
+		Res:               ctx.Res[:0],
+		FragmentLocations: ctx.FragmentLocations[:0],
+		Query:             ctx.Query,
+		Errors:            ctx.Errors[:0],
+		target:            target,
+		hasTarget:         target != nil && len(*target) > 0,
+		TargetIdx:         -1,
 	}
 
 	for {
@@ -122,6 +124,7 @@ func (ctx *ParserCtx) parseOperatorOrFragment() (stop bool) {
 			return ctx.err(`expected selection set opener ("{") but got "` + string(c) + `"`)
 		}
 	} else if matches := ctx.matches("fragment"); matches != -1 {
+		ctx.FragmentLocations = append(ctx.FragmentLocations, len(ctx.Res)+1)
 		ctx.instructionNewFragment()
 
 		// Parse fragment name

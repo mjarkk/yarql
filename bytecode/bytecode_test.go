@@ -20,9 +20,10 @@ func uint32ToBytesStr(value uint32) string {
 
 func parseQuery(query string) ([]byte, []error) {
 	i := ParserCtx{
-		Res:    []byte{},
-		Query:  []byte(query),
-		Errors: []error{},
+		Res:               []byte{},
+		FragmentLocations: []int{},
+		Query:             []byte(query),
+		Errors:            []error{},
 	}
 	i.ParseQueryToBytecode(nil)
 	return i.Res, i.Errors
@@ -700,9 +701,10 @@ func injectCodeSurviveTest(baseQuery string, extraChars ...[][]byte) {
 	for _, charsToInject := range toTest {
 		go func(baseQuery []byte, charsToInject [][]byte) {
 			parser := ParserCtx{
-				Res:    []byte{},
-				Query:  []byte{},
-				Errors: []error{},
+				Res:               []byte{},
+				FragmentLocations: []int{},
+				Query:             []byte{},
+				Errors:            []error{},
 			}
 
 			for i := range baseQuery {
