@@ -313,7 +313,7 @@ func TestParseQueryWithFieldWithFragmentSpread(t *testing.T) {
 		foo
 		// no field alias
 		e
-		sf  // fragment spread pointing
+		sf  // fragment spread pointer
 		baz // fragment name
 		f
 		bar

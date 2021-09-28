@@ -285,13 +285,16 @@ func (ctx *BytecodeCtx) resolveOperation() bool {
 		ctx.skipInst(int(argumentsLen) + 5)
 	}
 
-	return ctx.resolveSelectionSet(ctx.schema.rootQuery, 0)
+	firstField := true
+	return ctx.resolveSelectionSet(ctx.schema.rootQuery, 0, &firstField)
 }
 
-func (ctx *BytecodeCtx) resolveSelectionSet(typeObj *obj, dept uint8) bool {
+func (ctx *BytecodeCtx) resolveSelectionSet(typeObj *obj, dept uint8, firstField *bool) bool {
 	dept++
+	if dept == ctx.schema.MaxDepth {
+		return ctx.err("max deph reached")
+	}
 
-	firstField := true
 	for {
 		switch ctx.readInst() {
 		case bytecode.ActionEnd:
@@ -299,15 +302,32 @@ func (ctx *BytecodeCtx) resolveSelectionSet(typeObj *obj, dept uint8) bool {
 			return false
 		case bytecode.ActionField:
 			// Parse field
-			criticalErr := ctx.resolveField(typeObj, dept, !firstField)
+			criticalErr := ctx.resolveField(typeObj, dept, !*firstField)
 			if criticalErr {
 				return criticalErr
 			}
-			firstField = false
+			*firstField = false
+		case bytecode.ActionSpread:
+			criticalErr := ctx.resolveSpread(typeObj, dept, firstField)
+			if criticalErr {
+				return criticalErr
+			}
 		default:
 			return ctx.err("unsupported operation " + string(ctx.lastInst()))
 		}
 	}
+}
+
+func (ctx *BytecodeCtx) resolveSpread(typeObj *obj, dept uint8, firstField *bool) bool {
+	isInline := ctx.readInst()
+	directivesCount := ctx.readInst()
+	if directivesCount > 0 {
+		return ctx.err("spread selection directives unsupported")
+	}
+
+	fmt.Println("is inline", isInline)
+
+	return false
 }
 
 func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bool) bool {
@@ -478,7 +498,8 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 		}
 
 		ctx.writeByte('{')
-		criticalErr := ctx.resolveSelectionSet(typeObj, dept)
+		isFirstField := true
+		criticalErr := ctx.resolveSelectionSet(typeObj, dept, &isFirstField)
 		ctx.writeByte('}')
 		return criticalErr
 	case valueTypeData:
