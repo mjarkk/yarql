@@ -513,12 +513,10 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 		ctx.funcInputs = ctx.funcInputs[:0]
 		for _, in := range method.ins {
 			if in.isCtx {
-				// TODO this is a dirty hack to get the context working again
-				// With this hack extensions and the errors are not added to our context when the user calls those methods
-				ctx.schema.ctx.errors = ctx.query.Errors
-				ctx.schema.ctx.path = ctx.path
-				ctx.schema.ctx.extensions = map[string]interface{}{}
-				ctx.schema.ctx.context = ctx.context
+				// TODO remove this hack when the other resolver is removed
+				if ctx.schema.ctx.bytecodeCtx == nil {
+					ctx.schema.ctx.bytecodeCtx = ctx
+				}
 
 				ctx.funcInputs = append(ctx.funcInputs, ctx.schema.ctxReflection)
 			} else {

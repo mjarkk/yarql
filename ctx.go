@@ -35,7 +35,11 @@ type Ctx struct {
 	funcInputs             []reflect.Value
 
 	// Public
+	// DO NOT USE IN CASE OF BYTECODE PARSER
 	Values map[string]interface{} // API User values, user can put all their shitty things in here like poems or tax papers
+
+	// fallback to bytecode context
+	bytecodeCtx *BytecodeCtx
 }
 
 //
@@ -59,11 +63,19 @@ func (ctx *Ctx) SetExtension(key string, value interface{}) {
 
 // Returns the request's context
 func (ctx *Ctx) Context() context.Context {
+	if ctx.bytecodeCtx != nil {
+		return ctx.bytecodeCtx.context
+	}
+
 	return ctx.context
 }
 
 // Path to the current method encoded as json
 func (ctx *Ctx) Path() string {
+	if ctx.bytecodeCtx != nil {
+		return string(ctx.bytecodeCtx.GetPath())
+	}
+
 	if len(ctx.path) == 0 {
 		return `[]`
 	}
@@ -73,11 +85,19 @@ func (ctx *Ctx) Path() string {
 // HasErrors checks if the query has errors till this current point of execution
 // Note that due to maps beeing read randomly this might be diffrent when executing a equal query
 func (ctx *Ctx) HasErrors() bool {
+	if ctx.bytecodeCtx != nil {
+		return len(ctx.bytecodeCtx.query.Errors) > 0
+	}
+
 	return len(ctx.errors) > 0
 }
 
 // Errors returns the query errors til this point
 func (ctx *Ctx) Errors() []error {
+	if ctx.bytecodeCtx != nil {
+		return ctx.bytecodeCtx.query.Errors
+	}
+
 	if ctx.errors == nil {
 		return []error{}
 	}
@@ -86,7 +106,13 @@ func (ctx *Ctx) Errors() []error {
 
 // AddError add an error to the query
 func (ctx *Ctx) AddError(err error) {
+	if ctx.bytecodeCtx != nil {
+		ctx.bytecodeCtx.err(err.Error())
+		return
+	}
+
 	if len(ctx.path) == 0 {
+
 		ctx.errors = append(ctx.errors, err)
 	} else {
 		copiedPath := make([]byte, len(ctx.path)-1)
