@@ -522,3 +522,32 @@ func TestBytecodeResolveJSONArrayVariable(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{}, opts)
 	Equal(t, `{"foo":["a","b","c"]}`, res)
 }
+
+type TestBytecodeResolveJSONObjectVariableData struct{}
+
+type DataObj struct {
+	A string
+	C string
+}
+
+func (TestBytecodeResolveJSONObjectVariableData) ResolveFoo(args struct{ Data DataObj }) DataObj {
+	return args.Data
+}
+
+func TestBytecodeResolveJSONObjectVariable(t *testing.T) {
+	query := `query foo($data: DataObj__input) {
+		foo(data: $data) {
+			a
+			c
+		}
+	}`
+	schema := TestBytecodeResolveJSONObjectVariableData{}
+	opts := BytecodeParseOptions{
+		NoMeta: true,
+		Variables: `{
+			"data": {"a": "b", "c": "d"}
+		}`,
+	}
+	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{}, opts)
+	Equal(t, `{"foo":{"a":"b","c":"d"}}`, res)
+}

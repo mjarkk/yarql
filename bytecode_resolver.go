@@ -769,9 +769,38 @@ func (ctx *BytecodeCtx) bindJSONToValue(goValue *reflect.Value, valueStructure *
 	case fastjson.TypeNull:
 		// keep goValue at it's default
 	case fastjson.TypeObject:
-		// TODO
-		return ctx.err("variable object value type is unsupported")
+		if goValue.Kind() != reflect.Struct {
+			return ctx.err("cannot assign object to non object value")
+		}
+
+		if valueStructure.isStructPointers {
+			valueStructure = ctx.schema.inTypes[valueStructure.structName]
+		}
+
+		jsonObj := jsonData.GetObject()
+		criticalErr := false
+		jsonObj.Visit(func(key []byte, v *fastjson.Value) {
+			if criticalErr {
+				return
+			}
+
+			structItemMeta, ok := valueStructure.structContent[b2s(key)]
+			if !ok {
+				criticalErr = ctx.err("undefined property " + b2s(key))
+				return
+			}
+
+			goValueField := goValue.Field(structItemMeta.goFieldIdx)
+			criticalErr = ctx.bindJSONToValue(&goValueField, &structItemMeta, v)
+		})
+		if criticalErr {
+			return criticalErr
+		}
 	case fastjson.TypeArray:
+		if goValue.Kind() != reflect.Slice {
+			return ctx.err("cannot assign slice to " + goValue.String())
+		}
+
 		variableArray := jsonData.GetArray()
 
 		arr := reflect.MakeSlice(goValue.Type(), len(variableArray), len(variableArray))
