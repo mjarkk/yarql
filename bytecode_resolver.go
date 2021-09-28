@@ -12,6 +12,7 @@ import (
 	"unsafe"
 
 	"github.com/mjarkk/go-graphql/bytecode"
+	"github.com/valyala/fastjson"
 )
 
 type BytecodeCtx struct {
@@ -23,6 +24,11 @@ type BytecodeCtx struct {
 	path                     []byte
 	getFormFile              func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
 	operatorArgumentsStartAt int
+
+	rawVariables        string
+	variablesParsed     bool             // the rawVariables are parsed into variables
+	variablesJSONParser *fastjson.Parser // Used to parse the variables
+	variables           *fastjson.Value  // Parsed variables, only use this if variablesParsed == true
 
 	// Zero alloc values
 	result                 []byte
@@ -54,9 +60,9 @@ type BytecodeParseOptions struct {
 	OperatorTarget string
 	Values         map[string]interface{}                          // Passed directly to the request context
 	GetFormFile    func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
+	Variables      string                                          // Expects valid JSON or empty string
 
 	// TODO support:
-	// Variables      string // Expects valid JSON or empty string
 	// Tracing        bool                                            // https://github.com/apollographql/apollo-tracing
 }
 
@@ -113,12 +119,16 @@ func (ctx *BytecodeCtx) writeNull() {
 
 func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions) ([]byte, []error) {
 	*ctx = BytecodeCtx{
-		schema:      ctx.schema,
-		query:       ctx.query,
-		charNr:      0,
-		context:     opts.Context,
-		path:        ctx.path[:0],
-		getFormFile: opts.GetFormFile,
+		schema:              ctx.schema,
+		query:               ctx.query,
+		charNr:              0,
+		context:             opts.Context,
+		path:                ctx.path[:0],
+		getFormFile:         opts.GetFormFile,
+		rawVariables:        opts.Variables,
+		variablesParsed:     false,
+		variablesJSONParser: ctx.variablesJSONParser,
+		variables:           ctx.variables,
 
 		result:                 ctx.result[:0],
 		reflectValues:          ctx.reflectValues,
@@ -709,11 +719,63 @@ func (ctx *BytecodeCtx) bindOperatorArgumentTo(goValue *reflect.Value, valueStru
 
 	hasDefaultValue := ctx.readInst() == 't'
 	ctx.skipInst(1)
-	if !hasDefaultValue {
-		return ctx.err("only default values are support atm")
+
+	found, criticalErr := ctx.bindExternalVariableValue(goValue, valueStructure, argumentName)
+	if criticalErr {
+		return criticalErr
+	}
+	if found {
+		return false
 	}
 
+	if !hasDefaultValue {
+		return ctx.err("variable has no value nor default")
+	}
 	return ctx.bindInputToGoValue(goValue, valueStructure)
+}
+
+func (ctx *BytecodeCtx) bindExternalVariableValue(goValue *reflect.Value, valueStructure *input, argumentName string) (found bool, criticalErr bool) {
+	if !ctx.variablesParsed {
+		if len(ctx.rawVariables) == 0 {
+			return false, false
+		}
+
+		ctx.variablesParsed = true
+		var err error
+		ctx.variables, err = ctx.variablesJSONParser.Parse(ctx.rawVariables)
+		if err != nil {
+			return false, ctx.err(err.Error())
+		}
+		if ctx.variables.Type() != fastjson.TypeObject {
+			return false, ctx.err("variables provided must be of type object")
+		}
+	}
+
+	variable := ctx.variables.Get(argumentName)
+	if variable == nil {
+		return false, false
+	}
+
+	switch variable.Type() {
+	case fastjson.TypeNull:
+		return false, ctx.err("variable null value type is unsupported")
+	case fastjson.TypeObject:
+		return false, ctx.err("variable object value type is unsupported")
+	case fastjson.TypeArray:
+		return false, ctx.err("variable array value type is unsupported")
+	case fastjson.TypeString:
+		return false, ctx.err("variable string value type is unsupported")
+	case fastjson.TypeNumber:
+		return false, ctx.err("variable number value type is unsupported")
+	case fastjson.TypeTrue:
+		return false, ctx.err("variable boolean value type is unsupported")
+	case fastjson.TypeFalse:
+		return false, ctx.err("variable boolean value type is unsupported")
+	default:
+		return false, ctx.err("variable value is of an unsupported type")
+	}
+
+	return true, false
 }
 
 func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input) bool {

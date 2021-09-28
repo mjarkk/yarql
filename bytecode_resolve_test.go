@@ -10,7 +10,7 @@ import (
 	. "github.com/stretchr/testify/assert"
 )
 
-func bytecodeParseWithOpts(t *testing.T, query string, queries interface{}, methods interface{}, opts BytecodeParseOptions) (string, []error) {
+func bytecodeParse(t *testing.T, query string, queries interface{}, methods interface{}, opts ...BytecodeParseOptions) (string, []error) {
 	s, err := ParseSchema(queries, methods, nil)
 	NoError(t, err, query)
 
@@ -26,16 +26,15 @@ func bytecodeParseWithOpts(t *testing.T, query string, queries interface{}, meth
 		reflectValues:          [256]reflect.Value{},
 		currentReflectValueIdx: 0,
 	}
-	bytes, errs := ctx.BytecodeResolve([]byte(query), opts)
+	if len(opts) == 0 {
+		opts = []BytecodeParseOptions{{NoMeta: true}}
+	}
+	bytes, errs := ctx.BytecodeResolve([]byte(query), opts[0])
 	return string(bytes), errs
 }
 
-func bytecodeParse(t *testing.T, query string, queries interface{}, methods interface{}) (string, []error) {
-	return bytecodeParseWithOpts(t, query, queries, methods, BytecodeParseOptions{NoMeta: true})
-}
-
-func bytecodeParseAndExpectNoErrs(t *testing.T, query string, queries interface{}, methods interface{}) string {
-	res, errs := bytecodeParse(t, query, queries, methods)
+func bytecodeParseAndExpectNoErrs(t *testing.T, query string, queries interface{}, methods interface{}, opts ...BytecodeParseOptions) string {
+	res, errs := bytecodeParse(t, query, queries, methods, opts...)
 	for _, err := range errs {
 		panic(err.Error())
 	}
@@ -93,7 +92,7 @@ func TestBytecodeResolveOperatorWithName(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run("target "+testCase.target, func(t *testing.T) {
-			res, errs := bytecodeParseWithOpts(t, `query a {a} query b {b}`, schema, M{}, BytecodeParseOptions{
+			res, errs := bytecodeParse(t, `query a {a} query b {b}`, schema, M{}, BytecodeParseOptions{
 				NoMeta:         true,
 				OperatorTarget: testCase.target,
 			})
@@ -286,7 +285,7 @@ func TestBytecodeResolveCorrectMeta(t *testing.T) {
 		}
 	}`
 	schema := TestExecSchemaRequestWithFieldsData{}
-	res, _ := bytecodeParseWithOpts(t, query, schema, M{}, BytecodeParseOptions{})
+	res, _ := bytecodeParse(t, query, schema, M{}, BytecodeParseOptions{})
 	if !json.Valid([]byte(res)) {
 		panic("invalid json: " + res)
 	}
@@ -300,7 +299,7 @@ func TestBytecodeResolveCorrectMetaWithError(t *testing.T) {
 		}
 	}`
 	schema := TestExecSchemaRequestWithFieldsData{}
-	res, _ := bytecodeParseWithOpts(t, query, schema, M{}, BytecodeParseOptions{})
+	res, _ := bytecodeParse(t, query, schema, M{}, BytecodeParseOptions{})
 	if !json.Valid([]byte(res)) {
 		panic("invalid json: " + res)
 	}
