@@ -572,3 +572,37 @@ func TestBytecodeResolveJSONObjectVariable(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{}, opts)
 	Equal(t, `{"foo":{"a":"b","c":"d"}}`, res)
 }
+
+type TestBytecodeResolveInlineSpreadData struct {
+	Inner TestBytecodeResolveInlineSpreadDataInner
+}
+
+type TestBytecodeResolveInlineSpreadDataInner struct {
+	FieldA string
+	FieldB string
+	FieldC string
+	FieldD string
+}
+
+func TestBytecodeResolveInlineSpread(t *testing.T) {
+	query := `{
+		inner {
+			fieldA
+			... on baz {
+				fieldB
+				fieldC
+			}
+			fieldD
+		}
+	}`
+	schema := TestBytecodeResolveInlineSpreadData{
+		Inner: TestBytecodeResolveInlineSpreadDataInner{
+			"a",
+			"b",
+			"c",
+			"d",
+		},
+	}
+	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
+	Equal(t, `{"inner":{"fieldA":"a","fieldB":"b","fieldC":"c","fieldD":"d"}}`, res)
+}

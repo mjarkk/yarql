@@ -388,11 +388,12 @@ func TestParseQueryWithFieldWithInlineFragmentSpread(t *testing.T) {
 		}
 	}`, expectedOutput)
 
+	// Same as above with comments
 	parseQueryAndExpectResult(t, `query {
 		some_field {
 			foo,
 			... on baz {
-				bazField
+				bazField,
 			},
 			bar,
 		}

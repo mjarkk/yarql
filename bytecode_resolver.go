@@ -319,13 +319,26 @@ func (ctx *BytecodeCtx) resolveSelectionSet(typeObj *obj, dept uint8, firstField
 }
 
 func (ctx *BytecodeCtx) resolveSpread(typeObj *obj, dept uint8, firstField *bool) bool {
-	isInline := ctx.readInst()
+	isInline := ctx.readInst() == 't'
 	directivesCount := ctx.readInst()
 	if directivesCount > 0 {
 		return ctx.err("spread selection directives unsupported")
 	}
 
-	fmt.Println("is inline", isInline)
+	// Read name
+	for {
+		if ctx.readInst() == 0 {
+			break
+		}
+	}
+
+	if isInline {
+		criticalErr := ctx.resolveSelectionSet(typeObj, dept, firstField)
+		ctx.charNr++
+		return criticalErr
+	}
+
+	ctx.err("non inline spread operator not supported")
 
 	return false
 }
