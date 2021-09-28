@@ -914,6 +914,8 @@ func (ctx *BytecodeCtx) assignStringToValue(goValue *reflect.Value, valueStructu
 		return ctx.errf("unknown enum value %s for enum %s", stringValue, enum.typeName)
 	} else if valueStructure.isID {
 		switch goValue.Kind() {
+		case reflect.String:
+			goValue.SetString(stringValue)
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			intValue, err := strconv.Atoi(stringValue)
 			if err != nil {
