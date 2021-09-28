@@ -535,7 +535,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 						return ctx.err("undefined input: " + keyStr)
 					}
 					goField := ctx.funcInputs[inField.inputIdx].Field(inField.input.goFieldIdx)
-					return ctx.bindInputToGoValue(&goField, &inField.input)
+					return ctx.bindInputToGoValue(&goField, &inField.input, true)
 				},
 			)
 			if criticalErr {
@@ -735,7 +735,8 @@ func (ctx *BytecodeCtx) bindOperatorArgumentTo(goValue *reflect.Value, valueStru
 	if !hasDefaultValue {
 		return ctx.err("variable has no value nor default")
 	}
-	return ctx.bindInputToGoValue(goValue, valueStructure)
+
+	return ctx.bindInputToGoValue(goValue, valueStructure, false)
 }
 
 func (ctx *BytecodeCtx) bindExternalVariableValue(goValue *reflect.Value, valueStructure *input, argumentName string) (found bool, criticalErr bool) {
@@ -910,7 +911,7 @@ func (ctx *BytecodeCtx) assignStringToValue(goValue *reflect.Value, valueStructu
 	return false
 }
 
-func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input) bool {
+func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input, variablesAllowed bool) bool {
 	// TODO convert to go value kind to graphql value kind in errors
 
 	if goValue.Kind() == reflect.Ptr {
@@ -924,7 +925,7 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 		newVal := reflect.New(goValueElem)
 		newValElem := newVal.Elem()
 
-		criticalErr := ctx.bindInputToGoValue(&newValElem, valueStructure.elem)
+		criticalErr := ctx.bindInputToGoValue(&newValElem, valueStructure.elem, variablesAllowed)
 		if criticalErr {
 			return criticalErr
 		}
@@ -946,6 +947,10 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 
 	switch ctx.readInst() {
 	case bytecode.ValueVariable:
+		if !variablesAllowed {
+			return ctx.err("variables are not allowed here")
+		}
+
 		varNameStart, varNameEnd := getValue()
 		varName := b2s(ctx.query.Res[varNameStart:varNameEnd])
 
@@ -1098,7 +1103,7 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 		ctx.skipInst(1) // read NULL
 		for ctx.seekInst() != 'e' {
 			arrayEntry := reflect.New(arrItemType).Elem()
-			criticalErr := ctx.bindInputToGoValue(&arrayEntry, valueStructure.elem)
+			criticalErr := ctx.bindInputToGoValue(&arrayEntry, valueStructure.elem, variablesAllowed)
 			if criticalErr {
 				return criticalErr
 			}
@@ -1125,7 +1130,7 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 			}
 
 			field := goValue.Field(structFieldValueStructure.goFieldIdx)
-			return ctx.bindInputToGoValue(&field, &structFieldValueStructure)
+			return ctx.bindInputToGoValue(&field, &structFieldValueStructure, variablesAllowed)
 		})
 		if criticalErr {
 			return criticalErr
