@@ -758,24 +758,130 @@ func (ctx *BytecodeCtx) bindExternalVariableValue(goValue *reflect.Value, valueS
 
 	switch variable.Type() {
 	case fastjson.TypeNull:
-		return false, ctx.err("variable null value type is unsupported")
+		// keep goValue at it's default
 	case fastjson.TypeObject:
 		return false, ctx.err("variable object value type is unsupported")
 	case fastjson.TypeArray:
 		return false, ctx.err("variable array value type is unsupported")
 	case fastjson.TypeString:
-		return false, ctx.err("variable string value type is unsupported")
+		criticalErr := ctx.assignStringToValue(goValue, valueStructure, b2s(variable.GetStringBytes()))
+		if criticalErr {
+			return false, criticalErr
+		}
 	case fastjson.TypeNumber:
+		goValueKind := goValue.Kind()
+		if goValueKind == reflect.Float64 || goValueKind == reflect.Float32 {
+			goValue.SetFloat(variable.GetFloat64())
+		} else {
+			intVal, err := variable.Int64()
+			if err != nil {
+				return false, ctx.err(err.Error())
+			}
+			switch goValueKind {
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				switch goValue.Kind() {
+				case reflect.Int8:
+					if int64(int8(intVal)) != intVal {
+						return false, ctx.errf("cannot assign %d to a 8bit integer", intVal)
+					}
+				case reflect.Int16:
+					if int64(int16(intVal)) != intVal {
+						return false, ctx.errf("cannot assign %d to a 16bit integer", intVal)
+					}
+				case reflect.Int32:
+					if int64(int32(intVal)) != intVal {
+						return false, ctx.errf("cannot assign %d to a 32bit integer", intVal)
+					}
+				}
+
+				goValue.SetInt(intVal)
+			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+				if intVal < 0 {
+					return false, ctx.errf("cannot assign %d to a unsigned integer", intVal)
+				}
+				uintVal := uint64(intVal)
+
+				switch goValue.Kind() {
+				case reflect.Int8:
+					if uint64(uint8(uintVal)) != uintVal {
+						return false, ctx.errf("cannot assign %d to a 8bit unsigned integer", uintVal)
+					}
+				case reflect.Int16:
+					if uint64(uint16(uintVal)) != uintVal {
+						return false, ctx.errf("cannot assign %d to a 16bit unsigned integer", uintVal)
+					}
+				case reflect.Int32:
+					if uint64(uint32(uintVal)) != uintVal {
+						return false, ctx.errf("cannot assign %d to a 32bit unsigned integer", uintVal)
+					}
+				}
+
+				goValue.SetUint(uintVal)
+			case reflect.Bool:
+				goValue.SetBool(intVal > 0)
+			}
+		}
+
 		return false, ctx.err("variable number value type is unsupported")
 	case fastjson.TypeTrue:
-		return false, ctx.err("variable boolean value type is unsupported")
+		if goValue.Kind() != reflect.Bool {
+			return false, ctx.err("cannot assign boolean to " + goValue.String())
+		}
+		goValue.SetBool(true)
 	case fastjson.TypeFalse:
-		return false, ctx.err("variable boolean value type is unsupported")
+		if goValue.Kind() != reflect.Bool {
+			return false, ctx.err("cannot assign boolean to " + goValue.String())
+		}
+		goValue.SetBool(false)
 	default:
 		return false, ctx.err("variable value is of an unsupported type")
 	}
 
 	return true, false
+}
+
+func (ctx *BytecodeCtx) assignStringToValue(goValue *reflect.Value, valueStructure *input, stringValue string) bool {
+	if valueStructure.isID {
+		switch goValue.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			intValue, err := strconv.Atoi(stringValue)
+			if err != nil {
+				return ctx.err("id argument must match a number type")
+			}
+			goValue.SetInt(int64(intValue))
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			intValue, err := strconv.Atoi(stringValue)
+			if err != nil {
+				return ctx.err("id argument must match a number type")
+			}
+			if intValue < 0 {
+				return ctx.err("id argument must match a number above 0")
+			}
+			goValue.SetUint(uint64(intValue))
+		default:
+			return ctx.err("cannot assign string to ID field")
+		}
+	} else if valueStructure.isFile {
+		if ctx.getFormFile == nil {
+			return ctx.err("form files are not supported")
+		}
+		file, err := ctx.getFormFile(stringValue)
+		if err != nil {
+			return ctx.err(err.Error())
+		}
+		goValue.Set(reflect.ValueOf(file))
+	} else if valueStructure.isTime {
+		parsedTime, err := parseTime(stringValue)
+		if err != nil {
+			return ctx.err(err.Error())
+		}
+		goValue.Set(reflect.ValueOf(parsedTime))
+	} else if goValue.Kind() == reflect.String {
+		goValue.SetString(stringValue)
+	} else {
+		return ctx.err("cannot assign string to " + goValue.String())
+	}
+	return false
 }
 
 func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input) bool {
@@ -842,15 +948,15 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 			switch goValue.Kind() {
 			case reflect.Int8:
 				if int64(int8(value)) != value {
-					return ctx.err("cannot assign " + intValue + " to a 8bit intager")
+					return ctx.err("cannot assign " + intValue + " to a 8bit integer")
 				}
 			case reflect.Int16:
 				if int64(int16(value)) != value {
-					return ctx.err("cannot assign " + intValue + " to a 16bit intager")
+					return ctx.err("cannot assign " + intValue + " to a 16bit integer")
 				}
 			case reflect.Int32:
 				if int64(int32(value)) != value {
-					return ctx.err("cannot assign " + intValue + " to a 32bit intager")
+					return ctx.err("cannot assign " + intValue + " to a 32bit integer")
 				}
 			}
 
@@ -864,15 +970,15 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 			switch goValue.Kind() {
 			case reflect.Uint8:
 				if uint64(uint8(value)) != value {
-					return ctx.err("cannot assign " + intValue + " to a 8bit unsigned intager")
+					return ctx.err("cannot assign " + intValue + " to a 8bit unsigned integer")
 				}
 			case reflect.Uint16:
 				if uint64(uint16(value)) != value {
-					return ctx.err("cannot assign " + intValue + " to a 16bit unsigned intager")
+					return ctx.err("cannot assign " + intValue + " to a 16bit unsigned integer")
 				}
 			case reflect.Uint32:
 				if uint64(uint32(value)) != value {
-					return ctx.err("cannot assign " + intValue + " to a 32bit unsigned intager")
+					return ctx.err("cannot assign " + intValue + " to a 32bit unsigned integer")
 				}
 			}
 
@@ -911,46 +1017,9 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 	case bytecode.ValueString:
 		startString, endString := getValue()
 		stringValue := b2s(ctx.query.Res[startString:endString])
-
-		if valueStructure.isID {
-			switch goValue.Kind() {
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				intValue, err := strconv.Atoi(stringValue)
-				if err != nil {
-					return ctx.err("id argument must match a number type")
-				}
-				goValue.SetInt(int64(intValue))
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				intValue, err := strconv.Atoi(stringValue)
-				if err != nil {
-					return ctx.err("id argument must match a number type")
-				}
-				if intValue < 0 {
-					return ctx.err("id argument must match a number above 0")
-				}
-				goValue.SetUint(uint64(intValue))
-			default:
-				return ctx.err("cannot assign string to ID field")
-			}
-		} else if valueStructure.isFile {
-			if ctx.getFormFile == nil {
-				return ctx.err("form files are not supported")
-			}
-			file, err := ctx.getFormFile(stringValue)
-			if err != nil {
-				return ctx.err(err.Error())
-			}
-			goValue.Set(reflect.ValueOf(file))
-		} else if valueStructure.isTime {
-			parsedTime, err := parseTime(stringValue)
-			if err != nil {
-				return ctx.err(err.Error())
-			}
-			goValue.Set(reflect.ValueOf(parsedTime))
-		} else if goValue.Kind() == reflect.String {
-			goValue.SetString(stringValue)
-		} else {
-			return ctx.err("cannot assign string to " + goValue.String())
+		criticalErr := ctx.assignStringToValue(goValue, valueStructure, stringValue)
+		if criticalErr {
+			return criticalErr
 		}
 	case bytecode.ValueBoolean:
 		if goValue.Kind() != reflect.Bool {

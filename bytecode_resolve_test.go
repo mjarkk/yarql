@@ -8,6 +8,7 @@ import (
 
 	"github.com/mjarkk/go-graphql/bytecode"
 	. "github.com/stretchr/testify/assert"
+	"github.com/valyala/fastjson"
 )
 
 func bytecodeParse(t *testing.T, query string, queries interface{}, methods interface{}, opts ...BytecodeParseOptions) (string, []error) {
@@ -25,6 +26,7 @@ func bytecodeParse(t *testing.T, query string, queries interface{}, methods inte
 		charNr:                 0,
 		reflectValues:          [256]reflect.Value{},
 		currentReflectValueIdx: 0,
+		variablesJSONParser:    &fastjson.Parser{},
 	}
 	if len(opts) == 0 {
 		opts = []BytecodeParseOptions{{NoMeta: true}}
@@ -316,5 +318,14 @@ func TestBytecodeResolveWithArgs(t *testing.T) {
 func TestBytecodeVariableInputWithDefault(t *testing.T) {
 	query := `query A($baz: String = "foo") {bar(a: $baz)}`
 	res := bytecodeParseAndExpectNoErrs(t, query, TestExecStructTypeMethodWithPtrArgData{}, M{})
+	Equal(t, `{"bar":"foo"}`, res)
+}
+
+func TestBytecodeVariable(t *testing.T) {
+	query := `query A($baz: String) {bar(a: $baz)}`
+	res := bytecodeParseAndExpectNoErrs(t, query, TestExecStructTypeMethodWithPtrArgData{}, M{}, BytecodeParseOptions{
+		NoMeta:    true,
+		Variables: `{"baz": "foo"}`,
+	})
 	Equal(t, `{"bar":"foo"}`, res)
 }
