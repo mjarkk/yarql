@@ -823,10 +823,10 @@ func (ctx *BytecodeCtx) bindExternalVariableValue(goValue *reflect.Value, valueS
 				goValue.SetUint(uintVal)
 			case reflect.Bool:
 				goValue.SetBool(intVal > 0)
+			default:
+				return false, ctx.err("cannot assign boolean to " + goValue.String())
 			}
 		}
-
-		return false, ctx.err("variable number value type is unsupported")
 	case fastjson.TypeTrue:
 		if goValue.Kind() != reflect.Bool {
 			return false, ctx.err("cannot assign boolean to " + goValue.String())
