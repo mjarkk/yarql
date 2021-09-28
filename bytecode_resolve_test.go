@@ -315,17 +315,124 @@ func TestBytecodeResolveWithArgs(t *testing.T) {
 	Equal(t, `{}`, res)
 }
 
-func TestBytecodeVariableInputWithDefault(t *testing.T) {
+func TestBytecodeResolveVariableInputWithDefault(t *testing.T) {
 	query := `query A($baz: String = "foo") {bar(a: $baz)}`
 	res := bytecodeParseAndExpectNoErrs(t, query, TestExecStructTypeMethodWithPtrArgData{}, M{})
 	Equal(t, `{"bar":"foo"}`, res)
 }
 
-func TestBytecodeVariable(t *testing.T) {
+func TestBytecodeResolveVariable(t *testing.T) {
 	query := `query A($baz: String) {bar(a: $baz)}`
 	res := bytecodeParseAndExpectNoErrs(t, query, TestExecStructTypeMethodWithPtrArgData{}, M{}, BytecodeParseOptions{
 		NoMeta:    true,
 		Variables: `{"baz": "foo"}`,
 	})
 	Equal(t, `{"bar":"foo"}`, res)
+}
+
+type TestBytecodeResolveMultipleArgumentsData struct{}
+
+type TestBytecodeResolveMultipleArgumentsDataIO struct {
+	String string
+
+	Int   int
+	Int8  int8
+	Int16 int16
+	Int32 int32
+	Int64 int64
+
+	Uint   uint
+	Uint8  uint8
+	Uint16 uint16
+	Uint32 uint32
+	Uint64 uint64
+
+	Bool bool
+}
+
+func (TestBytecodeResolveMultipleArgumentsData) ResolveFoo(args TestBytecodeResolveMultipleArgumentsDataIO) TestBytecodeResolveMultipleArgumentsDataIO {
+	return args
+}
+
+func TestBytecodeResolveMultipleArguments(t *testing.T) {
+	query := `{
+		foo(
+			string: "abc",
+			int: 123,
+			int8: 123,
+			int16: 123,
+			int32: 123,
+			int64: 123,
+			uint: 123,
+			uint8: 123,
+			uint16: 123,
+			uint32: 123,
+			uint64: 123,
+			bool: true,
+		) {
+			string
+			int
+			int8
+			int16
+			int32
+			int64
+			uint
+			uint8
+			uint16
+			uint32
+			uint64
+			bool
+		}
+	}`
+	schema := TestBytecodeResolveMultipleArgumentsData{}
+	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
+	Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true}}`, res)
+}
+
+func TestBytecodeResolveMultipleArgumentsUsingDefaultVariables(t *testing.T) {
+	query := `query a(
+		$string: String = "abc",
+		$int: Int = 123,
+		$int8: Int = 123,
+		$int16: Int = 123,
+		$int32: Int = 123,
+		$int64: Int = 123,
+		$uint: Int = 123,
+		$uint8: Int = 123,
+		$uint16: Int = 123,
+		$uint32: Int = 123,
+		$uint64: Int = 123,
+		$bool: Boolean = true,
+	) {
+		foo(
+			string: $string,
+			int: $int,
+			int8: $int8,
+			int16: $int16,
+			int32: $int32,
+			int64: $int64,
+			uint: $uint,
+			uint8: $uint8,
+			uint16: $uint16,
+			uint32: $uint32,
+			uint64: $uint64,
+			bool: $bool,
+		) {
+			string
+			int
+			int8
+			int16
+			int32
+			int64
+			uint
+			uint8
+			uint16
+			uint32
+			uint64
+			bool
+		}
+	}`
+	schema := TestBytecodeResolveMultipleArgumentsData{}
+	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
+	Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true}}`, res)
 }

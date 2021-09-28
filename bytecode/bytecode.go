@@ -200,12 +200,19 @@ func (ctx *ParserCtx) parseOperatorArguments() bool {
 			return ctx.unexpectedEOF()
 		}
 
+		if c == ',' {
+			ctx.charNr++
+			c, eof = ctx.mightIgnoreNextTokens()
+			if eof {
+				return ctx.unexpectedEOF()
+			}
+		}
+
 		if c == ')' {
 			ctx.charNr++
 			ctx.instructionEnd()
 			return false
 		}
-
 		if c != '$' {
 			return ctx.err(`expected "$" but got "` + string(c) + `"`)
 		}
@@ -220,7 +227,7 @@ func (ctx *ParserCtx) parseOperatorArguments() bool {
 
 func (ctx *ParserCtx) parseOperatorArgument() bool {
 	// Parse `$` of `query a($some_var: String = "a") {`
-	startOfArgument := len(ctx.Res)
+	startOfArgument := len(ctx.Res) + 1
 	argLengthLocation := ctx.instructionNewOperationArg()
 
 	// Parse `some_name` of `query a($some_var: String = "a") {`
@@ -1232,7 +1239,7 @@ func (ctx *ParserCtx) parseAndWriteName() (empty bool, criticalError bool) {
 			return false, ctx.unexpectedEOF()
 		}
 
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || (empty && c >= '0' && c <= '9') {
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || (c >= '0' && c <= '9') {
 			ctx.Res = append(ctx.Res, c)
 			ctx.charNr++
 			continue

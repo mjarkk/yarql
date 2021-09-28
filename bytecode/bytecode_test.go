@@ -107,13 +107,13 @@ func TestParseQueryWithName(t *testing.T) {
 
 func TestParseQuerywithArgs(t *testing.T) {
 	argsLen := "\n" + uint32ToBytesStr(25)
-	argLen := uint32ToBytesStr(21)
+	argLen := uint32ToBytesStr(20)
 	parseQueryAndExpectResult(t, `query banana($quality: [Int]) {}`, `
 		oqt                // operator of type query
 		banana`+argsLen+`  // operator name
 		A                  // operator args
-        a`+argLen+`quality // argument with name banana
-        lnInt              // argument of type list with an inner type Int
+	    a`+argLen+`quality // argument with name banana
+	    lnInt              // argument of type list with an inner type Int
 		f                  // this argument has no default values
 		e                  // end of operator arguments
 		e                  // end of operator
@@ -121,7 +121,7 @@ func TestParseQuerywithArgs(t *testing.T) {
 
 	query := `query banana($quality: [Int!]! = [10]) {}`
 	argsLen = "\n" + uint32ToBytesStr(35)
-	argLen = uint32ToBytesStr(31)
+	argLen = uint32ToBytesStr(30)
 	parseQueryAndExpectResult(t, query, `
 		oqt                // operator of type query
 		banana`+argsLen+`  // operator name
@@ -137,6 +137,26 @@ func TestParseQuerywithArgs(t *testing.T) {
 	`)
 
 	injectCodeSurviveTest(query)
+
+	query = `query foo($bar: String = "bar", $baz: String = "baz") {}`
+	argsLen = "\n" + uint32ToBytesStr(54)
+	argLen = uint32ToBytesStr(24)
+
+	parseQueryAndExpectResult(t, query, `
+		oqt                // operator of type query
+		foo`+argsLen+`  // operator name
+		A                  // operator args
+		a`+argLen+`bar     // argument with name banana
+		nString            // argument of type required list with an inner type Int also required
+		t                  // this argument has default values
+		vsbar              // value of type int with value 10
+		a`+argLen+`baz     // argument with name banana
+		nString            // argument of type required list with an inner type Int also required
+		t                  // this argument has default values
+		vsbaz              // value of type int with value 10
+		e                  // end of operator arguments
+		e                  // end of operator
+	`)
 }
 
 func TestParseMultipleSimpleQueries(t *testing.T) {
@@ -591,6 +611,60 @@ func TestParseQueryWithFragmentDirective(t *testing.T) {
 		e
 	`)
 	injectCodeSurviveTest(query)
+}
+
+func TestParseLotsOfFieldArguments(t *testing.T) {
+	query := `{
+		foo(
+			string: "abc",
+			int: 123,
+			int8: 123,
+			int16: 123,
+			int32: 123,
+			int64: 123,
+			uint: 123,
+			uint8: 123,
+			uint16: 123,
+			uint32: 123,
+			uint64: 123,
+			bool: true,
+		)
+	}`
+	parseQueryAndExpectResult(t, query, `
+		oqf
+
+		f
+		foo
+
+		vo
+		ustring
+		vsabc
+		uint
+		vi123
+		uint8
+		vi123
+		uint16
+		vi123
+		uint32
+		vi123
+		uint64
+		vi123
+		uuint
+		vi123
+		uuint8
+		vi123
+		uuint16
+		vi123
+		uuint32
+		vi123
+		uuint64
+		vi123
+		ubool
+		vb1
+		e
+		e
+		e
+	`)
 }
 
 func TestMoreThan255Directives(t *testing.T) {

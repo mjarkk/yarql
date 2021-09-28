@@ -149,18 +149,22 @@ func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions)
 		ctx.write([]byte(`{"data":`))
 	}
 
-	ctx.charNr = ctx.query.TargetIdx
-	if ctx.charNr == -1 {
-		ctx.write([]byte("{}"))
-		if len(opts.OperatorTarget) > 0 {
-			ctx.err("no operator with name " + opts.OperatorTarget + " found")
+	if len(ctx.query.Errors) == 0 {
+		ctx.charNr = ctx.query.TargetIdx
+		if ctx.charNr == -1 {
+			ctx.write([]byte("{}"))
+			if len(opts.OperatorTarget) > 0 {
+				ctx.err("no operator with name " + opts.OperatorTarget + " found")
+			} else {
+				ctx.err("no operator found")
+			}
 		} else {
-			ctx.err("no operator found")
+			ctx.writeByte('{')
+			ctx.resolveOperation()
+			ctx.writeByte('}')
 		}
 	} else {
-		ctx.writeByte('{')
-		ctx.resolveOperation()
-		ctx.writeByte('}')
+		ctx.write([]byte("{}"))
 	}
 
 	if !opts.NoMeta {
@@ -612,12 +616,12 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 
 func (ctx *BytecodeCtx) findOperatorArgument(nameToFind string) (foundArgument bool) {
 	ctx.charNr = ctx.operatorArgumentsStartAt
+	ctx.skipInst(2)
 	for {
-		ctx.skipInst(2)
+		startOfArg := ctx.charNr
 		if ctx.readInst() == 'e' {
 			return false
 		}
-		startOfArg := ctx.charNr
 		argLen := ctx.readUint32(ctx.charNr)
 		ctx.charNr += 4
 
@@ -635,7 +639,7 @@ func (ctx *BytecodeCtx) findOperatorArgument(nameToFind string) (foundArgument b
 			return true
 		}
 
-		ctx.charNr += startOfArg + int(argLen) + 1
+		ctx.charNr = startOfArg + int(argLen) + 1
 	}
 }
 
@@ -1136,7 +1140,7 @@ func (ctx *BytecodeCtx) walkInputObject(onValueOfKey func(key []byte) bool) bool
 	for {
 		// Check if the current or next value is the end
 		c := ctx.readInst()
-		if c == 'e' || c == 0 && ctx.readInst() == 'e' {
+		if c == 'e' || (c == 0 && ctx.readInst() == 'e') {
 			// end of object
 			ctx.skipInst(1) // skip next NULL byte
 			return false
@@ -1144,7 +1148,8 @@ func (ctx *BytecodeCtx) walkInputObject(onValueOfKey func(key []byte) bool) bool
 		keyStart := ctx.charNr
 		var keyEnd int
 		for {
-			if ctx.readInst() == 0 {
+			c = ctx.readInst()
+			if c == 0 {
 				keyEnd = ctx.charNr - 1
 				break
 			}
