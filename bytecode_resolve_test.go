@@ -501,3 +501,24 @@ func TestBytecodeResolveMultipleArgumentsUsingVariables(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{}, opts)
 	Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true}}`, res)
 }
+
+type TestBytecodeResolveJSONArrayVariableData struct{}
+
+func (TestBytecodeResolveJSONArrayVariableData) ResolveFoo(args struct{ Data []string }) []string {
+	return args.Data
+}
+
+func TestBytecodeResolveJSONArrayVariable(t *testing.T) {
+	query := `query foo($data: [String]) {
+		foo(data: $data)
+	}`
+	schema := TestBytecodeResolveJSONArrayVariableData{}
+	opts := BytecodeParseOptions{
+		NoMeta: true,
+		Variables: `{
+			"data": ["a", "b", "c"]
+		}`,
+	}
+	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{}, opts)
+	Equal(t, `{"foo":["a","b","c"]}`, res)
+}
