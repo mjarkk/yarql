@@ -707,7 +707,13 @@ func (ctx *BytecodeCtx) bindOperatorArgumentTo(goValue *reflect.Value, valueStru
 		}
 	}
 
-	return false
+	hasDefaultValue := ctx.readInst() == 't'
+	ctx.skipInst(1)
+	if !hasDefaultValue {
+		return ctx.err("only default values are support atm")
+	}
+
+	return ctx.bindInputToGoValue(goValue, valueStructure)
 }
 
 func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input) bool {

@@ -314,7 +314,7 @@ func TestBytecodeResolveWithArgs(t *testing.T) {
 	Equal(t, `{}`, res)
 }
 
-func TestBytecodeVariableInput(t *testing.T) {
+func TestBytecodeVariableInputWithDefault(t *testing.T) {
 	query := `query A($baz: String = "foo") {bar(a: $baz)}`
 	res := bytecodeParseAndExpectNoErrs(t, query, TestExecStructTypeMethodWithPtrArgData{}, M{})
 	Equal(t, `{"bar":"foo"}`, res)
