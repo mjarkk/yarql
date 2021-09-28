@@ -348,6 +348,9 @@ type TestBytecodeResolveMultipleArgumentsDataIO struct {
 	Uint64 uint64
 
 	Bool bool
+
+	Time time.Time
+	ID   uint `gq:"id,ID"`
 }
 
 func (TestBytecodeResolveMultipleArgumentsData) ResolveFoo(args TestBytecodeResolveMultipleArgumentsDataIO) TestBytecodeResolveMultipleArgumentsDataIO {
@@ -369,6 +372,8 @@ func TestBytecodeResolveMultipleArguments(t *testing.T) {
 			uint32: 123,
 			uint64: 123,
 			bool: true,
+			time: "2021-09-28T18:44:11.717Z",
+			id: 123,
 		) {
 			string
 			int
@@ -382,11 +387,13 @@ func TestBytecodeResolveMultipleArguments(t *testing.T) {
 			uint32
 			uint64
 			bool
+			time
+			id
 		}
 	}`
 	schema := TestBytecodeResolveMultipleArgumentsData{}
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
-	Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true}}`, res)
+	Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","id":"123"}}`, res)
 }
 
 func TestBytecodeResolveMultipleArgumentsUsingDefaultVariables(t *testing.T) {
@@ -403,6 +410,8 @@ func TestBytecodeResolveMultipleArgumentsUsingDefaultVariables(t *testing.T) {
 		$uint32: Int = 123,
 		$uint64: Int = 123,
 		$bool: Boolean = true,
+		$time: Time = "2021-09-28T18:44:11.717Z",
+		$id: ID = "123",
 	) {
 		foo(
 			string: $string,
@@ -417,6 +426,8 @@ func TestBytecodeResolveMultipleArgumentsUsingDefaultVariables(t *testing.T) {
 			uint32: $uint32,
 			uint64: $uint64,
 			bool: $bool,
+			time: $time,
+			id: $id,
 		) {
 			string
 			int
@@ -430,11 +441,13 @@ func TestBytecodeResolveMultipleArgumentsUsingDefaultVariables(t *testing.T) {
 			uint32
 			uint64
 			bool
+			time
+			id
 		}
 	}`
 	schema := TestBytecodeResolveMultipleArgumentsData{}
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
-	Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true}}`, res)
+	Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","id":"123"}}`, res)
 }
 
 func TestBytecodeResolveMultipleArgumentsUsingVariables(t *testing.T) {
@@ -451,6 +464,8 @@ func TestBytecodeResolveMultipleArgumentsUsingVariables(t *testing.T) {
 		$uint32: Int,
 		$uint64: Int,
 		$bool: Boolean,
+		$time: Time,
+		$id: ID,
 	) {
 		foo(
 			string: $string,
@@ -465,6 +480,8 @@ func TestBytecodeResolveMultipleArgumentsUsingVariables(t *testing.T) {
 			uint32: $uint32,
 			uint64: $uint64,
 			bool: $bool,
+			time: $time,
+			id: $id,
 		) {
 			string
 			int
@@ -478,6 +495,8 @@ func TestBytecodeResolveMultipleArgumentsUsingVariables(t *testing.T) {
 			uint32
 			uint64
 			bool
+			time
+			id
 		}
 	}`
 	schema := TestBytecodeResolveMultipleArgumentsData{}
@@ -495,11 +514,13 @@ func TestBytecodeResolveMultipleArgumentsUsingVariables(t *testing.T) {
 			"uint16": 123,
 			"uint32": 123,
 			"uint64": 123,
-			"bool": true
+			"bool": true,
+			"time": "2021-09-28T18:44:11.717Z",
+			"id": "123"
 		}`,
 	}
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{}, opts)
-	Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true}}`, res)
+	Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","id":"123"}}`, res)
 }
 
 type TestBytecodeResolveJSONArrayVariableData struct{}

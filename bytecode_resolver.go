@@ -765,7 +765,99 @@ func (ctx *BytecodeCtx) bindExternalVariableValue(goValue *reflect.Value, valueS
 }
 
 func (ctx *BytecodeCtx) bindJSONToValue(goValue *reflect.Value, valueStructure *input, jsonData *fastjson.Value) bool {
-	switch jsonData.Type() {
+	jsonDataType := jsonData.Type()
+	if valueStructure.isEnum || valueStructure.isID || valueStructure.isFile || valueStructure.isTime {
+		if jsonDataType != fastjson.TypeString {
+			if valueStructure.isEnum {
+				return ctx.err("cannot assign " + jsonDataType.String() + " to Enum value")
+			} else if valueStructure.isID {
+				return ctx.err("cannot assign " + jsonDataType.String() + " to ID value")
+			} else if valueStructure.isFile {
+				return ctx.err("cannot assign " + jsonDataType.String() + " to File value")
+			} else if valueStructure.isTime {
+				return ctx.err("cannot assign " + jsonDataType.String() + " to Time value")
+			} else {
+				return ctx.err("cannot assign " + jsonDataType.String() + " to this field's value")
+			}
+		}
+		stringValue := b2s(jsonData.GetStringBytes())
+
+		if valueStructure.isEnum {
+			if jsonDataType != fastjson.TypeString {
+				return ctx.err("cannot assign " + jsonDataType.String() + " to ID value")
+			}
+
+			enum := definedEnums[valueStructure.enumTypeIndex]
+			for _, entry := range enum.entries {
+				if entry.key == stringValue {
+					switch enum.contentKind {
+					case reflect.String:
+						goValue.SetString(entry.value.String())
+					case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+						goValue.SetInt(entry.value.Int())
+					case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+						goValue.SetUint(entry.value.Uint())
+					default:
+						return ctx.err("internal error, type missmatch on enum")
+					}
+					return false
+				}
+			}
+
+			return ctx.errf("unknown enum value %s for enum %s", stringValue, enum.typeName)
+		} else if valueStructure.isID {
+			if jsonDataType != fastjson.TypeString {
+				return ctx.err("cannot assign " + jsonDataType.String() + " to ID value")
+			}
+
+			switch goValue.Kind() {
+			case reflect.String:
+				goValue.SetString(stringValue)
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				intValue, err := strconv.Atoi(stringValue)
+				if err != nil {
+					return ctx.err("id argument must match a number type")
+				}
+				// TODO check if the int value can be assigned to int8 - int32
+				goValue.SetInt(int64(intValue))
+			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+				intValue, err := strconv.Atoi(stringValue)
+				if err != nil {
+					return ctx.err("id argument must match a number type")
+				}
+				if intValue < 0 {
+					return ctx.err("id argument must match a number above 0")
+				}
+				// TODO check if the int value can be assigned to uint8 - uint32
+				goValue.SetUint(uint64(intValue))
+			default:
+				return ctx.err("internal error: cannot assign to this ID field")
+			}
+		} else if valueStructure.isFile {
+			if jsonDataType != fastjson.TypeString {
+				return ctx.err("cannot assign " + jsonDataType.String() + " to Time value")
+			}
+
+			file, err := ctx.getFormFile(stringValue)
+			if err != nil {
+				return ctx.err(err.Error())
+			}
+			goValue.Set(reflect.ValueOf(file))
+		} else if valueStructure.isTime {
+			if jsonDataType != fastjson.TypeString {
+				return ctx.err("cannot assign " + jsonDataType.String() + " to Time value")
+			}
+
+			parsedTime, err := parseTime(stringValue)
+			if err != nil {
+				return ctx.err(err.Error())
+			}
+			goValue.Set(reflect.ValueOf(parsedTime))
+		}
+		return false
+	}
+
+	switch jsonDataType {
 	case fastjson.TypeNull:
 		// keep goValue at it's default
 	case fastjson.TypeObject:
@@ -921,6 +1013,7 @@ func (ctx *BytecodeCtx) assignStringToValue(goValue *reflect.Value, valueStructu
 			if err != nil {
 				return ctx.err("id argument must match a number type")
 			}
+			// TODO check if the int value can be assigned to int8 - int32
 			goValue.SetInt(int64(intValue))
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 			intValue, err := strconv.Atoi(stringValue)
@@ -930,9 +1023,10 @@ func (ctx *BytecodeCtx) assignStringToValue(goValue *reflect.Value, valueStructu
 			if intValue < 0 {
 				return ctx.err("id argument must match a number above 0")
 			}
+			// TODO check if the int value can be assigned to uint8 - uint32
 			goValue.SetUint(uint64(intValue))
 		default:
-			return ctx.err("cannot assign string to ID field")
+			return ctx.err("internal error: cannot assign to this ID field")
 		}
 	} else if valueStructure.isFile {
 		if ctx.getFormFile == nil {
@@ -990,6 +1084,8 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 	}
 
 	ctx.skipInst(1) // read ActionValue
+
+	// TODO if field is: isTime, isFile, is.. and the value provided is diffrent than the expected we'll get wired errors
 
 	switch ctx.readInst() {
 	case bytecode.ValueVariable:
