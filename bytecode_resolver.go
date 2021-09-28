@@ -645,7 +645,7 @@ func (ctx *BytecodeCtx) findOperatorArgument(nameToFind string) (foundArgument b
 
 func (ctx *BytecodeCtx) bindOperatorArgumentTo(goValue *reflect.Value, valueStructure *input, argumentName string) bool {
 	// TODO Check for the required flag (L & N)
-	// We don't currently do that
+	// These flags are to identify if the argument is required or not
 
 	// TODO the error messages in this function are garbage
 

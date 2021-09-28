@@ -15,6 +15,7 @@ func BenchmarkQueryParser(b *testing.B) {
 	// BenchmarkQueryParser-12    	   35721	     30887 ns/op	   10793 B/op	     273 allocs/op
 	// BenchmarkQueryParser-12    	   51865	     19334 ns/op	   10770 B/op	     273 allocs/op
 	// BenchmarkQueryParser-12    	   50334	     19974 ns/op	   14362 B/op	     241 allocs/op
+	// BenchmarkQueryParser-12    	  124452	      9453 ns/op	    1225 B/op	      87 allocs/op
 
 	// On desktop
 	// BenchmarkQueryParser-16    	   67248	     17757 ns/op	   10716 B/op	     172 allocs/op
