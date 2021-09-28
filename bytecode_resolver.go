@@ -764,8 +764,10 @@ func (ctx *BytecodeCtx) bindExternalVariableValue(goValue *reflect.Value, valueS
 	case fastjson.TypeNull:
 		// keep goValue at it's default
 	case fastjson.TypeObject:
+		// TODO
 		return false, ctx.err("variable object value type is unsupported")
 	case fastjson.TypeArray:
+		// TODO
 		return false, ctx.err("variable array value type is unsupported")
 	case fastjson.TypeString:
 		criticalErr := ctx.assignStringToValue(goValue, valueStructure, b2s(variable.GetStringBytes()))
@@ -822,6 +824,7 @@ func (ctx *BytecodeCtx) bindExternalVariableValue(goValue *reflect.Value, valueS
 
 				goValue.SetUint(uintVal)
 			case reflect.Bool:
+				// TODO
 				goValue.SetBool(intVal > 0)
 			default:
 				return false, ctx.err("cannot assign boolean to " + goValue.String())
