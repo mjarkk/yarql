@@ -704,10 +704,7 @@ func (ctx *BytecodeCtx) bindOperatorArgumentTo(goValue *reflect.Value, valueStru
 			default:
 				return ctx.err("cannot set field using variable")
 			}
-			// check the struct name or data type name (String, Float, etc..)
 		}
-
-		// valueStructure.structName
 	}
 
 	return false
