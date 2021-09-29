@@ -153,39 +153,47 @@ func (ctx *ParserCtx) instructionNewDirective() {
 // writes:
 // 0 [ActionValue] [ValueObject]
 func (ctx *ParserCtx) instructionNewValueObject() {
-	ctx.Res = append(ctx.Res, 0, ActionValue, ValueObject)
+	ctx.Res = append(ctx.Res, 0, ActionValue, ValueObject, 0, 0, 0, 0)
 }
 
 func (ctx *ParserCtx) instructionNewValueList() {
-	ctx.Res = append(ctx.Res, 0, ActionValue, ValueList)
+	ctx.Res = append(ctx.Res, 0, ActionValue, ValueList, 0, 0, 0, 0)
 }
 
 func (ctx *ParserCtx) instructionNewValueBoolean(val bool) {
 	if val {
-		ctx.Res = append(ctx.Res, 0, ActionValue, ValueBoolean, '1')
+		ctx.Res = append(ctx.Res, 0, ActionValue, ValueBoolean, 1, 0, 0, 0, '1')
 	} else {
-		ctx.Res = append(ctx.Res, 0, ActionValue, ValueBoolean, '0')
+		ctx.Res = append(ctx.Res, 0, ActionValue, ValueBoolean, 1, 0, 0, 0, '0')
 	}
 }
 
 func (ctx *ParserCtx) instructionNewValueNull() {
-	ctx.Res = append(ctx.Res, 0, ActionValue, ValueNull)
+	ctx.Res = append(ctx.Res, 0, ActionValue, ValueNull, 0, 0, 0, 0)
 }
 
+// writes:
+// 0 [ActionValue] [ActionValue...] [0000 the number of bytes the value will take up encoded as uint32]
 func (ctx *ParserCtx) instructionNewValueEnum() {
-	ctx.Res = append(ctx.Res, 0, ActionValue, ValueEnum)
+	ctx.Res = append(ctx.Res, 0, ActionValue, ValueEnum, 0, 0, 0, 0)
 }
 
+// writes:
+// 0 [ActionValue] [ValueVariable...] [0000 the number of bytes the value will take up encoded as uint32]
 func (ctx *ParserCtx) instructionNewValueVariable() {
-	ctx.Res = append(ctx.Res, 0, ActionValue, ValueVariable)
+	ctx.Res = append(ctx.Res, 0, ActionValue, ValueVariable, 0, 0, 0, 0)
 }
 
+// writes:
+// 0 [ActionValue] [valueInt] [0000 the number of bytes the value will take up encoded as uint32]
 func (ctx *ParserCtx) instructionNewValueInt() {
-	ctx.Res = append(ctx.Res, 0, ActionValue, ValueInt)
+	ctx.Res = append(ctx.Res, 0, ActionValue, ValueInt, 0, 0, 0, 0)
 }
 
+// writes:
+// 0 [ActionValue] [valueString...] [0000 the number of bytes the value will take up encoded as uint32]
 func (ctx *ParserCtx) instructionNewValueString() {
-	ctx.Res = append(ctx.Res, 0, ActionValue, ValueString)
+	ctx.Res = append(ctx.Res, 0, ActionValue, ValueString, 0, 0, 0, 0)
 }
 
 // represends:

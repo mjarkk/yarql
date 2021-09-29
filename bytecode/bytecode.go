@@ -589,6 +589,7 @@ func (ctx *ParserCtx) parseSelectionSet() bool {
 // http://spec.graphql.org/June2018/#ObjectValue
 func (ctx *ParserCtx) parseAssignmentSet(closure byte) bool {
 	ctx.instructionNewValueObject()
+	startOfObj := len(ctx.Res)
 
 	c, eof := ctx.mightIgnoreNextTokens()
 	if eof {
@@ -639,6 +640,7 @@ func (ctx *ParserCtx) parseAssignmentSet(closure byte) bool {
 		if c == closure {
 			ctx.instructionEnd()
 			ctx.charNr++
+			ctx.writeUint32(uint32(len(ctx.Res)-startOfObj), startOfObj-4)
 			return false
 		}
 	}
@@ -653,6 +655,8 @@ func (ctx *ParserCtx) parseInputValue() bool {
 	if c == '$' {
 		ctx.charNr++
 		ctx.instructionNewValueVariable()
+		startOfVariable := len(ctx.Res)
+
 		empty, criticalErr := ctx.parseAndWriteName()
 		if criticalErr {
 			return criticalErr
@@ -660,6 +664,8 @@ func (ctx *ParserCtx) parseInputValue() bool {
 		if empty {
 			return ctx.err(`variable input should have a name, got character: "` + string(ctx.currentC()) + `"`)
 		}
+
+		ctx.writeUint32(uint32(len(ctx.Res)-startOfVariable), startOfVariable-4)
 		return false
 	}
 
@@ -674,6 +680,7 @@ func (ctx *ParserCtx) parseInputValue() bool {
 	if c == '[' {
 		ctx.charNr++
 		ctx.instructionNewValueList()
+		startOfList := len(ctx.Res)
 
 		c, eof := ctx.mightIgnoreNextTokens()
 		if eof {
@@ -683,6 +690,7 @@ func (ctx *ParserCtx) parseInputValue() bool {
 		if c == ']' {
 			ctx.charNr++
 			ctx.instructionEnd()
+			ctx.writeUint32(uint32(len(ctx.Res)-startOfList), startOfList-4)
 			return false
 		}
 
@@ -708,6 +716,7 @@ func (ctx *ParserCtx) parseInputValue() bool {
 			if c == ']' {
 				ctx.charNr++
 				ctx.instructionEnd()
+				ctx.writeUint32(uint32(len(ctx.Res)-startOfList), startOfList-4)
 				return false
 			}
 		}
@@ -729,6 +738,8 @@ func (ctx *ParserCtx) parseInputValue() bool {
 	}
 
 	ctx.instructionNewValueEnum()
+	startOfEnum := len(ctx.Res)
+
 	empty, criticalErr := ctx.parseAndWriteName()
 	if criticalErr {
 		return criticalErr
@@ -736,11 +747,15 @@ func (ctx *ParserCtx) parseInputValue() bool {
 	if empty {
 		return ctx.err(`unknown value kind, got character: "` + string(ctx.currentC()) + `"`)
 	}
+
+	ctx.writeUint32(uint32(len(ctx.Res)-startOfEnum), startOfEnum-4)
 	return false
 }
 
 func (ctx *ParserCtx) parseNumberInputValue() bool {
 	ctx.instructionNewValueInt()
+	startOfInt := len(ctx.Res)
+
 	valueTypeAt := len(ctx.Res) - 1
 
 	var eof bool
@@ -770,6 +785,7 @@ func (ctx *ParserCtx) parseNumberInputValue() bool {
 			// Ignore this char
 		} else if isPunctuator(c) || ctx.isIgnoredToken(c) || c == ',' {
 			// End of number
+			ctx.writeUint32(uint32(len(ctx.Res)-startOfInt), startOfInt-4)
 			return false
 		} else {
 			return ctx.err(`unexpected character in int or float value, char: "` + string(c) + `"`)
@@ -804,6 +820,7 @@ func (ctx *ParserCtx) parseNumberInputValue() bool {
 				return ctx.err(`unexpected character in float value, char: "` + string(c) + `"`)
 			} else if isPunctuator(c) || ctx.isIgnoredToken(c) || c == ',' {
 				// End of number
+				ctx.writeUint32(uint32(len(ctx.Res)-startOfInt), startOfInt-4)
 				return false
 			} else {
 				return ctx.err(`unexpected character in float value, char: "` + string(c) + `"`)
@@ -856,6 +873,7 @@ func (ctx *ParserCtx) parseNumberInputValue() bool {
 		}
 	}
 
+	ctx.writeUint32(uint32(len(ctx.Res)-startOfInt), startOfInt-4)
 	return false
 }
 
@@ -863,6 +881,7 @@ func (ctx *ParserCtx) parseStringInputValue() bool {
 	// FIXME block strings are not spec compliant
 
 	ctx.instructionNewValueString()
+	startOfString := len(ctx.Res)
 
 	isBlock := ctx.matches(`"""`) == 0
 	if isBlock {
@@ -938,6 +957,8 @@ mainLoop:
 					}
 					break
 				}
+
+				ctx.writeUint32(uint32(len(ctx.Res)-startOfString), startOfString-4)
 				return false
 			}
 		}

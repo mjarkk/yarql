@@ -633,3 +633,7 @@ func TestBytecodeResolveSpread(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
 	Equal(t, `{"inner":{"fieldA":"a","fieldB":"b","fieldC":"c","fieldD":"d"}}`, res)
 }
+
+func TestBytecodeResolveSchemaRequestSimple(t *testing.T) {
+	bytecodeParseAndExpectNoErrs(t, schemaQuery, TestExecSchemaRequestSimpleData{}, M{})
+}
