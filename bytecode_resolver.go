@@ -422,30 +422,30 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 	criticalErr := false
 	fieldHasSelection := ctx.seekInst() != 'e'
 
-	if nameStr == "__typename" {
-		if fieldHasSelection {
-			criticalErr = ctx.err("cannot have a selection set on this field")
+	typeObjField, ok := typeObj.objContents[nameStr]
+	if !ok {
+		if nameStr == "__typename" {
+			if fieldHasSelection {
+				criticalErr = ctx.err("cannot have a selection set on this field")
+			} else {
+				ctx.writeQouted(typeObj.typeNameBytes)
+			}
 		} else {
-			ctx.writeQouted(typeObj.typeNameBytes)
-		}
-	} else {
-		typeObjField, ok := typeObj.objContents[nameStr]
-		if !ok {
 			ctx.writeNull()
 			criticalErr = ctx.errf("%s does not exists on %s", nameStr, typeObj.typeName)
-		} else {
-			goValue := ctx.getGoValue()
-			if typeObjField.customObjValue != nil {
-				ctx.setNextGoValue(*typeObjField.customObjValue)
-			} else if typeObjField.valueType == valueTypeMethod && typeObjField.method.isTypeMethod {
-				ctx.setNextGoValue(goValue.Method(typeObjField.structFieldIdx))
-			} else {
-				ctx.setNextGoValue(goValue.Field(typeObjField.structFieldIdx))
-			}
-
-			criticalErr = ctx.resolveFieldDataValue(typeObjField, dept, fieldHasSelection)
-			ctx.currentReflectValueIdx--
 		}
+	} else {
+		goValue := ctx.getGoValue()
+		if typeObjField.customObjValue != nil {
+			ctx.setNextGoValue(*typeObjField.customObjValue)
+		} else if typeObjField.valueType == valueTypeMethod && typeObjField.method.isTypeMethod {
+			ctx.setNextGoValue(goValue.Method(typeObjField.structFieldIdx))
+		} else {
+			ctx.setNextGoValue(goValue.Field(typeObjField.structFieldIdx))
+		}
+
+		criticalErr = ctx.resolveFieldDataValue(typeObjField, dept, fieldHasSelection)
+		ctx.currentReflectValueIdx--
 	}
 
 	// Restore the path
@@ -499,7 +499,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 			ctx.setGoValue(goValue.Index(i))
 
 			ctx.resolveFieldDataValue(typeObj, dept, hasSubSelection)
-			if i < goValueLen-1 {
+			if i != goValueLen-1 {
 				ctx.writeByte(',')
 			}
 
