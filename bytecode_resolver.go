@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -342,7 +343,7 @@ func (ctx *BytecodeCtx) resolveSpread(typeObj *obj, dept uint8, firstField *bool
 	}
 
 	nameLen := endName - nameStart
-	nameStr := b2s(ctx.query.Res[nameStart:endName])
+	name := ctx.query.Res[nameStart:endName]
 	ctxQueryResLen := len(ctx.query.Res)
 
 	for _, location := range ctx.query.FragmentLocations {
@@ -351,7 +352,7 @@ func (ctx *BytecodeCtx) resolveSpread(typeObj *obj, dept uint8, firstField *bool
 		if fragmentNameEnd >= ctxQueryResLen {
 			continue
 		}
-		if b2s(ctx.query.Res[fragmentNameStart:fragmentNameEnd]) == nameStr {
+		if bytes.Equal(ctx.query.Res[fragmentNameStart:fragmentNameEnd], name) {
 			originalCharNr := ctx.charNr
 			ctx.charNr = fragmentNameEnd + 2
 
@@ -368,7 +369,7 @@ func (ctx *BytecodeCtx) resolveSpread(typeObj *obj, dept uint8, firstField *bool
 		}
 	}
 
-	return ctx.err("fragment " + nameStr + " not defined")
+	return ctx.err("fragment " + b2s(name) + " not defined")
 }
 
 func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bool) bool {
@@ -483,15 +484,12 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 	case valueTypeUndefined:
 		ctx.writeNull()
 	case valueTypeArray:
-		if (goValue.Kind() != reflect.Array && goValue.Kind() != reflect.Slice) || goValue.IsNil() {
+		// Using unsafe.Pointer(goValue.Pointer()) instead of goValue.isNil as it is faster
+		if goValue.Kind() == reflect.Slice && unsafe.Pointer(goValue.Pointer()) == nil {
 			ctx.writeNull()
 			return false
 		}
 
-		if typeObj.innerContent == nil {
-			ctx.writeNull()
-			return ctx.err("internal parsing error #3")
-		}
 		typeObj = typeObj.innerContent
 
 		ctx.writeByte('[')
