@@ -598,6 +598,7 @@ func (ctx *ParserCtx) parseAssignmentSet(closure byte) bool {
 	if c == closure {
 		ctx.instructionEnd()
 		ctx.charNr++
+		ctx.writeUint32(uint32(len(ctx.Res)-startOfObj), startOfObj-4)
 		return false
 	}
 
@@ -756,7 +757,7 @@ func (ctx *ParserCtx) parseNumberInputValue() bool {
 	ctx.instructionNewValueInt()
 	startOfInt := len(ctx.Res)
 
-	valueTypeAt := len(ctx.Res) - 1
+	valueTypeAt := len(ctx.Res) - 5
 
 	var eof bool
 	c := ctx.currentC()
@@ -945,6 +946,8 @@ mainLoop:
 		if c == '"' {
 			if !isBlock {
 				ctx.charNr++
+
+				ctx.writeUint32(uint32(len(ctx.Res)-startOfString), startOfString-4)
 				return false
 			}
 			if ctx.matches(`"""`) == 0 {
