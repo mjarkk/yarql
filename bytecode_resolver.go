@@ -379,6 +379,10 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 		return ctx.err("field directives unsupported")
 	}
 
+	fieldLen := ctx.readUint32(ctx.charNr)
+	ctx.skipInst(4)
+	endOfField := ctx.charNr + int(fieldLen)
+
 	// Read field name/alias
 	startOfAlias := ctx.charNr
 	var endOfAlias int
@@ -454,19 +458,9 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 	// Restore the path
 	ctx.path = ctx.path[:prefPathLen]
 
-	if criticalErr {
-		return criticalErr
-	}
+	ctx.charNr = endOfField + 1
 
-	inst := ctx.readInst()
-	if inst == bytecode.ActionEnd {
-		if ctx.readInst() != 0 {
-			return ctx.errf("internal parsing error #2, %v", ctx.lastInst())
-		}
-	} else if inst != 0 {
-		return ctx.errf("internal parsing error #1, %v = %s", ctx.lastInst(), string(ctx.lastInst()))
-	}
-	return false
+	return criticalErr
 }
 
 func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSelection bool) bool {
@@ -1117,7 +1111,7 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 	if goValue.Kind() == reflect.Ptr {
 		if ctx.query.Res[ctx.charNr+1] == bytecode.ValueNull {
 			// keep goValue at it's default
-			ctx.skipInst(2)
+			ctx.skipInst(6)
 			return false
 		}
 
@@ -1143,11 +1137,13 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 		}
 	}
 
-	ctx.skipInst(1) // read ActionValue
+	ctx.skipInst(1)             // read ActionValue
+	valueKind := ctx.readInst() // read value kind
+	ctx.skipInst(4)             // read length of value
 
 	// TODO if field is: isTime, isFile, is.. and the value provided is diffrent than the expected we'll get wired errors
 
-	switch ctx.readInst() {
+	switch valueKind {
 	case bytecode.ValueVariable:
 		if !variablesAllowed {
 			return ctx.err("variables are not allowed here")
@@ -1323,7 +1319,7 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 		}
 
 		// walkInputObject expects to start at ActionValue while we just read over it
-		ctx.skipInst(-2)
+		ctx.skipInst(-6)
 
 		criticalErr := ctx.walkInputObject(func(key []byte) bool {
 			structFieldValueStructure, ok := valueStructure.structContent[b2s(key)]
@@ -1344,8 +1340,8 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 // walkInputObject walks over an input object and triggers onValueOfKey after reading a key and reached it value
 // onValueOfKey is expected to parse the value before returning
 func (ctx *BytecodeCtx) walkInputObject(onValueOfKey func(key []byte) bool) bool {
-	// Read ActionValue and ValueObject and NULL
-	ctx.skipInst(3)
+	// Read ActionValue and ValueObject and NULL * 5
+	ctx.skipInst(7)
 
 	for {
 		// Check if the current or next value is the end
