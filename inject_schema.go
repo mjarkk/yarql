@@ -23,6 +23,9 @@ func (s *Schema) injectQLTypes(ctx *parseCtx) {
 
 	// Inject __type(name: String!): __Type
 	typeResolver := func(ctx *Ctx, args struct{ Name string }) *qlType {
+		if ctx.bytecodeCtx != nil {
+			return ctx.bytecodeCtx.schema.getTypeByName(args.Name)
+		}
 		return ctx.schema.getTypeByName(args.Name)
 	}
 	typeResolverReflection := reflect.ValueOf(typeResolver)

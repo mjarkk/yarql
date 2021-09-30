@@ -635,5 +635,147 @@ func TestBytecodeResolveSpread(t *testing.T) {
 }
 
 func TestBytecodeResolveSchemaRequestSimple(t *testing.T) {
-	bytecodeParseAndExpectNoErrs(t, schemaQuery, TestExecSchemaRequestSimpleData{}, M{})
+	resString := bytecodeParseAndExpectNoErrs(t, schemaQuery, TestExecSchemaRequestSimpleData{}, M{})
+
+	res := struct {
+		Schema qlSchema `json:"__schema"`
+	}{}
+	err := json.Unmarshal([]byte(resString), &res)
+	NoError(t, err)
+
+	schema := res.Schema
+	types := schema.JSONTypes
+
+	totalTypes := 17
+	if testingRegisteredTestEnum {
+		totalTypes++
+	}
+	Equal(t, totalTypes, len(types))
+
+	idx := 0
+	is := func(kind, name string) {
+		item := types[idx]
+		Equalf(t, kind, item.JSONKind, "(KIND) Index: %d", idx)
+		NotNilf(t, item.Name, "(NAME) Index: %d", idx)
+		Equalf(t, name, *item.Name, "(NAME) Index: %d", idx)
+		idx++
+	}
+
+	is("SCALAR", "Boolean")
+	is("SCALAR", "File")
+	is("SCALAR", "Float")
+	is("SCALAR", "ID")
+	is("SCALAR", "Int")
+	is("OBJECT", "M")
+	is("SCALAR", "String")
+	if testingRegisteredTestEnum {
+		is("ENUM", "TestEnum2")
+	}
+	is("OBJECT", "TestExecSchemaRequestSimpleData")
+	is("SCALAR", "Time")
+	is("OBJECT", "__Directive")
+	is("ENUM", "__DirectiveLocation")
+	is("OBJECT", "__EnumValue")
+	is("OBJECT", "__Field")
+	is("OBJECT", "__InputValue")
+	is("OBJECT", "__Schema")
+	is("OBJECT", "__Type")
+	is("ENUM", "__TypeKind")
+}
+
+func TestBytecodeResolveSchemaRequestWithFields(t *testing.T) {
+	resString := bytecodeParseAndExpectNoErrs(t, schemaQuery, TestExecSchemaRequestWithFieldsData{}, M{})
+
+	res := struct {
+		Schema qlSchema `json:"__schema"`
+	}{}
+	err := json.Unmarshal([]byte(resString), &res)
+	NoError(t, err)
+
+	schema := res.Schema
+	types := schema.JSONTypes
+
+	totalTypes := 21
+	if testingRegisteredTestEnum {
+		totalTypes++
+	}
+	Equal(t, totalTypes, len(types))
+
+	idx := 0
+	is := func(kind, name string) int {
+		item := types[idx]
+		Equalf(t, kind, item.JSONKind, "(KIND) Index: %d", idx)
+		NotNilf(t, item.Name, "(NAME) Index: %d", idx)
+		Equalf(t, name, *item.Name, "(NAME) Index: %d", idx)
+		idx++
+		return idx - 1
+	}
+
+	is("SCALAR", "Boolean")
+	is("SCALAR", "File")
+	is("SCALAR", "Float")
+	is("SCALAR", "ID")
+	is("SCALAR", "Int")
+	is("OBJECT", "M")
+	is("SCALAR", "String")
+	if testingRegisteredTestEnum {
+		is("ENUM", "TestEnum2")
+	}
+	queryIdx := is("OBJECT", "TestExecSchemaRequestWithFieldsData")
+	is("OBJECT", "TestExecSchemaRequestWithFieldsDataInnerStruct")
+	is("SCALAR", "Time")
+	is("OBJECT", "__Directive")
+	is("ENUM", "__DirectiveLocation")
+	is("OBJECT", "__EnumValue")
+	is("OBJECT", "__Field")
+	is("OBJECT", "__InputValue")
+	is("OBJECT", "__Schema")
+	is("OBJECT", "__Type")
+	is("ENUM", "__TypeKind")
+	inputIdx := is("INPUT_OBJECT", "__UnknownInput1")
+	is("OBJECT", "__UnknownType1")
+	is("OBJECT", "__UnknownType2")
+
+	fields := types[queryIdx].JSONFields
+	Equal(t, 6, len(fields))
+
+	idx = 0
+	isField := func(name string) {
+		field := fields[idx]
+		Equalf(t, name, field.Name, "(NAME) Index: %d", idx)
+		if field.Name == "__type" {
+			Equalf(t, "OBJECT", field.Type.JSONKind, "(KIND) Index: %d", idx)
+		} else {
+			Equalf(t, "NON_NULL", field.Type.JSONKind, "(KIND) Index: %d", idx)
+			Equalf(t, "OBJECT", field.Type.OfType.JSONKind, "(OFTYPE KIND) Index: %d", idx)
+		}
+		idx++
+	}
+
+	isField("__schema")
+	isField("__type")
+	isField("a")
+	isField("b")
+	isField("c")
+	isField("d")
+
+	inFields := types[inputIdx].JSONInputFields
+	Equal(t, 1, len(inFields))
+}
+
+func TestBytecodeResolveGraphqlTypenameByName(t *testing.T) {
+	query := `{
+		__type(name: "TestExecSchemaRequestWithFieldsDataInnerStruct") {
+			kind
+			name
+		}
+	}`
+
+	res := bytecodeParseAndExpectNoErrs(t, query, TestExecSchemaRequestWithFieldsData{}, M{})
+	Equal(t, `{"__type":{"kind":"OBJECT","name":"TestExecSchemaRequestWithFieldsDataInnerStruct"}}`, res)
+}
+
+func TestBytecodeResolveGraphqlTypename(t *testing.T) {
+	res := bytecodeParseAndExpectNoErrs(t, `{a {__typename}}`, TestExecSchemaRequestWithFieldsData{}, M{})
+	Equal(t, `{"a":{"__typename":"TestExecSchemaRequestWithFieldsDataInnerStruct"}}`, res)
 }
