@@ -132,11 +132,11 @@ func (ctx *ParserCtx) parseOperatorOrFragment() (stop bool) {
 		if eof {
 			return ctx.unexpectedEOF()
 		}
-		empty, criticalErr := ctx.parseAndWriteName()
+		nameLen, criticalErr := ctx.parseAndWriteName()
 		if criticalErr {
 			return criticalErr
 		}
-		if empty {
+		if nameLen == 0 {
 			return ctx.err(`expected fragment name but got "` + string(ctx.currentC()) + `"`)
 		}
 
@@ -164,11 +164,11 @@ func (ctx *ParserCtx) parseOperatorOrFragment() (stop bool) {
 			return ctx.unexpectedEOF()
 		}
 		ctx.Res = append(ctx.Res, 0)
-		empty, criticalErr = ctx.parseAndWriteName()
+		nameLen, criticalErr = ctx.parseAndWriteName()
 		if criticalErr {
 			return criticalErr
 		}
-		if empty {
+		if nameLen == 0 {
 			return ctx.err(`expected fragment type target but got "` + string(ctx.currentC()) + `"`)
 		}
 
@@ -234,11 +234,11 @@ func (ctx *ParserCtx) parseOperatorArgument() bool {
 	argLengthLocation := ctx.instructionNewOperationArg()
 
 	// Parse `some_name` of `query a($some_var: String = "a") {`
-	empty, criticalErr := ctx.parseAndWriteName()
+	nameLen, criticalErr := ctx.parseAndWriteName()
 	if criticalErr {
 		return criticalErr
 	}
-	if empty {
+	if nameLen == 0 {
 		return ctx.err(`expected argument name but got "` + string(ctx.currentC()) + `"`)
 	}
 
@@ -311,11 +311,11 @@ func (ctx *ParserCtx) parseDirectives() (directivesAmount uint8, criticalErr boo
 		ctx.charNr++
 		ctx.instructionNewDirective()
 		hasArgsFlag := len(ctx.Res) - 1
-		empty, criticalErr := ctx.parseAndWriteName()
+		nameLen, criticalErr := ctx.parseAndWriteName()
 		if criticalErr {
 			return directivesAmount, criticalErr
 		}
-		if empty {
+		if nameLen == 0 {
 			return directivesAmount, ctx.err(`expected directive name but got char "` + string(ctx.currentC()) + `"`)
 		}
 
@@ -376,11 +376,11 @@ func (ctx *ParserCtx) parseGraphqlTypeName(c byte) bool {
 	}
 
 	ctx.Res = append(ctx.Res, 'n')
-	empty, criticalErr := ctx.parseAndWriteName()
+	nameLen, criticalErr := ctx.parseAndWriteName()
 	if criticalErr {
 		return criticalErr
 	}
-	if empty {
+	if nameLen == 0 {
 		return ctx.err(`invalid typename char "` + string(ctx.currentC()) + `"`)
 	}
 
@@ -412,14 +412,16 @@ func (ctx *ParserCtx) parseSelectionSet() bool {
 		directivesCountLocation := len(ctx.Res) - 5
 		startField := len(ctx.Res)
 
-		empty, criticalError := ctx.parseAndWriteName()
+		ctx.Res = append(ctx.Res, 0)
+		nameLen, criticalError := ctx.parseAndWriteName()
 		if criticalError {
 			return criticalError
 		}
+		ctx.Res[startField] = nameLen
 
-		if empty {
+		if nameLen == 0 {
 			// Revert changes from ctx.instructionNewField()
-			ctx.Res = ctx.Res[:len(ctx.Res)-7]
+			ctx.Res = ctx.Res[:len(ctx.Res)-8]
 
 			if ctx.matches("...") == 0 {
 				// Is pointer to fragment or inline fragment
@@ -439,7 +441,7 @@ func (ctx *ParserCtx) parseSelectionSet() bool {
 				ctx.instructionNewFragmentSpread(isInline)
 				directivesCountLocation := len(ctx.Res) - 1
 
-				empyt, criticalErr := ctx.parseAndWriteName()
+				nameLen, criticalErr := ctx.parseAndWriteName()
 				if criticalErr {
 					return criticalErr
 				}
@@ -448,7 +450,7 @@ func (ctx *ParserCtx) parseSelectionSet() bool {
 					return ctx.unexpectedEOF()
 				}
 
-				if empyt {
+				if nameLen == 0 {
 					if isInline {
 						return ctx.err(`expected fragment type name but got char: "` + string(c) + `"`)
 					} else {
@@ -503,6 +505,7 @@ func (ctx *ParserCtx) parseSelectionSet() bool {
 			return ctx.unexpectedEOF()
 		}
 
+		aliasLenAt := len(ctx.Res)
 		ctx.Res = append(ctx.Res, 0)
 
 		if c == ':' {
@@ -512,13 +515,14 @@ func (ctx *ParserCtx) parseSelectionSet() bool {
 				return ctx.unexpectedEOF()
 			}
 
-			empty, criticalErr := ctx.parseAndWriteName()
+			aliasLen, criticalErr := ctx.parseAndWriteName()
 			if criticalErr {
 				return criticalErr
 			}
-			if empty {
-				return ctx.err(`unexpected character, expected nvalid name char but got "` + string(c) + `"`)
+			if aliasLen == 0 {
+				return ctx.err(`unexpected character, expected valid name char but got "` + string(c) + `"`)
 			}
+			ctx.Res[aliasLenAt] = aliasLen
 
 			c, eof = ctx.mightIgnoreNextTokens()
 			if eof {
@@ -607,11 +611,11 @@ func (ctx *ParserCtx) parseAssignmentSet(closure byte) bool {
 	for {
 		ctx.instructionStartNewValueObjectField()
 
-		empty, criticalErr := ctx.parseAndWriteName()
+		nameLen, criticalErr := ctx.parseAndWriteName()
 		if criticalErr {
 			return criticalErr
 		}
-		if empty {
+		if nameLen == 0 {
 			return ctx.err(`expected name character but got: "` + string(ctx.currentC()) + `"`)
 		}
 
@@ -660,11 +664,11 @@ func (ctx *ParserCtx) parseInputValue() bool {
 		ctx.instructionNewValueVariable()
 		startOfVariable := len(ctx.Res)
 
-		empty, criticalErr := ctx.parseAndWriteName()
+		nameLen, criticalErr := ctx.parseAndWriteName()
 		if criticalErr {
 			return criticalErr
 		}
-		if empty {
+		if nameLen == 0 {
 			return ctx.err(`variable input should have a name, got character: "` + string(ctx.currentC()) + `"`)
 		}
 
@@ -743,11 +747,11 @@ func (ctx *ParserCtx) parseInputValue() bool {
 	ctx.instructionNewValueEnum()
 	startOfEnum := len(ctx.Res)
 
-	empty, criticalErr := ctx.parseAndWriteName()
+	nameLen, criticalErr := ctx.parseAndWriteName()
 	if criticalErr {
 		return criticalErr
 	}
-	if empty {
+	if nameLen == 0 {
 		return ctx.err(`unknown value kind, got character: "` + string(ctx.currentC()) + `"`)
 	}
 
@@ -1249,32 +1253,37 @@ func (ctx *ParserCtx) unexpectedEOF() bool {
 	return ctx.err("unexpected EOF")
 }
 
-func (ctx *ParserCtx) parseAndWriteName() (empty bool, criticalError bool) {
+func (ctx *ParserCtx) parseAndWriteName() (nameLength uint8, criticalError bool) {
 	c, eof := ctx.checkC(ctx.charNr)
 	if eof {
-		return true, ctx.unexpectedEOF()
+		return 0, ctx.unexpectedEOF()
 	}
 
 	if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' {
 		ctx.Res = append(ctx.Res, c)
 		ctx.charNr++
+		nameLength++
 	} else {
-		return true, false
+		return 0, false
 	}
 
 	for {
 		c, eof := ctx.checkC(ctx.charNr)
 		if eof {
-			return false, ctx.unexpectedEOF()
+			return nameLength, ctx.unexpectedEOF()
 		}
 
 		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || (c >= '0' && c <= '9') {
 			ctx.Res = append(ctx.Res, c)
 			ctx.charNr++
+			nameLength++
+			if nameLength == 255 {
+				return nameLength, ctx.err("names cannot be longer than 254 chars")
+			}
 			continue
 		}
 
-		return false, false
+		return nameLength, false
 	}
 }
 

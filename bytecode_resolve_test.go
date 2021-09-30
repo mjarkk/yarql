@@ -28,6 +28,7 @@ func bytecodeParse(t *testing.T, query string, queries interface{}, methods inte
 		reflectValues:          [256]reflect.Value{},
 		currentReflectValueIdx: 0,
 		variablesJSONParser:    &fastjson.Parser{},
+		path:                   make([]byte, 1024),
 	}
 	if len(opts) == 0 {
 		opts = []BytecodeParseOptions{{NoMeta: true}}

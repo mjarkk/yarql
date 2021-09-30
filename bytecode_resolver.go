@@ -38,7 +38,7 @@ type BytecodeCtx struct {
 	funcInputs             []reflect.Value
 
 	// public / kinda public fields
-	values map[string]interface{} // API User values, user can put all their shitty things in here like poems or tax papers
+	values *map[string]interface{} // API User values, user can put all their shitty things in here like poems or tax papers
 
 }
 
@@ -59,7 +59,7 @@ type BytecodeParseOptions struct {
 	NoMeta         bool            // Returns only the data
 	Context        context.Context // Request context
 	OperatorTarget string
-	Values         map[string]interface{}                          // Passed directly to the request context
+	Values         *map[string]interface{}                         // Passed directly to the request context
 	GetFormFile    func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
 	Variables      string                                          // Expects valid JSON or empty string
 
@@ -71,22 +71,22 @@ func (ctx *BytecodeCtx) GetValue(key string) (value interface{}) {
 	if ctx.values == nil {
 		return nil
 	}
-	return ctx.values[key]
+	return (*ctx.values)[key]
 }
 func (ctx *BytecodeCtx) GetValueOk(key string) (value interface{}, found bool) {
 	if ctx.values == nil {
 		return nil, false
 	}
-	val, ok := ctx.values[key]
+	val, ok := (*ctx.values)[key]
 	return val, ok
 }
 func (ctx *BytecodeCtx) SetValue(key string, value interface{}) {
 	if ctx.values == nil {
-		ctx.values = map[string]interface{}{
+		ctx.values = &map[string]interface{}{
 			key: value,
 		}
 	} else {
-		ctx.values[key] = value
+		(*ctx.values)[key] = value
 	}
 }
 
@@ -385,15 +385,11 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 	endOfField := ctx.charNr + int(fieldLen)
 
 	// Read field name/alias
+	aliasLen := int(ctx.readInst())
 	startOfAlias := ctx.charNr
-	var endOfAlias int
-	for {
-		if ctx.readInst() == 0 {
-			endOfAlias = ctx.charNr - 1
-			break
-		}
-	}
+	endOfAlias := startOfAlias + aliasLen
 	alias := ctx.query.Res[startOfAlias:endOfAlias]
+	ctx.skipInst(aliasLen)
 
 	prefPathLen := len(ctx.path)
 	ctx.path = append(ctx.path, []byte(`,"`)...)
@@ -405,17 +401,13 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 	endOfName := endOfAlias
 
 	// If alias is used read the name
-	if ctx.readInst() != 0 {
-		startOfName = ctx.charNr - 1
-		for {
-			if ctx.seekInst() == 0 {
-				endOfName = ctx.charNr
-				ctx.charNr++
-				break
-			}
-			ctx.charNr++
-		}
+	lenOfName := ctx.readInst()
+	if lenOfName != 0 {
+		startOfName = ctx.charNr
+		endOfName = startOfName + int(lenOfName)
+		ctx.skipInst(int(lenOfName))
 	}
+	ctx.skipInst(1)
 
 	name := ctx.query.Res[startOfName:endOfName]
 	nameStr := b2s(name)
@@ -550,7 +542,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 			ctx.valueToJson(goValue, typeObj.dataValueType)
 		}
 	case valueTypePtr:
-		if goValue.Kind() != reflect.Ptr || goValue.IsNil() {
+		if goValue.IsNil() {
 			ctx.writeNull()
 		} else {
 			ctx.reflectValues[ctx.currentReflectValueIdx] = goValue.Elem()
@@ -1400,4 +1392,8 @@ func (ctx *BytecodeCtx) valueToJson(in reflect.Value, kind reflect.Kind) {
 // Note that any changes to a will result in a diffrent string
 func b2s(a []byte) string {
 	return *(*string)(unsafe.Pointer(&a))
+}
+
+func s2b(s string) []byte {
+	return *(*[]byte)(unsafe.Pointer(&s))
 }

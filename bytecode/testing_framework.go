@@ -240,8 +240,9 @@ func (o testField) toBytes(res []byte) []byte {
 	res = append(res, 0, 0, 0, 0)
 	start := len(res)
 
+	res = append(res, byte(len(o.name)))
 	res = append(res, []byte(o.name)...)
-	res = append(res, 0)
+	res = append(res, byte(len(o.alias)))
 	res = append(res, []byte(o.alias)...)
 	for _, directive := range o.directives {
 		res = directive.toBytes(res)
