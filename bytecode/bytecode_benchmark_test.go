@@ -5,6 +5,8 @@ import (
 )
 
 func BenchmarkQueryParser(b *testing.B) {
+	// BenchmarkQueryParser-12    	  267092	      4363 ns/op	       0 B/op	       0 allocs/op
+
 	ctx := ParserCtx{
 		Res:               make([]byte, 2048),
 		FragmentLocations: make([]int, 8),

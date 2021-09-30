@@ -237,6 +237,9 @@ func (o testField) toBytes(res []byte) []byte {
 
 	res = append(res, 0, 'f')
 	res = append(res, byte(len(o.directives)))
+	res = append(res, 0, 0, 0, 0)
+	start := len(res)
+
 	res = append(res, []byte(o.name)...)
 	res = append(res, 0)
 	res = append(res, []byte(o.alias)...)
@@ -253,5 +256,9 @@ func (o testField) toBytes(res []byte) []byte {
 		}.toBytes(res)
 	}
 	res = append(res, 0, 'e')
+
+	end := len(res)
+	res = writeUint32At(res, start-4, uint32(end-start))
+
 	return res
 }

@@ -409,7 +409,8 @@ func (ctx *ParserCtx) parseSelectionSet() bool {
 
 	for {
 		ctx.instructionNewField()
-		directivesCountLocation := len(ctx.Res) - 1
+		directivesCountLocation := len(ctx.Res) - 5
+		startField := len(ctx.Res)
 
 		empty, criticalError := ctx.parseAndWriteName()
 		if criticalError {
@@ -418,7 +419,7 @@ func (ctx *ParserCtx) parseSelectionSet() bool {
 
 		if empty {
 			// Revert changes from ctx.instructionNewField()
-			ctx.Res = ctx.Res[:len(ctx.Res)-3]
+			ctx.Res = ctx.Res[:len(ctx.Res)-7]
 
 			if ctx.matches("...") == 0 {
 				// Is pointer to fragment or inline fragment
@@ -569,6 +570,7 @@ func (ctx *ParserCtx) parseSelectionSet() bool {
 		}
 
 		ctx.instructionEnd()
+		ctx.writeUint32(uint32(len(ctx.Res)-startField), startField-4)
 
 		if c == ',' {
 			ctx.charNr++
