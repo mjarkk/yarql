@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"mime/multipart"
 	"reflect"
 	"strconv"
@@ -73,7 +74,7 @@ type obj struct {
 	qlFieldName   []byte
 
 	// Value type == valueTypeObj
-	objContents    map[string]*obj
+	objContents    map[uint32]*obj
 	customObjValue *reflect.Value // Mainly Graphql internal values like __schema
 
 	// Value is inside struct
@@ -91,6 +92,12 @@ type obj struct {
 
 	// Value type == valueTypeEnum
 	enumTypeIndex int
+}
+
+func getObjKey(key []byte) uint32 {
+	hasher := fnv.New32()
+	hasher.Write(key)
+	return hasher.Sum32()
 }
 
 func (o *obj) getRef() obj {
@@ -218,10 +225,11 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 		MaxDepth:         255,
 		graphqlObjFields: map[string][]qlField{},
 		ctx: Ctx{
-			result:     make([]byte, 2048),
-			errors:     []error{},
-			path:       []byte{},
-			funcInputs: []reflect.Value{},
+			result:      make([]byte, 2048),
+			errors:      []error{},
+			path:        []byte{},
+			funcInputs:  []reflect.Value{},
+			fieldHasher: fnv.New32(),
 		},
 		iter: newIter(false),
 	}
@@ -267,7 +275,7 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 		ctx.checkFunctionIns(method)
 	}
 
-	// Nullify the ctx to freeup space
+	// Nullify the ctx to free up space
 	ctx = nil
 
 	return &res, nil
@@ -311,7 +319,7 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 			res.typeNameBytes = []byte(res.typeName)
 		}
 
-		res.objContents = map[string]*obj{}
+		res.objContents = map[uint32]*obj{}
 
 		typesInner := *c.types
 		typesInner[res.typeName] = &res
@@ -329,7 +337,8 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 					name = *customName
 				}
 				obj.qlFieldName = []byte(name)
-				res.objContents[name] = obj
+
+				res.objContents[getObjKey(obj.qlFieldName)] = obj
 			}
 		}
 	case reflect.Array, reflect.Slice, reflect.Ptr:
@@ -376,8 +385,9 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 				continue
 			}
 
-			res.objContents[name] = &obj{
-				qlFieldName:    []byte(name),
+			qlFieldName := []byte(name)
+			res.objContents[getObjKey(qlFieldName)] = &obj{
+				qlFieldName:    qlFieldName,
 				valueType:      valueTypeMethod,
 				pkgPath:        method.PkgPath,
 				structFieldIdx: i,

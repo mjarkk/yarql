@@ -3,6 +3,7 @@ package bytecode
 import (
 	"encoding/hex"
 	"fmt"
+	"hash/fnv"
 	"strings"
 	"sync"
 	"testing"
@@ -16,6 +17,7 @@ func parseQuery(query string) ([]byte, []error) {
 		FragmentLocations: []int{},
 		Query:             []byte(query),
 		Errors:            []error{},
+		Hasher:            fnv.New32(),
 	}
 	i.ParseQueryToBytecode(nil)
 	return i.Res, i.Errors
@@ -400,8 +402,8 @@ func TestParseAlias(t *testing.T) {
 		testOperator{
 			fields: []testField{
 				{
-					name:  "foo",
-					alias: "baz",
+					name:  "baz",
+					alias: "foo",
 				},
 			},
 		}.toBytes(),
@@ -767,6 +769,7 @@ func injectCodeSurviveTest(baseQuery string, extraChars ...[][]byte) {
 				FragmentLocations: []int{},
 				Query:             []byte{},
 				Errors:            []error{},
+				Hasher:            fnv.New32(),
 			}
 
 			for i := range baseQuery {

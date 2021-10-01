@@ -3,6 +3,7 @@ package bytecode
 import (
 	"encoding/hex"
 	"errors"
+	"hash"
 	"unicode/utf16"
 	"unicode/utf8"
 	"unsafe"
@@ -17,6 +18,7 @@ type ParserCtx struct {
 	target            *string
 	hasTarget         bool
 	TargetIdx         int // -1 = no matching target was found, >= 0 = res index of target
+	Hasher            hash.Hash32
 }
 
 func (ctx *ParserCtx) ParseQueryToBytecode(target *string) {
@@ -28,6 +30,7 @@ func (ctx *ParserCtx) ParseQueryToBytecode(target *string) {
 		target:            target,
 		hasTarget:         target != nil && len(*target) > 0,
 		TargetIdx:         -1,
+		Hasher:            ctx.Hasher,
 	}
 
 	for {
@@ -409,19 +412,19 @@ func (ctx *ParserCtx) parseSelectionSet() bool {
 
 	for {
 		ctx.instructionNewField()
-		directivesCountLocation := len(ctx.Res) - 5
+		directivesCountLocation := len(ctx.Res) - 9
 		startField := len(ctx.Res)
 
-		ctx.Res = append(ctx.Res, 0)
-		nameLen, criticalError := ctx.parseAndWriteName()
+		ctx.Res = append(ctx.Res, 0) // write name length
+		aliasOrNameLen, criticalError := ctx.parseAndWriteName()
 		if criticalError {
 			return criticalError
 		}
-		ctx.Res[startField] = nameLen
+		ctx.Res[startField] = aliasOrNameLen
 
-		if nameLen == 0 {
+		if aliasOrNameLen == 0 {
 			// Revert changes from ctx.instructionNewField()
-			ctx.Res = ctx.Res[:len(ctx.Res)-8]
+			ctx.Res = ctx.Res[:len(ctx.Res)-12]
 
 			if ctx.matches("...") == 0 {
 				// Is pointer to fragment or inline fragment
@@ -505,7 +508,7 @@ func (ctx *ParserCtx) parseSelectionSet() bool {
 			return ctx.unexpectedEOF()
 		}
 
-		aliasLenAt := len(ctx.Res)
+		nameLenAt := len(ctx.Res)
 		ctx.Res = append(ctx.Res, 0)
 
 		if c == ':' {
@@ -515,19 +518,27 @@ func (ctx *ParserCtx) parseSelectionSet() bool {
 				return ctx.unexpectedEOF()
 			}
 
-			aliasLen, criticalErr := ctx.parseAndWriteName()
+			nameLen, criticalErr := ctx.parseAndWriteName()
 			if criticalErr {
 				return criticalErr
 			}
-			if aliasLen == 0 {
+			if nameLen == 0 {
 				return ctx.err(`unexpected character, expected valid name char but got "` + string(c) + `"`)
 			}
-			ctx.Res[aliasLenAt] = aliasLen
+			ctx.Res[nameLenAt] = nameLen
 
 			c, eof = ctx.mightIgnoreNextTokens()
 			if eof {
 				return ctx.unexpectedEOF()
 			}
+
+			ctx.Hasher.Reset()
+			ctx.Hasher.Write(ctx.Res[nameLenAt+1 : nameLenAt+1+int(nameLen)])
+			ctx.Res = writeUint32At(ctx.Res, startField-4, ctx.Hasher.Sum32())
+		} else {
+			ctx.Hasher.Reset()
+			ctx.Hasher.Write(ctx.Res[startField+1 : startField+1+int(aliasOrNameLen)])
+			ctx.Res = writeUint32At(ctx.Res, startField-4, ctx.Hasher.Sum32())
 		}
 
 		if c == '@' {
@@ -574,7 +585,7 @@ func (ctx *ParserCtx) parseSelectionSet() bool {
 		}
 
 		ctx.instructionEnd()
-		ctx.writeUint32(uint32(len(ctx.Res)-startField), startField-4)
+		ctx.writeUint32(uint32(len(ctx.Res)-startField), startField-8)
 
 		if c == ',' {
 			ctx.charNr++

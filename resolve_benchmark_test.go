@@ -3,13 +3,9 @@ package graphql
 import (
 	"log"
 	"os"
-	"reflect"
 	"runtime/pprof"
 	"testing"
 	"time"
-
-	"github.com/mjarkk/go-graphql/bytecode"
-	"github.com/valyala/fastjson"
 )
 
 func BenchmarkQueryParser(b *testing.B) {
@@ -116,21 +112,9 @@ func BenchmarkResolve(b *testing.B) {
 
 func BenchmarkBytecodeResolve(b *testing.B) {
 	s, _ := ParseSchema(TestExecSchemaRequestWithFieldsData{}, M{}, nil)
+	ctx := NewBytecodeCtx(s)
 
-	ctx := BytecodeCtx{
-		schema: s,
-		query: bytecode.ParserCtx{
-			Res:               make([]byte, 2048),
-			FragmentLocations: make([]int, 8),
-			Query:             []byte(schemaQuery),
-			Errors:            []error{},
-		},
-		result:                 make([]byte, 16384),
-		charNr:                 0,
-		reflectValues:          [256]reflect.Value{},
-		currentReflectValueIdx: 0,
-		variablesJSONParser:    &fastjson.Parser{},
-	}
+	query := []byte(schemaQuery)
 
 	opts := BytecodeParseOptions{}
 
@@ -146,7 +130,7 @@ func BenchmarkBytecodeResolve(b *testing.B) {
 	defer pprof.StopCPUProfile()
 
 	for i := 0; i < b.N; i++ {
-		_, errs := ctx.BytecodeResolve([]byte(schemaQuery), opts)
+		_, errs := ctx.BytecodeResolve(query, opts)
 		for _, err := range errs {
 			panic(err)
 		}
@@ -183,6 +167,37 @@ func BenchmarkResolveTime(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		_, errs := s.Resolve(query, ResolveOptions{})
+		for _, err := range errs {
+			panic(err)
+		}
+	}
+}
+
+type HelloWorldSchema struct {
+	Hello string
+}
+
+func BenchmarkBytecodeHelloWorldResolve(b *testing.B) {
+	s, _ := ParseSchema(HelloWorldSchema{Hello: "World"}, M{}, nil)
+	ctx := NewBytecodeCtx(s)
+
+	query := []byte(`{hello}`)
+
+	opts := BytecodeParseOptions{}
+
+	// f, err := os.Create("memprofile")
+	// if err != nil {
+	// 	log.Fatal("could not create memory profile: ", err)
+	// }
+	// defer f.Close()
+
+	// if err := pprof.StartCPUProfile(f); err != nil {
+	// 	log.Fatal("could not start CPU profile: ", err)
+	// }
+	// defer pprof.StopCPUProfile()
+
+	for i := 0; i < b.N; i++ {
+		_, errs := ctx.BytecodeResolve(query, opts)
 		for _, err := range errs {
 			panic(err)
 		}

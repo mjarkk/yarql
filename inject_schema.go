@@ -19,7 +19,7 @@ func (s *Schema) injectQLTypes(ctx *parseCtx) {
 	ref.customObjValue = &contents
 	ref.qlFieldName = []byte("__schema")
 
-	s.rootQuery.objContents["__schema"] = ref
+	s.rootQuery.objContents[getObjKey(ref.qlFieldName)] = ref
 
 	// Inject __type(name: String!): __Type
 	typeResolver := func(ctx *Ctx, args struct{ Name string }) *qlType {
@@ -36,7 +36,7 @@ func (s *Schema) injectQLTypes(ctx *parseCtx) {
 
 	functionObj.customObjValue = &typeResolverReflection
 	functionObj.qlFieldName = []byte("__type")
-	s.rootQuery.objContents["__type"] = functionObj
+	s.rootQuery.objContents[getObjKey(functionObj.qlFieldName)] = functionObj
 }
 
 func (s *Schema) getQLSchema() qlSchema {
@@ -46,7 +46,7 @@ func (s *Schema) getQLSchema() qlSchema {
 		QueryType: &qlType{
 			Kind:        typeKindObject,
 			Name:        h.StrPtr(s.rootQuery.typeName),
-			Description: h.StrPtr(""),
+			Description: h.PtrToEmptyStr,
 			Fields: func(isDeprecatedArgs) []qlField {
 				fields, ok := s.graphqlObjFields[s.rootQuery.typeName]
 				if ok {
@@ -54,9 +54,9 @@ func (s *Schema) getQLSchema() qlSchema {
 				}
 
 				res := []qlField{}
-				for key, item := range s.rootQuery.objContents {
+				for _, item := range s.rootQuery.objContents {
 					res = append(res, qlField{
-						Name: key,
+						Name: string(item.qlFieldName),
 						Args: s.getObjectArgs(item),
 						Type: *wrapQLTypeInNonNull(s.objToQLType(item)),
 					})
@@ -71,7 +71,7 @@ func (s *Schema) getQLSchema() qlSchema {
 		MutationType: &qlType{
 			Kind:        typeKindObject,
 			Name:        h.StrPtr(s.rootMethod.typeName),
-			Description: h.StrPtr(""),
+			Description: h.PtrToEmptyStr,
 		},
 	}
 
@@ -95,7 +95,7 @@ func (s *Schema) getDirectives() []qlDirective {
 				{
 					Name:        "if",
 					Description: h.StrPtr("Skipped when true."),
-					Type:        scalars["Boolean"],
+					Type:        ScalarBoolean,
 				},
 			},
 		},
@@ -111,7 +111,7 @@ func (s *Schema) getDirectives() []qlDirective {
 				{
 					Name:        "if",
 					Description: h.StrPtr("Included when true."),
-					Type:        scalars["Boolean"],
+					Type:        ScalarBoolean,
 				},
 			},
 		},
@@ -176,17 +176,14 @@ func wrapQLTypeInNonNull(type_ *qlType, isNonNull bool) *qlType {
 
 func (s *Schema) inputToQLType(in *input) (res *qlType, isNonNull bool) {
 	if in.isID {
-		rawRes := scalars["ID"]
-		res = &rawRes
+		res = &ScalarID
 		return
 	} else if in.isTime {
-		rawRes := scalars["Time"]
-		res = &rawRes
+		res = &ScalarTime
 		isNonNull = true
 		return
 	} else if in.isFile {
-		rawRes := scalars["File"]
-		res = &rawRes
+		res = &ScalarFile
 		return
 	}
 
@@ -197,16 +194,18 @@ func (s *Schema) inputToQLType(in *input) (res *qlType, isNonNull bool) {
 		res = &qlType{
 			Kind:        typeKindInputObject,
 			Name:        h.StrPtr(in.structName),
-			Description: h.StrPtr(""),
+			Description: h.PtrToEmptyStr,
 			InputFields: func() []qlInputValue {
-				res := []qlInputValue{}
+				res := make([]qlInputValue, len(in.structContent))
+				i := 0
 				for key, item := range in.structContent {
-					res = append(res, qlInputValue{
+					res[i] = qlInputValue{
 						Name:         key,
-						Description:  h.StrPtr(""),
+						Description:  h.PtrToEmptyStr,
 						Type:         *wrapQLTypeInNonNull(s.inputToQLType(&item)),
 						DefaultValue: nil, // We do not support this atm
-					})
+					}
+					i++
 				}
 				sort.Slice(res, func(a int, b int) bool { return res[a].Name < res[b].Name })
 				return res
@@ -222,26 +221,27 @@ func (s *Schema) inputToQLType(in *input) (res *qlType, isNonNull bool) {
 		res, _ = s.inputToQLType(in.elem)
 	case reflect.Bool:
 		isNonNull = true
-		rawRes := scalars["Boolean"]
-		res = &rawRes
+		res = &ScalarBoolean
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.UnsafePointer, reflect.Complex64, reflect.Complex128:
 		isNonNull = true
-		rawRes := scalars["Int"]
 		if in.isID {
-			rawRes = scalars["ID"]
+			res = &ScalarID
+		} else {
+			res = &ScalarInt
 		}
-		res = &rawRes
 	case reflect.Float32, reflect.Float64:
 		isNonNull = true
-		rawRes := scalars["Float"]
-		res = &rawRes
+		res = &ScalarFloat
 	case reflect.String:
 		isNonNull = true
-		rawRes := scalars["String"]
-		res = &rawRes
+		res = &ScalarString
 	default:
 		isNonNull = true
-		res = &qlType{Kind: typeKindScalar, Name: h.StrPtr(""), Description: h.StrPtr("")}
+		res = &qlType{
+			Kind:        typeKindScalar,
+			Name:        h.PtrToEmptyStr,
+			Description: h.PtrToEmptyStr,
+		}
 	}
 	return
 }
@@ -252,7 +252,7 @@ func (s *Schema) getObjectArgs(item *obj) []qlInputValue {
 		for key, value := range item.method.inFields {
 			res = append(res, qlInputValue{
 				Name:         key,
-				Description:  h.StrPtr(""),
+				Description:  h.PtrToEmptyStr,
 				Type:         *wrapQLTypeInNonNull(s.inputToQLType(&value.input)),
 				DefaultValue: nil,
 			})
@@ -280,8 +280,8 @@ func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 		isNonNull = true
 		res = &qlType{
 			Kind:        typeKindObject,
-			Name:        h.StrPtr(item.typeName),
-			Description: h.StrPtr(""),
+			Name:        &item.typeName,
+			Description: h.PtrToEmptyStr,
 			Fields: func(args isDeprecatedArgs) []qlField {
 				fields, ok := s.graphqlObjFields[item.typeName]
 				if ok {
@@ -289,9 +289,9 @@ func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 				}
 
 				res := []qlField{}
-				for key, innerItem := range item.objContents {
+				for _, innerItem := range item.objContents {
 					res = append(res, qlField{
-						Name: key,
+						Name: string(innerItem.qlFieldName),
 						Args: s.getObjectArgs(innerItem),
 						Type: *wrapQLTypeInNonNull(s.objToQLType(innerItem)),
 					})
@@ -328,24 +328,24 @@ func resolveObjToScalar(item *obj) *qlType {
 	switch item.valueType {
 	case valueTypeData:
 		if item.isID {
-			res = scalars["ID"]
+			res = ScalarID
 		} else {
 			switch item.dataValueType {
 			case reflect.Bool:
-				res = scalars["Boolean"]
+				res = ScalarBoolean
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.UnsafePointer, reflect.Complex64, reflect.Complex128:
-				res = scalars["Int"]
+				res = ScalarInt
 			case reflect.Float32, reflect.Float64:
-				res = scalars["Float"]
+				res = ScalarFloat
 			case reflect.String:
-				res = scalars["String"]
+				res = ScalarString
 			default:
-				res = qlType{Kind: typeKindScalar, Name: h.StrPtr(""), Description: h.StrPtr("")}
+				res = qlType{Kind: typeKindScalar, Name: h.PtrToEmptyStr, Description: h.PtrToEmptyStr}
 			}
 		}
 		return &res
 	case valueTypeTime:
-		res = scalars["Time"]
+		res = ScalarTime
 		return &res
 	}
 	return nil

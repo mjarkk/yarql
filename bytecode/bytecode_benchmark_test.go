@@ -1,6 +1,7 @@
 package bytecode
 
 import (
+	"hash/fnv"
 	"testing"
 )
 
@@ -13,6 +14,7 @@ func BenchmarkQueryParser(b *testing.B) {
 		Query:             []byte(schemaQuery),
 		charNr:            0,
 		Errors:            []error{},
+		Hasher:            fnv.New32(),
 	}
 
 	for i := 0; i < b.N; i++ {

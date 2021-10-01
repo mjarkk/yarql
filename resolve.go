@@ -78,6 +78,8 @@ func (ctx *Ctx) Reset(
 		funcInputs:    ctx.funcInputs[:0],
 
 		Values: map[string]interface{}{},
+
+		fieldHasher: ctx.fieldHasher,
 	}
 
 	if tracing {
@@ -353,7 +355,9 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 	// Note that depending of the result below the path might be appended differently
 	// This is to avoid converting a string to bytes in almost all queries
 
-	structItem, ok := codeStructure.objContents[query.name]
+	ctx.fieldHasher.Reset()
+	ctx.fieldHasher.Write(s2b(query.name))
+	structItem, ok := codeStructure.objContents[ctx.fieldHasher.Sum32()]
 	if !ok {
 		if len(query.alias) > 0 {
 			ctx.path = append(ctx.path, query.alias...)

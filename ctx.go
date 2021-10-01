@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash"
 	"mime/multipart"
 	"reflect"
 	"strings"
@@ -40,6 +41,9 @@ type Ctx struct {
 
 	// fallback to bytecode context
 	bytecodeCtx *BytecodeCtx
+
+	// fieldhasher
+	fieldHasher hash.Hash32
 }
 
 //

@@ -4,6 +4,8 @@ func StrPtr(v string) *string {
 	return &v
 }
 
+var PtrToEmptyStr = StrPtr("")
+
 func BoolPtr(v bool) *bool {
 	return &v
 }

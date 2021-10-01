@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
+	"hash/fnv"
 	"mime/multipart"
 	"reflect"
 	"strconv"
@@ -36,10 +38,29 @@ type BytecodeCtx struct {
 	reflectValues          [256]reflect.Value
 	currentReflectValueIdx uint8
 	funcInputs             []reflect.Value
+	fieldHasher            hash.Hash32
 
 	// public / kinda public fields
 	values *map[string]interface{} // API User values, user can put all their shitty things in here like poems or tax papers
+}
 
+func NewBytecodeCtx(s *Schema) BytecodeCtx {
+	return BytecodeCtx{
+		schema: s,
+		query: bytecode.ParserCtx{
+			Res:               make([]byte, 2048),
+			FragmentLocations: make([]int, 8),
+			Query:             make([]byte, 2048),
+			Errors:            []error{},
+			Hasher:            fnv.New32(),
+		},
+		result:                 make([]byte, 16384),
+		charNr:                 0,
+		reflectValues:          [256]reflect.Value{},
+		currentReflectValueIdx: 0,
+		variablesJSONParser:    &fastjson.Parser{},
+		fieldHasher:            fnv.New32(),
+	}
 }
 
 func (ctx *BytecodeCtx) getGoValue() reflect.Value {
@@ -135,6 +156,7 @@ func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions)
 		reflectValues:          ctx.reflectValues,
 		currentReflectValueIdx: 0,
 		funcInputs:             ctx.funcInputs,
+		fieldHasher:            ctx.fieldHasher,
 
 		values: opts.Values,
 	}
@@ -382,6 +404,8 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 
 	fieldLen := ctx.readUint32(ctx.charNr)
 	ctx.skipInst(4)
+	nameKey := ctx.readUint32(ctx.charNr)
+	ctx.skipInst(4)
 	endOfField := ctx.charNr + int(fieldLen)
 
 	// Read field name/alias
@@ -409,9 +433,6 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 	}
 	ctx.skipInst(1)
 
-	name := ctx.query.Res[startOfName:endOfName]
-	nameStr := b2s(name)
-
 	if addCommaBefore {
 		ctx.writeByte(',')
 	}
@@ -422,9 +443,11 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 	criticalErr := false
 	fieldHasSelection := ctx.seekInst() != 'e'
 
-	typeObjField, ok := typeObj.objContents[nameStr]
+	typeObjField, ok := typeObj.objContents[nameKey]
 	if !ok {
-		if nameStr == "__typename" {
+		ctx.fieldHasher.Reset()
+		ctx.fieldHasher.Write([]byte("__typename"))
+		if nameKey == ctx.fieldHasher.Sum32() { // name == "__typename"
 			if fieldHasSelection {
 				criticalErr = ctx.err("cannot have a selection set on this field")
 			} else {
@@ -432,7 +455,8 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 			}
 		} else {
 			ctx.writeNull()
-			criticalErr = ctx.errf("%s does not exists on %s", nameStr, typeObj.typeName)
+			name := b2s(ctx.query.Res[startOfName:endOfName])
+			criticalErr = ctx.errf("%s does not exists on %s", name, typeObj.typeName)
 		}
 	} else {
 		goValue := ctx.getGoValue()

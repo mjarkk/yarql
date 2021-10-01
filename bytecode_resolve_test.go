@@ -2,34 +2,17 @@ package graphql
 
 import (
 	"encoding/json"
-	"reflect"
 	"testing"
 	"time"
 
-	"github.com/mjarkk/go-graphql/bytecode"
 	. "github.com/stretchr/testify/assert"
-	"github.com/valyala/fastjson"
 )
 
 func bytecodeParse(t *testing.T, query string, queries interface{}, methods interface{}, opts ...BytecodeParseOptions) (string, []error) {
 	s, err := ParseSchema(queries, methods, nil)
 	NoError(t, err, query)
 
-	ctx := BytecodeCtx{
-		schema: s,
-		query: bytecode.ParserCtx{
-			Res:               []byte{},
-			FragmentLocations: []int{},
-			Query:             []byte{},
-			Errors:            []error{},
-		},
-		result:                 []byte{},
-		charNr:                 0,
-		reflectValues:          [256]reflect.Value{},
-		currentReflectValueIdx: 0,
-		variablesJSONParser:    &fastjson.Parser{},
-		path:                   make([]byte, 1024),
-	}
+	ctx := NewBytecodeCtx(s)
 	if len(opts) == 0 {
 		opts = []BytecodeParseOptions{{NoMeta: true}}
 	}

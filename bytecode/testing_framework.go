@@ -1,6 +1,7 @@
 package bytecode
 
 import (
+	"hash/fnv"
 	"strconv"
 )
 
@@ -213,6 +214,12 @@ type testField struct {
 	arguments []typeObjectValue
 }
 
+func getObjKey(key []byte) uint32 {
+	hasher := fnv.New32()
+	hasher.Write(key)
+	return hasher.Sum32()
+}
+
 func (o testField) toBytes(res []byte) []byte {
 	if o.isFragment {
 		res = append(res, 0, 's') // start of fragment
@@ -238,12 +245,20 @@ func (o testField) toBytes(res []byte) []byte {
 	res = append(res, 0, 'f')
 	res = append(res, byte(len(o.directives)))
 	res = append(res, 0, 0, 0, 0)
+	res = append(res, 0, 0, 0, 0)
+	res = writeUint32At(res, len(res)-4, getObjKey([]byte(o.name)))
 	start := len(res)
 
-	res = append(res, byte(len(o.name)))
-	res = append(res, []byte(o.name)...)
-	res = append(res, byte(len(o.alias)))
-	res = append(res, []byte(o.alias)...)
+	if len(o.alias) > 0 {
+		res = append(res, byte(len(o.alias)))
+		res = append(res, []byte(o.alias)...)
+		res = append(res, byte(len(o.name)))
+		res = append(res, []byte(o.name)...)
+	} else {
+		res = append(res, byte(len(o.name)))
+		res = append(res, []byte(o.name)...)
+		res = append(res, 0)
+	}
 	for _, directive := range o.directives {
 		res = directive.toBytes(res)
 	}
@@ -259,7 +274,7 @@ func (o testField) toBytes(res []byte) []byte {
 	res = append(res, 0, 'e')
 
 	end := len(res)
-	res = writeUint32At(res, start-4, uint32(end-start))
+	res = writeUint32At(res, start-8, uint32(end-start))
 
 	return res
 }

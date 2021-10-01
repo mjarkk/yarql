@@ -117,7 +117,7 @@ func registerEnumCheck(map_ interface{}) *enum {
 		}
 		qlTypeEnumValues[i] = qlEnumValue{
 			Name:              keyStr,
-			Description:       h.StrPtr(""),
+			Description:       h.PtrToEmptyStr,
 			IsDeprecated:      false,
 			DeprecationReason: nil,
 		}
@@ -129,7 +129,7 @@ func registerEnumCheck(map_ interface{}) *enum {
 	qlType := qlType{
 		Kind:        typeKindEnum,
 		Name:        &name,
-		Description: h.StrPtr(""),
+		Description: h.PtrToEmptyStr,
 		EnumValues: func(args isDeprecatedArgs) []qlEnumValue {
 			return qlTypeEnumValues
 		},

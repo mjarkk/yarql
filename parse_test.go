@@ -45,7 +45,7 @@ func TestCheckStructSimple(t *testing.T) {
 		"c": reflect.Float64,
 	}
 	for name, expectedType := range exists {
-		val, ok := typeObj.objContents[name]
+		val, ok := typeObj.objContents[getObjKey([]byte(name))]
 		True(t, ok)
 		Equal(t, valueTypeData, val.valueType)
 		Equal(t, expectedType, val.dataValueType)
@@ -67,7 +67,7 @@ func TestCheckStructWArray(t *testing.T) {
 	obj := (*ctx.types)[ref.typeName]
 
 	// Foo is an array
-	val, ok := obj.objContents["foo"]
+	val, ok := obj.objContents[getObjKey([]byte("foo"))]
 	True(t, ok)
 	Equal(t, valueTypeArray, val.valueType)
 
@@ -89,7 +89,7 @@ func TestCheckStructWPtr(t *testing.T) {
 	obj := (*ctx.types)[ref.typeName]
 
 	// Foo is a ptr
-	val, ok := obj.objContents["foo"]
+	val, ok := obj.objContents[getObjKey([]byte("foo"))]
 	True(t, ok)
 	Equal(t, valueTypePtr, val.valueType)
 
@@ -111,13 +111,13 @@ func TestCheckStructTags(t *testing.T) {
 	NoError(t, err)
 	obj := (*ctx.types)[ref.typeName]
 
-	_, ok := obj.objContents["otherName"]
+	_, ok := obj.objContents[getObjKey([]byte("otherName"))]
 	True(t, ok, "name should now be called otherName")
 
-	_, ok = obj.objContents["name"]
+	_, ok = obj.objContents[getObjKey([]byte("name"))]
 	False(t, ok, "name should now be called otherName and thus also not appear in the checkres")
 
-	_, ok = obj.objContents["hiddenField"]
+	_, ok = obj.objContents[getObjKey([]byte("hiddenField"))]
 	False(t, ok, "hiddenField should be ignored")
 }
 
@@ -158,11 +158,11 @@ func TestCheckMethods(t *testing.T) {
 	Nil(t, err)
 	obj := (*ctx.types)[ref.typeName]
 
-	_, ok := obj.objContents["name"]
+	_, ok := obj.objContents[getObjKey([]byte("name"))]
 	True(t, ok)
-	_, ok = obj.objContents["banana"]
+	_, ok = obj.objContents[getObjKey([]byte("banana"))]
 	True(t, ok)
-	_, ok = obj.objContents["peer"]
+	_, ok = obj.objContents[getObjKey([]byte("peer"))]
 	True(t, ok)
 }
 
@@ -205,7 +205,7 @@ func TestCheckStructFuncs(t *testing.T) {
 	Nil(t, err)
 	obj := (*ctx.types)[ref.typeName]
 
-	_, ok := obj.objContents["name"]
+	_, ok := obj.objContents[getObjKey([]byte("name"))]
 	True(t, ok)
 }
 
