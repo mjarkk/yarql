@@ -208,7 +208,7 @@ func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions)
 	}
 
 	if !opts.NoMeta {
-		// TODO support extensions
+		// TODO support custom extensions
 
 		// Add errors to output
 		errsLen := len(ctx.query.Errors)
