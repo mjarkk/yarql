@@ -352,8 +352,11 @@ type TestBytecodeResolveMultipleArgumentsDataIO struct {
 
 	Bool bool
 
-	Time time.Time
-	ID   uint `gq:"id,ID"`
+	Time     time.Time
+	UintID   uint   `gq:"uintId,ID"`
+	StringID string `gq:"stringId,ID"`
+
+	Enum __TypeKind
 }
 
 func (TestBytecodeResolveMultipleArgumentsData) ResolveFoo(args TestBytecodeResolveMultipleArgumentsDataIO) TestBytecodeResolveMultipleArgumentsDataIO {
@@ -376,7 +379,9 @@ func TestBytecodeResolveMultipleArguments(t *testing.T) {
 			uint64: 123,
 			bool: true,
 			time: "2021-09-28T18:44:11.717Z",
-			id: 123,
+			uintId: 123,
+			stringId: "abc",
+			enum: ENUM,
 		) {
 			string
 			int
@@ -391,12 +396,14 @@ func TestBytecodeResolveMultipleArguments(t *testing.T) {
 			uint64
 			bool
 			time
-			id
+			uintId
+			stringId
+			enum
 		}
 	}`
 	schema := TestBytecodeResolveMultipleArgumentsData{}
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
-	Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","id":"123"}}`, res)
+	Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","uintId":"123","stringId":"abc","enum":"ENUM"}}`, res)
 }
 
 func TestBytecodeResolveMultipleArgumentsUsingDefaultVariables(t *testing.T) {
@@ -414,7 +421,9 @@ func TestBytecodeResolveMultipleArgumentsUsingDefaultVariables(t *testing.T) {
 		$uint64: Int = 123,
 		$bool: Boolean = true,
 		$time: Time = "2021-09-28T18:44:11.717Z",
-		$id: ID = "123",
+		$uintId: ID = "123",
+		$stringId: ID = "abc",
+		$enum: __TypeKind = ENUM,
 	) {
 		foo(
 			string: $string,
@@ -430,7 +439,9 @@ func TestBytecodeResolveMultipleArgumentsUsingDefaultVariables(t *testing.T) {
 			uint64: $uint64,
 			bool: $bool,
 			time: $time,
-			id: $id,
+			uintId: $uintId,
+			stringId: $stringId,
+			enum: $enum,
 		) {
 			string
 			int
@@ -445,12 +456,14 @@ func TestBytecodeResolveMultipleArgumentsUsingDefaultVariables(t *testing.T) {
 			uint64
 			bool
 			time
-			id
+			uintId
+			stringId
+			enum
 		}
 	}`
 	schema := TestBytecodeResolveMultipleArgumentsData{}
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
-	Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","id":"123"}}`, res)
+	Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","uintId":"123","stringId":"abc","enum":"ENUM"}}`, res)
 }
 
 func TestBytecodeResolveMultipleArgumentsUsingVariables(t *testing.T) {
@@ -468,7 +481,9 @@ func TestBytecodeResolveMultipleArgumentsUsingVariables(t *testing.T) {
 		$uint64: Int,
 		$bool: Boolean,
 		$time: Time,
-		$id: ID,
+		$uintId: ID,
+		$stringId: ID,
+		$enum: __TypeKind,
 	) {
 		foo(
 			string: $string,
@@ -484,7 +499,9 @@ func TestBytecodeResolveMultipleArgumentsUsingVariables(t *testing.T) {
 			uint64: $uint64,
 			bool: $bool,
 			time: $time,
-			id: $id,
+			uintId: $uintId,
+			stringId: $stringId,
+			enum: $enum,
 		) {
 			string
 			int
@@ -499,7 +516,9 @@ func TestBytecodeResolveMultipleArgumentsUsingVariables(t *testing.T) {
 			uint64
 			bool
 			time
-			id
+			uintId
+			stringId
+			enum
 		}
 	}`
 	schema := TestBytecodeResolveMultipleArgumentsData{}
@@ -519,11 +538,13 @@ func TestBytecodeResolveMultipleArgumentsUsingVariables(t *testing.T) {
 			"uint64": 123,
 			"bool": true,
 			"time": "2021-09-28T18:44:11.717Z",
-			"id": "123"
+			"uintId": "123",
+			"stringId": "abc",
+			"enum": "ENUM"
 		}`,
 	}
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{}, opts)
-	Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","id":"123"}}`, res)
+	Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","uintId":"123","stringId":"abc","enum":"ENUM"}}`, res)
 }
 
 type TestBytecodeResolveJSONArrayVariableData struct{}
