@@ -129,8 +129,9 @@ func BenchmarkBytecodeResolve(b *testing.B) {
 	}
 	defer pprof.StopCPUProfile()
 
+	var errs []error
 	for i := 0; i < b.N; i++ {
-		_, errs := ctx.BytecodeResolve(query, opts)
+		errs = ctx.BytecodeResolve(query, opts)
 		for _, err := range errs {
 			panic(err)
 		}
@@ -196,8 +197,9 @@ func BenchmarkBytecodeHelloWorldResolve(b *testing.B) {
 	// }
 	// defer pprof.StopCPUProfile()
 
+	var errs []error
 	for i := 0; i < b.N; i++ {
-		_, errs := ctx.BytecodeResolve(query, opts)
+		errs = ctx.BytecodeResolve(query, opts)
 		for _, err := range errs {
 			panic(err)
 		}

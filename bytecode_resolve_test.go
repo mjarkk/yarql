@@ -16,8 +16,8 @@ func bytecodeParse(t *testing.T, query string, queries interface{}, methods inte
 	if len(opts) == 0 {
 		opts = []BytecodeParseOptions{{NoMeta: true}}
 	}
-	bytes, errs := ctx.BytecodeResolve([]byte(query), opts[0])
-	return string(bytes), errs
+	errs := ctx.BytecodeResolve([]byte(query), opts[0])
+	return string(ctx.Result), errs
 }
 
 func bytecodeParseAndExpectNoErrs(t *testing.T, query string, queries interface{}, methods interface{}, opts ...BytecodeParseOptions) string {

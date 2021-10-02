@@ -34,7 +34,7 @@ type BytecodeCtx struct {
 	variables           *fastjson.Value  // Parsed variables, only use this if variablesParsed == true
 
 	// Zero alloc values
-	result                 []byte
+	Result                 []byte
 	reflectValues          [256]reflect.Value
 	currentReflectValueIdx uint8
 	funcInputs             []reflect.Value
@@ -54,7 +54,7 @@ func NewBytecodeCtx(s *Schema) BytecodeCtx {
 			Errors:            []error{},
 			Hasher:            fnv.New32(),
 		},
-		result:                 make([]byte, 16384),
+		Result:                 make([]byte, 16384),
 		charNr:                 0,
 		reflectValues:          [256]reflect.Value{},
 		currentReflectValueIdx: 0,
@@ -120,11 +120,11 @@ func (ctx *BytecodeCtx) GetPath() json.RawMessage {
 }
 
 func (ctx *BytecodeCtx) write(b []byte) {
-	ctx.result = append(ctx.result, b...)
+	ctx.Result = append(ctx.Result, b...)
 }
 
 func (ctx *BytecodeCtx) writeByte(b byte) {
-	ctx.result = append(ctx.result, b)
+	ctx.Result = append(ctx.Result, b)
 }
 
 func (ctx *BytecodeCtx) writeQouted(b []byte) {
@@ -139,7 +139,7 @@ func (ctx *BytecodeCtx) writeNull() {
 	ctx.write(nullBytes)
 }
 
-func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions) ([]byte, []error) {
+func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions) []error {
 	*ctx = BytecodeCtx{
 		schema:              ctx.schema,
 		query:               ctx.query,
@@ -152,7 +152,7 @@ func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions)
 		variablesJSONParser: ctx.variablesJSONParser,
 		variables:           ctx.variables,
 
-		result:                 ctx.result[:0],
+		Result:                 ctx.Result[:0],
 		reflectValues:          ctx.reflectValues,
 		currentReflectValueIdx: 0,
 		funcInputs:             ctx.funcInputs,
@@ -191,39 +191,41 @@ func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions)
 	}
 
 	if !opts.NoMeta {
-		// Write add errors to output
-		ctx.write([]byte(`,"errors":[`))
-		for i, err := range ctx.query.Errors {
-			if i > 0 {
-				ctx.writeByte(',')
-			}
-			ctx.write([]byte(`{"message":`))
-			stringToJson(err.Error(), &ctx.result)
+		// TODO support extensions
 
-			errWPath, isErrWPath := err.(ErrorWPath)
-			if isErrWPath && len(errWPath.path) > 0 {
-				ctx.write([]byte(`,"path":[`))
-				ctx.write(errWPath.path)
-				ctx.writeByte(']')
+		// Add errors to output
+		if len(ctx.query.Errors) == 0 {
+			ctx.write([]byte(`,"errors":[],"extensions":{}}`))
+		} else {
+			ctx.write([]byte(`,"errors":[`))
+			for i, err := range ctx.query.Errors {
+				if i > 0 {
+					ctx.writeByte(',')
+				}
+				ctx.write([]byte(`{"message":`))
+				stringToJson(err.Error(), &ctx.Result)
+
+				errWPath, isErrWPath := err.(ErrorWPath)
+				if isErrWPath && len(errWPath.path) > 0 {
+					ctx.write([]byte(`,"path":[`))
+					ctx.write(errWPath.path)
+					ctx.writeByte(']')
+				}
+				errWLocation, isErrWLocation := err.(ErrorWLocation)
+				if isErrWLocation {
+					ctx.write([]byte(`,"locations":[{"line":`))
+					ctx.Result = strconv.AppendUint(ctx.Result, uint64(errWLocation.line), 10)
+					ctx.write([]byte(`,"column":`))
+					ctx.Result = strconv.AppendUint(ctx.Result, uint64(errWLocation.column), 10)
+					ctx.write([]byte(`}]`))
+				}
+				ctx.writeByte('}')
 			}
-			errWLocation, isErrWLocation := err.(ErrorWLocation)
-			if isErrWLocation {
-				ctx.write([]byte(`,"locations":[{"line":`))
-				ctx.result = strconv.AppendUint(ctx.result, uint64(errWLocation.line), 10)
-				ctx.write([]byte(`,"column":`))
-				ctx.result = strconv.AppendUint(ctx.result, uint64(errWLocation.column), 10)
-				ctx.write([]byte(`}]`))
-			}
-			ctx.writeByte('}')
+			ctx.write([]byte(`],"extensions":{}}`))
 		}
-
-		// TODO support content for the extensions map
-		ctx.write([]byte(`],"extensions":{}`))
-
-		ctx.writeByte('}')
 	}
 
-	return ctx.result, ctx.query.Errors
+	return ctx.query.Errors
 }
 
 // readInst reads the current instruction and increments the charNr
@@ -672,7 +674,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 		timeValue, ok := goValue.Interface().(time.Time)
 		if ok {
 			ctx.writeByte('"')
-			timeToString(&ctx.result, timeValue)
+			timeToString(&ctx.Result, timeValue)
 			ctx.writeByte('"')
 		} else {
 			ctx.writeNull()
@@ -1385,7 +1387,7 @@ func (ctx *BytecodeCtx) walkInputObject(onValueOfKey func(key []byte) bool) bool
 func (ctx *BytecodeCtx) valueToJson(in reflect.Value, kind reflect.Kind) {
 	switch kind {
 	case reflect.String:
-		stringToJson(in.String(), &ctx.result)
+		stringToJson(in.String(), &ctx.Result)
 	case reflect.Bool:
 		if in.Bool() {
 			ctx.write([]byte("true"))
@@ -1393,13 +1395,13 @@ func (ctx *BytecodeCtx) valueToJson(in reflect.Value, kind reflect.Kind) {
 			ctx.write([]byte("false"))
 		}
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		ctx.result = strconv.AppendInt(ctx.result, in.Int(), 10)
+		ctx.Result = strconv.AppendInt(ctx.Result, in.Int(), 10)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		ctx.result = strconv.AppendUint(ctx.result, in.Uint(), 10)
+		ctx.Result = strconv.AppendUint(ctx.Result, in.Uint(), 10)
 	case reflect.Float32:
-		floatToJson(32, in.Float(), &ctx.result)
+		floatToJson(32, in.Float(), &ctx.Result)
 	case reflect.Float64:
-		floatToJson(64, in.Float(), &ctx.result)
+		floatToJson(64, in.Float(), &ctx.Result)
 	case reflect.Ptr:
 		if in.IsNil() {
 			ctx.writeNull()
