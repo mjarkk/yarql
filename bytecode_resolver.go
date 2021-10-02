@@ -347,6 +347,9 @@ func (ctx *BytecodeCtx) resolveOperation() bool {
 	}
 
 	firstField := true
+	if kind == bytecode.OperatorMutation {
+		return ctx.resolveSelectionSet(ctx.schema.rootMethod, 0, &firstField)
+	}
 	return ctx.resolveSelectionSet(ctx.schema.rootQuery, 0, &firstField)
 }
 

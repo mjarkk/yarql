@@ -28,6 +28,12 @@ func bytecodeParseAndExpectNoErrs(t *testing.T, query string, queries interface{
 	return res
 }
 
+func bytecodeParseAndExpectErrs(t *testing.T, query string, queries interface{}, methods interface{}, opts ...BytecodeParseOptions) (string, []error) {
+	res, errs := bytecodeParse(t, query, queries, methods, opts...)
+	NotEqual(t, 0, len(res), query)
+	return res, errs
+}
+
 func TestBytecodeResolveOnlyOperation(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, `{}`, TestExecEmptyQueryDataQ{}, M{})
 	Equal(t, `{}`, res)
@@ -39,6 +45,18 @@ func TestBytecodeResolveSingleField(t *testing.T) {
 		B: "bar",
 	}, M{})
 	Equal(t, `{"a":"foo"}`, res)
+}
+
+func TestBytecodeResolveMutation(t *testing.T) {
+	schema := TestExecSimpleQueryData{
+		A: "foo",
+		B: "bar",
+	}
+	res := bytecodeParseAndExpectNoErrs(t, `mutation test {a}`, M{}, schema)
+	Equal(t, `{"a":"foo"}`, res)
+
+	_, errs := bytecodeParseAndExpectErrs(t, `mutation test {a}`, schema, M{})
+	Len(t, errs, 1)
 }
 
 func TestBytecodeResolveMultipleFields(t *testing.T) {
