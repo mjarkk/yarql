@@ -763,3 +763,46 @@ func TestBytecodeResolveGraphqlTypename(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, `{a {__typename}}`, TestExecSchemaRequestWithFieldsData{}, M{})
 	Equal(t, `{"a":{"__typename":"TestExecSchemaRequestWithFieldsDataInnerStruct"}}`, res)
 }
+
+func TestBytecodeResolveTracing(t *testing.T) {
+	query := `{foo{a b}}`
+	schema := TestExecStructInStructInlineData{}
+	json.Unmarshal([]byte(`{"foo": {"a": "foo", "b": "bar", "c": "baz"}}`), &schema)
+	opts := BytecodeParseOptions{
+		Tracing: true,
+	}
+	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{}, opts)
+
+	parsedRes := struct {
+		Extensions struct {
+			Tracing tracer `json:"tracing"`
+		} `json:"extensions"`
+	}{}
+	err := json.Unmarshal([]byte(res), &parsedRes)
+	NoError(t, err)
+
+	tracer := parsedRes.Extensions.Tracing
+	Equal(t, uint8(1), tracer.Version)
+	NotEqual(t, "", tracer.StartTime)
+	NotEqual(t, "", tracer.EndTime)
+	NotEqual(t, int64(0), tracer.Duration)
+
+	parsing := tracer.Parsing
+	NotEqual(t, int64(0), parsing.Duration)
+	NotEqual(t, int64(0), parsing.StartOffset)
+
+	validation := tracer.Validation
+	Equal(t, int64(0), validation.Duration)
+	NotEqual(t, int64(0), validation.StartOffset)
+	LessOrEqual(t, parsing.StartOffset+parsing.Duration, validation.StartOffset)
+
+	for _, resolver := range tracer.Execution.Resolvers {
+		NotNil(t, []byte(resolver.Path))
+		NotEmpty(t, []byte(resolver.Path))
+		NotEqual(t, "", resolver.ParentType)
+		NotEqual(t, "", resolver.FieldName)
+		NotEqual(t, "", resolver.ReturnType)
+		NotEqual(t, int64(0), resolver.StartOffset)
+		NotEqual(t, int64(0), resolver.Duration)
+	}
+}

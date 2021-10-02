@@ -83,13 +83,7 @@ func (ctx *Ctx) Reset(
 	}
 
 	if tracing {
-		ctx.tracing = &tracer{
-			Version:     1,
-			GoStartTime: time.Now(),
-			Execution: tracerExecution{
-				Resolvers: []tracerResolver{},
-			},
-		}
+		ctx.tracing = newTracer()
 	}
 }
 
@@ -378,22 +372,6 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 	ctx.path = append(ctx.path, name...)
 	ctx.path = append(ctx.path, '"')
 
-	if ctx.tracingEnabled {
-		defer ctx.finishTrace(func(offset, duration int64) {
-			returnType := bytes.NewBuffer(nil)
-			ctx.schema.objToQlTypeName(structItem, returnType)
-
-			ctx.tracing.Execution.Resolvers = append(ctx.tracing.Execution.Resolvers, tracerResolver{
-				Path:        json.RawMessage(ctx.Path()),
-				ParentType:  codeStructure.typeName,
-				FieldName:   query.name,
-				ReturnType:  returnType.String(),
-				StartOffset: offset,
-				Duration:    duration,
-			})
-		})
-	}
-
 	if placeCommaInFront {
 		ctx.writeByte(',')
 	}
@@ -412,6 +390,23 @@ func (ctx *Ctx) resolveField(query *field, codeStructure *obj, dept uint8, place
 	}
 
 	ctx.resolveFieldDataValue(query, structItem, dept)
+
+	if ctx.tracingEnabled {
+		ctx.finishTrace(func(offset, duration int64) {
+			returnType := bytes.NewBuffer(nil)
+			ctx.schema.objToQlTypeName(structItem, returnType)
+
+			ctx.tracing.Execution.Resolvers = append(ctx.tracing.Execution.Resolvers, tracerResolver{
+				Path:        json.RawMessage(ctx.Path()),
+				ParentType:  codeStructure.typeName,
+				FieldName:   query.name,
+				ReturnType:  returnType.String(),
+				StartOffset: offset,
+				Duration:    duration,
+			})
+		})
+	}
+
 	ctx.path = ctx.path[:prefPathLen]
 	ctx.currentReflectValueIdx--
 }

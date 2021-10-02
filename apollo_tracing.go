@@ -34,6 +34,26 @@ type tracerResolver struct {
 	Duration    int64           `json:"duration"`
 }
 
+func newTracer() *tracer {
+	return &tracer{
+		Version:     1,
+		GoStartTime: time.Now(),
+		Execution: tracerExecution{
+			Resolvers: []tracerResolver{},
+		},
+	}
+}
+
+func (t *tracer) reset() {
+	*t = tracer{
+		Version:     1,
+		GoStartTime: time.Now(),
+		Execution: tracerExecution{
+			Resolvers: t.Execution.Resolvers[:0],
+		},
+	}
+}
+
 func (t *tracer) finish() {
 	t.StartTime = t.GoStartTime.Format(time.RFC3339Nano)
 	now := time.Now()

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash"
 	"hash/fnv"
 	"mime/multipart"
 	"reflect"
@@ -27,6 +26,9 @@ type BytecodeCtx struct {
 	path                     []byte
 	getFormFile              func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
 	operatorArgumentsStartAt int
+	tracingEnabled           bool
+	tracing                  *tracer
+	prefRecordingStartTime   time.Time
 
 	rawVariables        string
 	variablesParsed     bool             // the rawVariables are parsed into variables
@@ -38,7 +40,6 @@ type BytecodeCtx struct {
 	reflectValues          [256]reflect.Value
 	currentReflectValueIdx uint8
 	funcInputs             []reflect.Value
-	fieldHasher            hash.Hash32
 
 	// public / kinda public fields
 	values *map[string]interface{} // API User values, user can put all their shitty things in here like poems or tax papers
@@ -59,7 +60,7 @@ func NewBytecodeCtx(s *Schema) BytecodeCtx {
 		reflectValues:          [256]reflect.Value{},
 		currentReflectValueIdx: 0,
 		variablesJSONParser:    &fastjson.Parser{},
-		fieldHasher:            fnv.New32(),
+		tracing:                newTracer(),
 	}
 }
 
@@ -83,9 +84,7 @@ type BytecodeParseOptions struct {
 	Values         *map[string]interface{}                         // Passed directly to the request context
 	GetFormFile    func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
 	Variables      string                                          // Expects valid JSON or empty string
-
-	// TODO support:
-	// Tracing        bool                                            // https://github.com/apollographql/apollo-tracing
+	Tracing        bool                                            // https://github.com/apollographql/apollo-tracing
 }
 
 func (ctx *BytecodeCtx) GetValue(key string) (value interface{}) {
@@ -141,31 +140,49 @@ func (ctx *BytecodeCtx) writeNull() {
 
 func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions) []error {
 	*ctx = BytecodeCtx{
-		schema:              ctx.schema,
-		query:               ctx.query,
-		charNr:              0,
-		context:             opts.Context,
-		path:                ctx.path[:0],
-		getFormFile:         opts.GetFormFile,
-		rawVariables:        opts.Variables,
-		variablesParsed:     false,
-		variablesJSONParser: ctx.variablesJSONParser,
-		variables:           ctx.variables,
+		schema:                 ctx.schema,
+		query:                  ctx.query,
+		charNr:                 0,
+		context:                opts.Context,
+		path:                   ctx.path[:0],
+		getFormFile:            opts.GetFormFile,
+		rawVariables:           opts.Variables,
+		variablesParsed:        false,
+		variablesJSONParser:    ctx.variablesJSONParser,
+		variables:              ctx.variables,
+		tracingEnabled:         opts.Tracing,
+		tracing:                ctx.tracing,
+		prefRecordingStartTime: ctx.prefRecordingStartTime,
 
 		Result:                 ctx.Result[:0],
 		reflectValues:          ctx.reflectValues,
 		currentReflectValueIdx: 0,
 		funcInputs:             ctx.funcInputs,
-		fieldHasher:            ctx.fieldHasher,
 
 		values: opts.Values,
 	}
+	if opts.Tracing {
+		ctx.tracing.reset()
+	}
+	ctx.startTrace()
+
 	ctx.query.Query = append(ctx.query.Query[:0], query...)
 
 	if len(opts.OperatorTarget) > 0 {
 		ctx.query.ParseQueryToBytecode(&opts.OperatorTarget)
 	} else {
 		ctx.query.ParseQueryToBytecode(nil)
+	}
+
+	if ctx.tracingEnabled {
+		// finish parsing trace
+		ctx.finishTrace(func(offset, duration int64) {
+			ctx.tracing.Parsing.StartOffset = offset
+			ctx.tracing.Parsing.Duration = duration
+		})
+
+		// Set the validation prop
+		ctx.tracing.Validation.StartOffset = time.Now().Sub(ctx.prefRecordingStartTime).Nanoseconds()
 	}
 
 	if !opts.NoMeta {
@@ -194,34 +211,53 @@ func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions)
 		// TODO support extensions
 
 		// Add errors to output
-		if len(ctx.query.Errors) == 0 {
+		errsLen := len(ctx.query.Errors)
+		if errsLen == 0 && !ctx.tracingEnabled {
 			ctx.write([]byte(`,"errors":[],"extensions":{}}`))
 		} else {
-			ctx.write([]byte(`,"errors":[`))
-			for i, err := range ctx.query.Errors {
-				if i > 0 {
-					ctx.writeByte(',')
-				}
-				ctx.write([]byte(`{"message":`))
-				stringToJson(err.Error(), &ctx.Result)
+			if errsLen == 0 {
+				ctx.write([]byte(`,"errors":[]`))
+			} else {
+				ctx.write([]byte(`,"errors":[`))
+				for i, err := range ctx.query.Errors {
+					if i > 0 {
+						ctx.writeByte(',')
+					}
+					ctx.write([]byte(`{"message":`))
+					stringToJson(err.Error(), &ctx.Result)
 
-				errWPath, isErrWPath := err.(ErrorWPath)
-				if isErrWPath && len(errWPath.path) > 0 {
-					ctx.write([]byte(`,"path":[`))
-					ctx.write(errWPath.path)
-					ctx.writeByte(']')
+					errWPath, isErrWPath := err.(ErrorWPath)
+					if isErrWPath && len(errWPath.path) > 0 {
+						ctx.write([]byte(`,"path":[`))
+						ctx.write(errWPath.path)
+						ctx.writeByte(']')
+					}
+					errWLocation, isErrWLocation := err.(ErrorWLocation)
+					if isErrWLocation {
+						ctx.write([]byte(`,"locations":[{"line":`))
+						ctx.Result = strconv.AppendUint(ctx.Result, uint64(errWLocation.line), 10)
+						ctx.write([]byte(`,"column":`))
+						ctx.Result = strconv.AppendUint(ctx.Result, uint64(errWLocation.column), 10)
+						ctx.write([]byte{'}', ']'})
+					}
+					ctx.writeByte('}')
 				}
-				errWLocation, isErrWLocation := err.(ErrorWLocation)
-				if isErrWLocation {
-					ctx.write([]byte(`,"locations":[{"line":`))
-					ctx.Result = strconv.AppendUint(ctx.Result, uint64(errWLocation.line), 10)
-					ctx.write([]byte(`,"column":`))
-					ctx.Result = strconv.AppendUint(ctx.Result, uint64(errWLocation.column), 10)
-					ctx.write([]byte(`}]`))
-				}
-				ctx.writeByte('}')
+				ctx.writeByte(']')
 			}
-			ctx.write([]byte(`],"extensions":{}}`))
+
+			if ctx.tracingEnabled {
+				ctx.write([]byte(`,"extensions":{"tracing":`))
+				ctx.tracing.finish()
+				tracingJSON, err := json.Marshal(ctx.tracing)
+				if err == nil {
+					ctx.write(tracingJSON)
+				} else {
+					ctx.writeNull()
+				}
+				ctx.write([]byte{'}', '}'})
+			} else {
+				ctx.write([]byte(`,"extensions":{}}`))
+			}
 		}
 	}
 
@@ -397,6 +433,8 @@ func (ctx *BytecodeCtx) resolveSpread(typeObj *obj, dept uint8, firstField *bool
 }
 
 func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bool) bool {
+	ctx.startTrace()
+
 	// Read directives
 	// TODO
 	directivesCount := ctx.readInst()
@@ -447,9 +485,8 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 
 	typeObjField, ok := typeObj.objContents[nameKey]
 	if !ok {
-		ctx.fieldHasher.Reset()
-		ctx.fieldHasher.Write([]byte("__typename"))
-		if nameKey == ctx.fieldHasher.Sum32() { // name == "__typename"
+		name := b2s(ctx.query.Res[startOfName:endOfName])
+		if name == "__typename" {
 			if fieldHasSelection {
 				criticalErr = ctx.err("cannot have a selection set on this field")
 			} else {
@@ -457,7 +494,6 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 			}
 		} else {
 			ctx.writeNull()
-			name := b2s(ctx.query.Res[startOfName:endOfName])
 			criticalErr = ctx.errf("%s does not exists on %s", name, typeObj.typeName)
 		}
 	} else {
@@ -472,6 +508,24 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 
 		criticalErr = ctx.resolveFieldDataValue(typeObjField, dept, fieldHasSelection)
 		ctx.currentReflectValueIdx--
+	}
+
+	if ctx.tracingEnabled {
+		name := b2s(ctx.query.Res[startOfName:endOfName])
+
+		ctx.finishTrace(func(offset, duration int64) {
+			returnType := bytes.NewBuffer(nil)
+			ctx.schema.objToQlTypeName(typeObjField, returnType)
+
+			ctx.tracing.Execution.Resolvers = append(ctx.tracing.Execution.Resolvers, tracerResolver{
+				Path:        ctx.GetPath(),
+				ParentType:  typeObj.typeName,
+				FieldName:   name,
+				ReturnType:  returnType.String(),
+				StartOffset: offset,
+				Duration:    duration,
+			})
+		})
 	}
 
 	// Restore the path
@@ -1412,6 +1466,19 @@ func (ctx *BytecodeCtx) valueToJson(in reflect.Value, kind reflect.Kind) {
 	default:
 		ctx.writeNull()
 	}
+}
+
+func (ctx *BytecodeCtx) startTrace() {
+	if ctx.tracingEnabled {
+		ctx.prefRecordingStartTime = time.Now()
+	}
+}
+
+func (ctx *BytecodeCtx) finishTrace(report func(offset, duration int64)) {
+	f := ctx.prefRecordingStartTime
+	offset := f.Sub(ctx.tracing.GoStartTime).Nanoseconds()
+	duration := time.Since(f).Nanoseconds()
+	report(offset, duration)
 }
 
 // b2s converts a byte array into a string without allocating new memory
