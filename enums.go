@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"sort"
@@ -22,12 +23,12 @@ type enumEntry struct {
 	value    reflect.Value
 }
 
-func getEnum(t reflect.Type) (int, *enum) {
+func (s *Schema) getEnum(t reflect.Type) (int, *enum) {
 	if len(t.PkgPath()) == 0 || len(t.Name()) == 0 || !validEnumType(t) {
 		return -1, nil
 	}
 
-	for i, enum := range definedEnums {
+	for i, enum := range s.definedEnums {
 		if enum.typeName == t.Name() {
 			return i, &enum
 		}
@@ -52,45 +53,47 @@ func validEnumType(t reflect.Type) bool {
 	}
 }
 
-var definedEnums = []enum{}
-
-func RegisterEnum(map_ interface{}) bool {
-	enum := registerEnumCheck(map_)
-	if enum == nil {
-		return false
+func (s *Schema) RegisterEnum(map_ interface{}) (added bool, err error) {
+	enum, err := registerEnumCheck(map_)
+	if enum == nil || err != nil {
+		return false, err
 	}
 
-	definedEnums = append(definedEnums, *enum)
-	return true
+	s.definedEnums = append(s.definedEnums, *enum)
+	return true, nil
 }
 
-func registerEnumCheck(map_ interface{}) *enum {
+func registerEnumCheck(map_ interface{}) (*enum, error) {
 	mapReflection := reflect.ValueOf(map_)
-	mapType := mapReflection.Type()
+	invalidTypeMsg := fmt.Errorf("RegisterEnum input must be of type map[string]CustomType(int..|uint..|string) as input, %+v given", map_)
 
-	invalidTypeMsg := fmt.Sprintf("RegisterEnum input must be of type map[string]CustomType(int..|uint..|string) as input, %+v given", map_)
+	if map_ == nil || mapReflection.IsZero() || mapReflection.IsNil() {
+		return nil, invalidTypeMsg
+	}
+
+	mapType := mapReflection.Type()
 
 	if mapType.Kind() != reflect.Map {
 		// Tye input type must be a map
-		panic(invalidTypeMsg)
+		return nil, invalidTypeMsg
 	}
 	if mapType.Key().Kind() != reflect.String {
 		// The map key must be a string
-		panic(invalidTypeMsg)
+		return nil, invalidTypeMsg
 	}
 	contentType := mapType.Elem()
 	if !validEnumType(contentType) {
-		panic(invalidTypeMsg)
+		return nil, invalidTypeMsg
 	}
 
 	if contentType.PkgPath() == "" || contentType.Name() == "" {
-		panic("RegisterEnum input map value must have a global custom type value (type Animals string) or (type Rules uint64)")
+		return nil, errors.New("RegisterEnum input map value must have a global custom type value (type Animals string) or (type Rules uint64)")
 	}
 
 	inputLen := mapReflection.Len()
 	if inputLen == 0 {
 		// No point in registering enums with 0 items
-		return nil
+		return nil, nil
 	}
 
 	entries := make([]enumEntry, inputLen)
@@ -102,12 +105,12 @@ func registerEnumCheck(map_ interface{}) *enum {
 		k := iter.Key()
 		keyStr := k.Interface().(string)
 		if keyStr == "" {
-			panic("RegisterEnum input map cannot contain empty keys")
+			return nil, errors.New("RegisterEnum input map cannot contain empty keys")
 		}
 
 		err := validGraphQlName([]byte(keyStr))
 		if err != nil {
-			panic(`RegisterEnum map key must start with an alphabetic character (lower or upper) followed by the same or a "_", key given: ` + keyStr)
+			return nil, errors.New(`RegisterEnum map key must start with an alphabetic character (lower or upper) followed by the same or a "_", key given: ` + keyStr)
 		}
 
 		entries[i] = enumEntry{
@@ -130,9 +133,7 @@ func registerEnumCheck(map_ interface{}) *enum {
 		Kind:        typeKindEnum,
 		Name:        &name,
 		Description: h.PtrToEmptyStr,
-		EnumValues: func(args isDeprecatedArgs) []qlEnumValue {
-			return qlTypeEnumValues
-		},
+		EnumValues:  func(args isDeprecatedArgs) []qlEnumValue { return qlTypeEnumValues },
 	}
 
 	return &enum{
@@ -141,5 +142,5 @@ func registerEnumCheck(map_ interface{}) *enum {
 		entries:     entries,
 		typeName:    name,
 		qlType:      qlType,
-	}
+	}, nil
 }

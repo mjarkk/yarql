@@ -699,7 +699,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 		criticalErr := ctx.resolveFieldDataValue(&method.outType, dept, hasSubSelection)
 		return criticalErr
 	case valueTypeEnum:
-		enum := definedEnums[typeObj.enumTypeIndex]
+		enum := ctx.schema.definedEnums[typeObj.enumTypeIndex]
 		switch enum.contentKind {
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			underlayingValue := goValue.Int()
@@ -803,7 +803,7 @@ func (ctx *BytecodeCtx) bindOperatorArgumentTo(goValue *reflect.Value, valueStru
 
 		typeName := b2s(ctx.query.Res[typeNameStart:typeNameEnd])
 		if resolvedValueStructure.isEnum {
-			enum := definedEnums[resolvedValueStructure.enumTypeIndex]
+			enum := ctx.schema.definedEnums[resolvedValueStructure.enumTypeIndex]
 			if typeName != enum.typeName && typeName != "String" {
 				return ctx.err("expected variable type " + enum.typeName + " but got " + typeName)
 			}
@@ -914,7 +914,7 @@ func (ctx *BytecodeCtx) bindJSONToValue(goValue *reflect.Value, valueStructure *
 				return ctx.err("cannot assign " + jsonDataType.String() + " to ID value")
 			}
 
-			enum := definedEnums[valueStructure.enumTypeIndex]
+			enum := ctx.schema.definedEnums[valueStructure.enumTypeIndex]
 			for _, entry := range enum.entries {
 				if entry.key == stringValue {
 					switch enum.contentKind {
@@ -1113,7 +1113,7 @@ func (ctx *BytecodeCtx) bindJSONToValue(goValue *reflect.Value, valueStructure *
 
 func (ctx *BytecodeCtx) assignStringToValue(goValue *reflect.Value, valueStructure *input, stringValue string) bool {
 	if valueStructure.isEnum {
-		enum := definedEnums[valueStructure.enumTypeIndex]
+		enum := ctx.schema.definedEnums[valueStructure.enumTypeIndex]
 		for _, entry := range enum.entries {
 			if entry.key == stringValue {
 				switch enum.contentKind {
@@ -1340,7 +1340,7 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 		nameStart, nameEnd := getValue()
 		name := b2s(ctx.query.Res[nameStart:nameEnd])
 
-		enum := definedEnums[valueStructure.enumTypeIndex]
+		enum := ctx.schema.definedEnums[valueStructure.enumTypeIndex]
 		for _, entry := range enum.entries {
 			if entry.key == name {
 				switch enum.contentKind {

@@ -17,7 +17,7 @@ func TestTypeRename(t *testing.T) {
 	NoError(t, err)
 
 	Equal(t, "Foo", obj.typeName)
-	_, ok := (*ctx.types)["Foo"]
+	_, ok := ctx.schema.types["Foo"]
 	True(t, ok)
 }
 

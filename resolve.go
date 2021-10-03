@@ -518,7 +518,7 @@ func (ctx *Ctx) matchInputValue(queryValue *value, goField *reflect.Value, goAna
 			return mismatchError()
 		}
 
-		enum := definedEnums[goAnalyzedData.enumTypeIndex]
+		enum := ctx.schema.definedEnums[goAnalyzedData.enumTypeIndex]
 		if queryValue.qlTypeName != nil && *queryValue.qlTypeName != enum.typeName {
 			return fmt.Errorf("expected type %s but got %s", enum.typeName, *queryValue.qlTypeName)
 		}
@@ -808,7 +808,7 @@ func (ctx *Ctx) resolveFieldDataValue(query *field, codeStructure *obj, dept uin
 		ctx.currentReflectValueIdx--
 		return
 	case valueTypeEnum:
-		enum := definedEnums[codeStructure.enumTypeIndex]
+		enum := ctx.schema.definedEnums[codeStructure.enumTypeIndex]
 		switch enum.contentKind {
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			underlayingValue := value.Int()

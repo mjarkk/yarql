@@ -84,7 +84,8 @@ func BenchmarkResolve(b *testing.B) {
 	// BenchmarkResolve-16    	    9787	    118577 ns/op	    7559 B/op	     145 allocs/op
 	// BenchmarkResolve-16    	    9458	    115545 ns/op	    2928 B/op	     136 allocs/op
 
-	s, _ := ParseSchema(TestExecSchemaRequestWithFieldsData{}, M{}, nil)
+	s := NewSchema()
+	s.Parse(TestExecSchemaRequestWithFieldsData{}, M{}, nil)
 
 	f, err := os.Create("memprofile")
 	if err != nil {
@@ -111,7 +112,8 @@ func BenchmarkResolve(b *testing.B) {
 }
 
 func BenchmarkBytecodeResolve(b *testing.B) {
-	s, _ := ParseSchema(TestExecSchemaRequestWithFieldsData{}, M{}, nil)
+	s := NewSchema()
+	s.Parse(TestExecSchemaRequestWithFieldsData{}, M{}, nil)
 	ctx := NewBytecodeCtx(s)
 
 	query := []byte(schemaQuery)
@@ -159,7 +161,8 @@ func BenchmarkEncodeString(b *testing.B) {
 }
 
 func BenchmarkResolveTime(b *testing.B) {
-	s, _ := ParseSchema(TestExecTimeIOData{}, M{}, nil)
+	s := NewSchema()
+	s.Parse(TestExecTimeIOData{}, M{}, nil)
 
 	now := time.Now()
 	testTimeInput := []byte{}
@@ -179,7 +182,8 @@ type HelloWorldSchema struct {
 }
 
 func BenchmarkBytecodeHelloWorldResolve(b *testing.B) {
-	s, _ := ParseSchema(HelloWorldSchema{Hello: "World"}, M{}, nil)
+	s := NewSchema()
+	s.Parse(HelloWorldSchema{Hello: "World"}, M{}, nil)
 	ctx := NewBytecodeCtx(s)
 
 	query := []byte(`{hello}`)

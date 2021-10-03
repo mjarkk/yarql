@@ -9,7 +9,8 @@ import (
 )
 
 func bytecodeParse(t *testing.T, query string, queries interface{}, methods interface{}, opts ...BytecodeParseOptions) (string, []error) {
-	s, err := ParseSchema(queries, methods, nil)
+	s := NewSchema()
+	err := s.Parse(queries, methods, nil)
 	NoError(t, err, query)
 
 	ctx := NewBytecodeCtx(s)
@@ -669,11 +670,7 @@ func TestBytecodeResolveSchemaRequestSimple(t *testing.T) {
 	schema := res.Schema
 	types := schema.JSONTypes
 
-	totalTypes := 17
-	if testingRegisteredTestEnum {
-		totalTypes++
-	}
-	Equal(t, totalTypes, len(types))
+	Equal(t, 17, len(types))
 
 	idx := 0
 	is := func(kind, name string) {
@@ -691,9 +688,6 @@ func TestBytecodeResolveSchemaRequestSimple(t *testing.T) {
 	is("SCALAR", "Int")
 	is("OBJECT", "M")
 	is("SCALAR", "String")
-	if testingRegisteredTestEnum {
-		is("ENUM", "TestEnum2")
-	}
 	is("OBJECT", "TestExecSchemaRequestSimpleData")
 	is("SCALAR", "Time")
 	is("OBJECT", "__Directive")
@@ -718,11 +712,7 @@ func TestBytecodeResolveSchemaRequestWithFields(t *testing.T) {
 	schema := res.Schema
 	types := schema.JSONTypes
 
-	totalTypes := 21
-	if testingRegisteredTestEnum {
-		totalTypes++
-	}
-	Equal(t, totalTypes, len(types))
+	Equal(t, 21, len(types))
 
 	idx := 0
 	is := func(kind, name string) int {
@@ -741,9 +731,6 @@ func TestBytecodeResolveSchemaRequestWithFields(t *testing.T) {
 	is("SCALAR", "Int")
 	is("OBJECT", "M")
 	is("SCALAR", "String")
-	if testingRegisteredTestEnum {
-		is("ENUM", "TestEnum2")
-	}
 	queryIdx := is("OBJECT", "TestExecSchemaRequestWithFieldsData")
 	is("OBJECT", "TestExecSchemaRequestWithFieldsDataInnerStruct")
 	is("SCALAR", "Time")

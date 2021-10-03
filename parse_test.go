@@ -16,6 +16,13 @@ func TestFormatGoNameToQL(t *testing.T) {
 
 type TestCheckEmptyStructData struct{}
 
+func newParseCtx() *parseCtx {
+	return &parseCtx{
+		schema:        NewSchema(),
+		parsedMethods: []*objMethod{},
+	}
+}
+
 func TestCheckEmptyStruct(t *testing.T) {
 	obj, err := newParseCtx().check(reflect.TypeOf(TestCheckEmptyStructData{}), false)
 	NoError(t, err)
@@ -35,7 +42,7 @@ func TestCheckStructSimple(t *testing.T) {
 	NoError(t, err)
 
 	Equal(t, obj.valueType, valueTypeObjRef)
-	typeObj, ok := (*ctx.types)[obj.typeName]
+	typeObj, ok := ctx.schema.types[obj.typeName]
 	True(t, ok)
 	NotNil(t, typeObj.objContents)
 
@@ -53,7 +60,7 @@ func TestCheckStructSimple(t *testing.T) {
 }
 
 func TestParseSchema(t *testing.T) {
-	ParseSchema(TestCheckStructSimpleDemo{}, TestCheckStructSimpleDemo{}, &SchemaOptions{noMethodEqualToQueryChecks: true})
+	NewSchema().Parse(TestCheckStructSimpleDemo{}, TestCheckStructSimpleDemo{}, &SchemaOptions{noMethodEqualToQueryChecks: true})
 }
 
 type TestCheckStructWArrayData struct {
@@ -64,7 +71,7 @@ func TestCheckStructWArray(t *testing.T) {
 	ctx := newParseCtx()
 	ref, err := ctx.check(reflect.TypeOf(TestCheckStructWArrayData{}), false)
 	NoError(t, err)
-	obj := (*ctx.types)[ref.typeName]
+	obj := ctx.schema.types[ref.typeName]
 
 	// Foo is an array
 	val, ok := obj.objContents[getObjKey([]byte("foo"))]
@@ -86,7 +93,7 @@ func TestCheckStructWPtr(t *testing.T) {
 	ctx := newParseCtx()
 	ref, err := ctx.check(reflect.TypeOf(TestCheckStructWPtrData{}), false)
 	NoError(t, err)
-	obj := (*ctx.types)[ref.typeName]
+	obj := ctx.schema.types[ref.typeName]
 
 	// Foo is a ptr
 	val, ok := obj.objContents[getObjKey([]byte("foo"))]
@@ -109,7 +116,7 @@ func TestCheckStructTags(t *testing.T) {
 	ctx := newParseCtx()
 	ref, err := ctx.check(reflect.TypeOf(TestCheckStructTagsData{}), false)
 	NoError(t, err)
-	obj := (*ctx.types)[ref.typeName]
+	obj := ctx.schema.types[ref.typeName]
 
 	_, ok := obj.objContents[getObjKey([]byte("otherName"))]
 	True(t, ok, "name should now be called otherName")
@@ -156,7 +163,7 @@ func TestCheckMethods(t *testing.T) {
 	ctx := newParseCtx()
 	ref, err := ctx.check(reflect.TypeOf(TestCheckMethodsData{}), false)
 	Nil(t, err)
-	obj := (*ctx.types)[ref.typeName]
+	obj := ctx.schema.types[ref.typeName]
 
 	_, ok := obj.objContents[getObjKey([]byte("name"))]
 	True(t, ok)
@@ -203,7 +210,7 @@ func TestCheckStructFuncs(t *testing.T) {
 	ctx := newParseCtx()
 	ref, err := ctx.check(reflect.TypeOf(TestCheckStructFuncsData{}), false)
 	Nil(t, err)
-	obj := (*ctx.types)[ref.typeName]
+	obj := ctx.schema.types[ref.typeName]
 
 	_, ok := obj.objContents[getObjKey([]byte("name"))]
 	True(t, ok)

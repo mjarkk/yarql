@@ -116,13 +116,21 @@ func TestValueToJson(t *testing.T) {
 }
 
 func parseAndTest(t *testing.T, query string, queries interface{}, methods interface{}) (string, []error) {
-	return parseAndTestWithOptions(t, query, queries, methods, 255, ResolveOptions{
-		ReturnOnlyData: true,
-	})
+	return parseAndTestWithOptions(
+		t,
+		NewSchema(),
+		query,
+		queries,
+		methods,
+		255,
+		ResolveOptions{
+			ReturnOnlyData: true,
+		},
+	)
 }
 
-func parseAndTestWithOptions(t *testing.T, query string, queries interface{}, methods interface{}, maxDept uint8, options ResolveOptions) (string, []error) {
-	s, err := ParseSchema(queries, methods, nil)
+func parseAndTestWithOptions(t *testing.T, s *Schema, query string, queries interface{}, methods interface{}, maxDept uint8, options ResolveOptions) (string, []error) {
+	err := s.Parse(queries, methods, nil)
 	NoError(t, err, query)
 	s.MaxDepth = maxDept
 	out, errs := s.Resolve(query, options)
@@ -171,7 +179,7 @@ func TestExecSimpleQuery(t *testing.T) {
 }
 
 func TestExecGenerateResponse(t *testing.T) {
-	out, _ := parseAndTestWithOptions(t, `{
+	out, _ := parseAndTestWithOptions(t, NewSchema(), `{
 		a
 		b
 		non_existing_field
@@ -463,7 +471,7 @@ type TestExecMaxDeptData struct {
 }
 
 func TestExecMaxDept(t *testing.T) {
-	out, errs := parseAndTestWithOptions(t, `{foo{bar{baz{fooBar{barBaz{bazFoo}}}}}}`, TestExecMaxDeptData{}, M{}, 3, ResolveOptions{})
+	out, errs := parseAndTestWithOptions(t, NewSchema(), `{foo{bar{baz{fooBar{barBaz{bazFoo}}}}}}`, TestExecMaxDeptData{}, M{}, 3, ResolveOptions{})
 	Greater(t, len(errs), 0)
 	Equal(t, `{"data":{"foo":{"bar":{"baz":null}}},"errors":[{"message":"reached max dept","path":["foo","bar","baz"]}]}`, out)
 }
@@ -759,17 +767,17 @@ func TestExecMultipleOperators(t *testing.T) {
 	query QueryA {a b}
 	query QueryB {c d}
 	`
-	out, errs := parseAndTestWithOptions(t, query, TestExecSimpleQueryData{}, M{}, 255, ResolveOptions{})
+	out, errs := parseAndTestWithOptions(t, NewSchema(), query, TestExecSimpleQueryData{}, M{}, 255, ResolveOptions{})
 	Equal(t, 1, len(errs))
 	Equal(t, `{"data":{},"errors":[{"message":"multiple operators defined without target"}]}`, out)
 
-	out, errs = parseAndTestWithOptions(t, query, TestExecSimpleQueryData{}, M{}, 255, ResolveOptions{OperatorTarget: "QueryA"})
+	out, errs = parseAndTestWithOptions(t, NewSchema(), query, TestExecSimpleQueryData{}, M{}, 255, ResolveOptions{OperatorTarget: "QueryA"})
 	for _, err := range errs {
 		panic(err)
 	}
 	Equal(t, `{"data":{"a":"","b":""}}`, out)
 
-	out, errs = parseAndTestWithOptions(t, query, TestExecSimpleQueryData{}, M{}, 255, ResolveOptions{OperatorTarget: "QueryB"})
+	out, errs = parseAndTestWithOptions(t, NewSchema(), query, TestExecSimpleQueryData{}, M{}, 255, ResolveOptions{OperatorTarget: "QueryB"})
 	for _, err := range errs {
 		panic(err)
 	}
@@ -896,11 +904,7 @@ func TestExecSchemaRequestSimple(t *testing.T) {
 	schema := res.Schema
 	types := schema.JSONTypes
 
-	totalTypes := 17
-	if testingRegisteredTestEnum {
-		totalTypes++
-	}
-	Equal(t, totalTypes, len(types))
+	Equal(t, 17, len(types))
 
 	idx := 0
 	is := func(kind, name string) {
@@ -918,9 +922,6 @@ func TestExecSchemaRequestSimple(t *testing.T) {
 	is("SCALAR", "Int")
 	is("OBJECT", "M")
 	is("SCALAR", "String")
-	if testingRegisteredTestEnum {
-		is("ENUM", "TestEnum2")
-	}
 	is("OBJECT", "TestExecSchemaRequestSimpleData")
 	is("SCALAR", "Time")
 	is("OBJECT", "__Directive")
@@ -967,11 +968,7 @@ func TestExecSchemaRequestWithFields(t *testing.T) {
 	schema := res.Schema
 	types := schema.JSONTypes
 
-	totalTypes := 21
-	if testingRegisteredTestEnum {
-		totalTypes++
-	}
-	Equal(t, totalTypes, len(types))
+	Equal(t, 21, len(types))
 
 	idx := 0
 	is := func(kind, name string) int {
@@ -990,9 +987,6 @@ func TestExecSchemaRequestWithFields(t *testing.T) {
 	is("SCALAR", "Int")
 	is("OBJECT", "M")
 	is("SCALAR", "String")
-	if testingRegisteredTestEnum {
-		is("ENUM", "TestEnum2")
-	}
 	queryIdx := is("OBJECT", "TestExecSchemaRequestWithFieldsData")
 	is("OBJECT", "TestExecSchemaRequestWithFieldsDataInnerStruct")
 	is("SCALAR", "Time")
@@ -1065,7 +1059,7 @@ func (TestExecWithContextData) ResolveFoo(ctx *Ctx) string {
 
 func TestExecWithContext(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.TODO(), time.Millisecond*300)
-	out, errs := parseAndTestWithOptions(t, `{foo}`, TestExecWithContextData{}, M{}, 255, ResolveOptions{
+	out, errs := parseAndTestWithOptions(t, NewSchema(), `{foo}`, TestExecWithContextData{}, M{}, 255, ResolveOptions{
 		Context: ctx,
 	})
 	cancel()
@@ -1084,7 +1078,7 @@ func (TestExecWithPreDefinedVarsData) ResolveFoo(ctx *Ctx) string {
 }
 
 func TestExecWithPreDefinedVars(t *testing.T) {
-	out, errs := parseAndTestWithOptions(t, `{foo}`, TestExecWithPreDefinedVarsData{}, M{}, 255, ResolveOptions{
+	out, errs := parseAndTestWithOptions(t, NewSchema(), `{foo}`, TestExecWithPreDefinedVarsData{}, M{}, 255, ResolveOptions{
 		Values: map[string]interface{}{
 			"bar": "baz",
 		},
@@ -1134,7 +1128,7 @@ func TestExecWithFile(t *testing.T) {
 		panic(err)
 	}
 
-	out, errs := parseAndTestWithOptions(t, `{foo(file: "FILE_ID")}`, TestExecWithFileData{}, M{}, 255, ResolveOptions{
+	out, errs := parseAndTestWithOptions(t, NewSchema(), `{foo(file: "FILE_ID")}`, TestExecWithFileData{}, M{}, 255, ResolveOptions{
 		GetFormFile: func(key string) (*multipart.FileHeader, error) {
 			f, ok := form.File[key]
 			if !ok || len(f) == 0 {

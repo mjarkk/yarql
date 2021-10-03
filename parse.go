@@ -34,14 +34,16 @@ func (t *types) Get(key string) (*obj, bool) {
 
 // Schema defines the graphql schema
 type Schema struct {
-	types           types
-	inTypes         inputMap
-	rootQuery       *obj
-	rootQueryValue  reflect.Value
-	rootMethod      *obj
-	rootMethodValue reflect.Value
-	m               sync.Mutex
-	MaxDepth        uint8 // Default 255
+	types             types
+	inTypes           inputMap
+	rootQuery         *obj
+	rootQueryValue    reflect.Value
+	rootMethod        *obj
+	rootMethodValue   reflect.Value
+	m                 sync.Mutex
+	MaxDepth          uint8 // Default 255
+	definedEnums      []enum
+	definedDirectives []Directive
 
 	// Zero alloc variables
 	ctx              Ctx
@@ -168,19 +170,10 @@ type SchemaOptions struct {
 }
 
 type parseCtx struct {
-	types              *types
-	inTypes            *inputMap
+	schema             *Schema
 	unknownTypesCount  int
 	unknownInputsCount int
 	parsedMethods      []*objMethod
-}
-
-func newParseCtx() *parseCtx {
-	return &parseCtx{
-		types:         &types{},
-		inTypes:       &inputMap{},
-		parsedMethods: []*objMethod{},
-	}
 }
 
 func newIter(lite bool) iterT {
@@ -216,12 +209,10 @@ func newIter(lite bool) iterT {
 	return res
 }
 
-func ParseSchema(queries interface{}, methods interface{}, options *SchemaOptions) (*Schema, error) {
-	res := Schema{
+func NewSchema() *Schema {
+	s := &Schema{
 		types:            types{},
 		inTypes:          inputMap{},
-		rootQueryValue:   reflect.ValueOf(queries),
-		rootMethodValue:  reflect.ValueOf(methods),
 		MaxDepth:         255,
 		graphqlObjFields: map[string][]qlField{},
 		ctx: Ctx{
@@ -233,52 +224,68 @@ func ParseSchema(queries interface{}, methods interface{}, options *SchemaOption
 		},
 		iter: newIter(false),
 	}
-	res.ctxReflection = reflect.ValueOf(&res.ctx)
+	s.ctxReflection = reflect.ValueOf(&s.ctx)
+	added, err := s.RegisterEnum(directiveLocationMap)
+	if err != nil {
+		panic("INTERNAL ERROR: " + err.Error())
+	}
+	if !added {
+		panic("INTERNAL ERROR: directive locations ENUM should be added")
+	}
+	s.RegisterEnum(typeKindEnumMap)
+	if err != nil {
+		panic("INTERNAL ERROR: " + err.Error())
+	}
+	if !added {
+		panic("INTERNAL ERROR: type kind ENUM should be added")
+	}
+	return s
+}
+
+func (s *Schema) Parse(queries interface{}, methods interface{}, options *SchemaOptions) error {
+	s.rootQueryValue = reflect.ValueOf(queries)
+	s.rootMethodValue = reflect.ValueOf(methods)
 
 	ctx := &parseCtx{
-		types:         &res.types,
-		inTypes:       &res.inTypes,
+		schema:        s,
 		parsedMethods: []*objMethod{},
 	}
 
 	obj, err := ctx.check(reflect.TypeOf(queries), false)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if obj.valueType != valueTypeObjRef {
-		return nil, errors.New("input queries must be a struct")
+		return errors.New("input queries must be a struct")
 	}
-	res.rootQuery = res.types[obj.typeName]
+	s.rootQuery = s.types[obj.typeName]
 
 	obj, err = ctx.check(reflect.TypeOf(methods), false)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if obj.valueType != valueTypeObjRef {
-		return nil, errors.New("input methods must be a struct")
+		return errors.New("input methods must be a struct")
 	}
-	res.rootMethod = res.types[obj.typeName]
+	s.rootMethod = s.types[obj.typeName]
 
 	if options == nil || !options.noMethodEqualToQueryChecks {
-		queryPkg := res.rootQuery.pkgPath + res.rootQuery.typeName
-		methodPkg := res.rootMethod.pkgPath + res.rootMethod.typeName
+		queryPkg := s.rootQuery.pkgPath + s.rootQuery.typeName
+		methodPkg := s.rootMethod.pkgPath + s.rootMethod.typeName
 		if queryPkg == methodPkg {
-			return nil, errors.New("method and query cannot be the same struct")
+			return errors.New("method and query cannot be the same struct")
 		}
 	}
 
 	if options == nil || !options.SkipGraphqlTypesInjection {
-		res.injectQLTypes(ctx)
+		s.injectQLTypes(ctx)
 	}
 
 	for _, method := range ctx.parsedMethods {
 		ctx.checkFunctionIns(method)
 	}
 
-	// Nullify the ctx to free up space
-	ctx = nil
-
-	return &res, nil
+	return nil
 }
 
 func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
@@ -304,7 +311,7 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 				res.typeNameBytes = []byte(newName)
 			}
 
-			v, ok := c.types.Get(res.typeName)
+			v, ok := c.schema.types.Get(res.typeName)
 			if ok {
 				if v.pkgPath != res.pkgPath {
 					return nil, fmt.Errorf("cannot have 2 structs with same type in structure: %s(%s) != %s(%s)", v.pkgPath, res.typeName, res.pkgPath, res.typeName)
@@ -321,9 +328,9 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 
 		res.objContents = map[uint32]*obj{}
 
-		typesInner := *c.types
+		typesInner := c.schema.types
 		typesInner[res.typeName] = &res
-		*c.types = typesInner
+		c.schema.types = typesInner
 
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
@@ -357,7 +364,7 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 	case reflect.Func, reflect.Map, reflect.Chan, reflect.Invalid, reflect.Uintptr, reflect.Complex64, reflect.Complex128, reflect.Interface, reflect.UnsafePointer:
 		return nil, fmt.Errorf("unsupported value type %s", t.Kind().String())
 	default:
-		enumIndex, enum := getEnum(t)
+		enumIndex, enum := c.schema.getEnum(t)
 		if enum != nil {
 			res.valueType = valueTypeEnum
 			res.enumTypeIndex = enumIndex
@@ -395,7 +402,7 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 			}
 		}
 
-		res = c.types.Add(res)
+		res = c.schema.types.Add(res)
 		// res is now a objptr pointing to the obj
 	}
 
@@ -488,7 +495,7 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type, hasIDTag bool) (input, err
 
 	switch kind {
 	case reflect.String, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64:
-		enumIndex, enum := getEnum(t)
+		enumIndex, enum := c.schema.getEnum(t)
 		if enum != nil {
 			res.isEnum = true
 			res.enumTypeIndex = enumIndex
@@ -535,7 +542,7 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type, hasIDTag bool) (input, err
 			if ok {
 				structName = newStructName
 			}
-			_, equalTypeExist := (*c.types)[structName]
+			_, equalTypeExist := c.schema.types[structName]
 			if equalTypeExist {
 				// types and inputs with the same name are not allowed in graphql, add __input as suffix
 				// TODO allow this value to be filledin by the user
@@ -543,10 +550,10 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type, hasIDTag bool) (input, err
 			}
 		}
 
-		_, ok := (*c.inTypes)[structName]
+		_, ok := c.schema.inTypes[structName]
 		if !ok {
 			// Make sure the input types entry is set before looping over it's fields to fix the n+1 problem
-			(*c.inTypes)[structName] = &res
+			c.schema.inTypes[structName] = &res
 
 			res.structName = structName
 			res.structContent = map[string]input{}

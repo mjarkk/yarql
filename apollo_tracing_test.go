@@ -8,7 +8,8 @@ import (
 )
 
 func TestApolloTracing(t *testing.T) {
-	s, err := ParseSchema(TestExecSchemaRequestWithFieldsData{A: TestExecSchemaRequestWithFieldsDataInnerStruct{Bar: "baz"}}, M{}, nil)
+	s := NewSchema()
+	err := s.Parse(TestExecSchemaRequestWithFieldsData{A: TestExecSchemaRequestWithFieldsDataInnerStruct{Bar: "baz"}}, M{}, nil)
 	NoError(t, err)
 
 	query := `{a{bar}}`

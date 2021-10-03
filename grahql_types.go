@@ -39,7 +39,7 @@ const (
 	typeKindNonNull
 )
 
-var _ = RegisterEnum(map[string]__TypeKind{
+var typeKindEnumMap = map[string]__TypeKind{
 	"SCALAR":       typeKindScalar,
 	"OBJECT":       typeKindObject,
 	"INTERFACE":    typeKindInterface,
@@ -48,7 +48,7 @@ var _ = RegisterEnum(map[string]__TypeKind{
 	"INPUT_OBJECT": typeKindInputObject,
 	"LIST":         typeKindList,
 	"NON_NULL":     typeKindNonNull,
-})
+}
 
 func (kind __TypeKind) String() string {
 	switch kind {
@@ -155,7 +155,7 @@ const (
 	directiveLocationInputFieldDefinition
 )
 
-var _ = RegisterEnum(map[string]__DirectiveLocation{
+var directiveLocationMap = map[string]__DirectiveLocation{
 	"QUERY":                  directiveLocationQuery,
 	"MUTATION":               directiveLocationMutation,
 	"SUBSCRIPTION":           directiveLocationSubscription,
@@ -174,7 +174,7 @@ var _ = RegisterEnum(map[string]__DirectiveLocation{
 	"ENUM_VALUE":             directiveLocationEnumValue,
 	"INPUT_OBJECT":           directiveLocationInputObject,
 	"INPUT_FIELD_DEFINITION": directiveLocationInputFieldDefinition,
-})
+}
 
 var _ = TypeRename(qlDirective{}, "__Directive", true)
 

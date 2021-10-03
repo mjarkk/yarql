@@ -8,90 +8,70 @@ import (
 
 func TestRegisterEnum(t *testing.T) {
 	type TestEnumString string
-	res := registerEnumCheck(map[string]TestEnumString{
+	res, err := registerEnumCheck(map[string]TestEnumString{
 		"A": "B",
 	})
+	NoError(t, err)
 	NotNil(t, res)
 
 	type TestEnumUint uint
-	res = registerEnumCheck(map[string]TestEnumUint{
+	res, err = registerEnumCheck(map[string]TestEnumUint{
 		"A": 1,
 	})
+	NoError(t, err)
 	NotNil(t, res)
 
 	type TestEnumInt uint
-	res = registerEnumCheck(map[string]TestEnumInt{
+	res, err = registerEnumCheck(map[string]TestEnumInt{
 		"A": 1,
 	})
+	NoError(t, err)
 	NotNil(t, res)
 }
 
 func TestEmptyEnumShouldNotBeRegistered(t *testing.T) {
 	type TestEnum string
-	res := registerEnumCheck(map[string]TestEnum{})
+	res, err := registerEnumCheck(map[string]TestEnum{})
+	NoError(t, err)
 	Nil(t, res)
 }
 
 func TestRegisterEnumFails(t *testing.T) {
 	type TestEnum string
 
-	Panics(t, func() {
-		registerEnumCheck(0)
-	}, "Cannot generate an enum of non map types")
+	_, err := registerEnumCheck(0)
+	Error(t, err, "Cannot generate an enum of non map types")
 
-	Panics(t, func() {
-		registerEnumCheck(nil)
-	}, "Cannot generate an enum of non map types 2")
+	_, err = registerEnumCheck(nil)
+	Error(t, err, "Cannot generate an enum of non map types 2")
 
-	Panics(t, func() {
-		registerEnumCheck(map[int]TestEnum{
-			1: "a",
-		})
-	}, "Enum must have a string key type")
+	_, err = registerEnumCheck(map[int]TestEnum{1: "a"})
+	Error(t, err, "Enum must have a string key type")
 
-	Panics(t, func() {
-		registerEnumCheck(map[string]struct{}{
-			"a": {},
-		})
-	}, "Enum value cannot be complex")
+	_, err = registerEnumCheck(map[string]struct{}{"a": {}})
+	Error(t, err, "Enum value cannot be complex")
 
-	Panics(t, func() {
-		registerEnumCheck(map[string]string{
-			"foo": "bar",
-		})
-	}, "Enum value must be a custom type")
+	_, err = registerEnumCheck(map[string]string{"foo": "bar"})
+	Error(t, err, "Enum value must be a custom type")
 
-	Panics(t, func() {
-		registerEnumCheck(map[string]TestEnum{
-			"": "",
-		})
-	}, "Enum keys cannot be empty")
+	_, err = registerEnumCheck(map[string]TestEnum{"": ""})
+	Error(t, err, "Enum keys cannot be empty")
 
 	// Maybe fix this??
-	// Panics(t, func() {
-	// 	registerEnumCheck(map[string]TestEnum{
-	// 		"Foo": "Baz",
-	// 		"Bar": "Baz",
-	// 	})
-	// }, "Enum cannot have duplicated values")
+	// _, err = registerEnumCheck(map[string]TestEnum{
+	// 	"Foo": "Baz",
+	// 	"Bar": "Baz",
+	// })
+	// Error(t, err, "Enum cannot have duplicated values")
 
-	Panics(t, func() {
-		registerEnumCheck(map[string]TestEnum{
-			"1": "",
-		})
-	}, "Enum cannot have an invalid graphql name, where first letter is number")
+	_, err = registerEnumCheck(map[string]TestEnum{"1": ""})
+	Error(t, err, "Enum cannot have an invalid graphql name, where first letter is number")
 
-	Panics(t, func() {
-		registerEnumCheck(map[string]TestEnum{
-			"_": "",
-		})
-	}, "Enum cannot have an invalid graphql name, where first letter is underscore")
+	_, err = registerEnumCheck(map[string]TestEnum{"_": ""})
+	Error(t, err, "Enum cannot have an invalid graphql name, where first letter is underscore")
 
-	Panics(t, func() {
-		registerEnumCheck(map[string]TestEnum{
-			"A!!!!": "",
-		})
-	}, "Enum cannot have an invalid graphql name, where remainder of name is invalid")
+	_, err = registerEnumCheck(map[string]TestEnum{"A!!!!": ""})
+	Error(t, err, "Enum cannot have an invalid graphql name, where remainder of name is invalid")
 }
 
 type TestEnum2 uint8
@@ -108,17 +88,28 @@ func (TestEnumFunctionInput) ResolveBar(args struct{ E TestEnum2 }) TestEnum2 {
 	return args.E
 }
 
-var testingRegisteredTestEnum = false
-
 func TestEnum(t *testing.T) {
-	var _ = RegisterEnum(map[string]TestEnum2{
+	s := NewSchema()
+
+	added, err := s.RegisterEnum(map[string]TestEnum2{
 		"FOO": TestEnum2Foo,
 		"BAR": TestEnum2Bar,
 		"BAZ": TestEnum2Baz,
 	})
-	testingRegisteredTestEnum = true
+	True(t, added)
+	NoError(t, err)
 
-	out, errs := parseAndTest(t, `{bar(e: BAZ)}`, TestEnumFunctionInput{}, M{})
+	out, errs := parseAndTestWithOptions(
+		t,
+		s,
+		`{bar(e: BAZ)}`,
+		TestEnumFunctionInput{},
+		M{},
+		255,
+		ResolveOptions{
+			ReturnOnlyData: true,
+		},
+	)
 	for _, err := range errs {
 		panic(err)
 	}

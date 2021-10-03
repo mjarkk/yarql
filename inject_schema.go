@@ -120,9 +120,9 @@ func (s *Schema) getDirectives() []qlDirective {
 
 func (s *Schema) getAllQLTypes() []qlType {
 	if s.graphqlTypesList == nil {
-		s.graphqlTypesList = make([]qlType, len(s.types)+len(s.inTypes)+len(definedEnums)+len(scalars))
-		idx := 0
+		s.graphqlTypesList = make([]qlType, len(s.types)+len(s.inTypes)+len(s.definedEnums)+len(scalars))
 
+		idx := 0
 		for _, type_ := range s.types {
 			obj, _ := s.objToQLType(type_)
 			s.graphqlTypesList[idx] = *obj
@@ -133,7 +133,7 @@ func (s *Schema) getAllQLTypes() []qlType {
 			s.graphqlTypesList[idx] = *obj
 			idx++
 		}
-		for _, enum := range definedEnums {
+		for _, enum := range s.definedEnums {
 			s.graphqlTypesList[idx] = enum.qlType
 			idx++
 		}
@@ -141,6 +141,7 @@ func (s *Schema) getAllQLTypes() []qlType {
 			s.graphqlTypesList[idx] = scalar
 			idx++
 		}
+
 		sort.Slice(s.graphqlTypesList, func(a int, b int) bool { return *s.graphqlTypesList[a].Name < *s.graphqlTypesList[b].Name })
 	}
 
@@ -305,7 +306,7 @@ func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 		}
 		return
 	case valueTypeEnum:
-		enumType := definedEnums[item.enumTypeIndex].qlType
+		enumType := s.definedEnums[item.enumTypeIndex].qlType
 		res = &enumType
 		return res, true
 	case valueTypePtr:

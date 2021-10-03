@@ -27,7 +27,8 @@ func (QueryRoot) ResolvePosts() []Post {
 type MethodRoot struct{}
 
 func TestReadmeExample(t *testing.T) {
-	s, err := ParseSchema(QueryRoot{}, MethodRoot{}, nil)
+	s := NewSchema()
+	err := s.Parse(QueryRoot{}, MethodRoot{}, nil)
 	if err != nil {
 		log.Fatal(err)
 	}

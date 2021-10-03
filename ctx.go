@@ -280,7 +280,7 @@ func (ctx *Ctx) resolveVariableFromJson(jsonValue *fastjson.Value, expectedValue
 	}
 
 	// FIXME this is slow
-	for _, enum := range definedEnums {
+	for _, enum := range ctx.schema.definedEnums {
 		if enum.typeName == expectedValueType.name {
 			val.isEnum = true
 			strVal, err := jsonValue.StringBytes()
@@ -339,7 +339,7 @@ func (ctx *Ctx) resolveVariableFromDefault(defaultValue value, expectedValueType
 	}
 
 	// FIXME this is slow
-	for _, enum := range definedEnums {
+	for _, enum := range ctx.schema.definedEnums {
 		if enum.typeName == expectedValueType.name {
 			if !defaultValue.isEnum {
 				return errors.New("exected default value to be of kind enum")

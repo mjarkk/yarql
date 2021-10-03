@@ -11,7 +11,7 @@ import (
 func TestResolveSimpleVariable(t *testing.T) {
 	// Normal variable
 	variables := `{"baz": "foo"}`
-	out, errs := parseAndTestWithOptions(t, `query($baz: String) {bar(a: $baz)}`, TestExecStructTypeMethodWithArgsData{}, M{}, 255, ResolveOptions{Variables: variables})
+	out, errs := parseAndTestWithOptions(t, NewSchema(), `query($baz: String) {bar(a: $baz)}`, TestExecStructTypeMethodWithArgsData{}, M{}, 255, ResolveOptions{Variables: variables})
 	for _, err := range errs {
 		panic(err)
 	}
@@ -19,7 +19,7 @@ func TestResolveSimpleVariable(t *testing.T) {
 
 	// Default variable
 	variables = ``
-	out, errs = parseAndTestWithOptions(t, `query($baz: String = "foo") {bar(a: $baz)}`, TestExecStructTypeMethodWithArgsData{}, M{}, 255, ResolveOptions{Variables: variables})
+	out, errs = parseAndTestWithOptions(t, NewSchema(), `query($baz: String = "foo") {bar(a: $baz)}`, TestExecStructTypeMethodWithArgsData{}, M{}, 255, ResolveOptions{Variables: variables})
 	for _, err := range errs {
 		panic(err)
 	}
@@ -27,7 +27,7 @@ func TestResolveSimpleVariable(t *testing.T) {
 
 	// Default variable and set variable
 	variables = `{"baz": "FOOBAR"}`
-	out, errs = parseAndTestWithOptions(t, `query($baz: String = "foo") {bar(a: $baz)}`, TestExecStructTypeMethodWithArgsData{}, M{}, 255, ResolveOptions{Variables: variables})
+	out, errs = parseAndTestWithOptions(t, NewSchema(), `query($baz: String = "foo") {bar(a: $baz)}`, TestExecStructTypeMethodWithArgsData{}, M{}, 255, ResolveOptions{Variables: variables})
 	for _, err := range errs {
 		panic(err)
 	}
@@ -64,7 +64,7 @@ func TestResolveOtherSimpleVariable(t *testing.T) {
 		// Normal variable
 		variables := fmt.Sprintf(`{"baz": %s}`, test.value)
 		query := fmt.Sprintf(`query($baz: %s) {%s(a: $baz)}`, test.type_, field)
-		out, errs := parseAndTestWithOptions(t, query, TestResolveOtherSimpleVariableData{}, M{}, 255, ResolveOptions{Variables: variables})
+		out, errs := parseAndTestWithOptions(t, NewSchema(), query, TestResolveOtherSimpleVariableData{}, M{}, 255, ResolveOptions{Variables: variables})
 		for _, err := range errs {
 			panic(err)
 		}
@@ -72,7 +72,7 @@ func TestResolveOtherSimpleVariable(t *testing.T) {
 
 		// Using default variable
 		query = fmt.Sprintf(`query($baz: %s = %s) {%s(a: $baz)}`, test.type_, test.value, field)
-		out, errs = parseAndTestWithOptions(t, query, TestResolveOtherSimpleVariableData{}, M{}, 255, ResolveOptions{})
+		out, errs = parseAndTestWithOptions(t, NewSchema(), query, TestResolveOtherSimpleVariableData{}, M{}, 255, ResolveOptions{})
 		for _, err := range errs {
 			panic(err)
 		}
@@ -90,14 +90,14 @@ func (TestResolveArrayVariableData) ResolveBar(c *Ctx, args struct{ A []int }) [
 func TestResolveArrayVariable(t *testing.T) {
 	// Normal variable
 	variables := `{"baz": [2,3]}`
-	out, errs := parseAndTestWithOptions(t, `query($baz: [Int]) {bar(a: $baz)}`, TestResolveArrayVariableData{}, M{}, 255, ResolveOptions{Variables: variables})
+	out, errs := parseAndTestWithOptions(t, NewSchema(), `query($baz: [Int]) {bar(a: $baz)}`, TestResolveArrayVariableData{}, M{}, 255, ResolveOptions{Variables: variables})
 	for _, err := range errs {
 		panic(err)
 	}
 	Equal(t, `{"data":{"bar":[2,3]}}`, out)
 
 	// Default variable
-	out, errs = parseAndTestWithOptions(t, `query($baz: [Int] = [2,3]) {bar(a: $baz)}`, TestResolveArrayVariableData{}, M{}, 255, ResolveOptions{})
+	out, errs = parseAndTestWithOptions(t, NewSchema(), `query($baz: [Int] = [2,3]) {bar(a: $baz)}`, TestResolveArrayVariableData{}, M{}, 255, ResolveOptions{})
 	for _, err := range errs {
 		panic(err)
 	}
@@ -113,14 +113,14 @@ func (TestResolveEnumVariableData) ResolveBar(c *Ctx, args struct{ A __TypeKind 
 func TestResolveEnumVariable(t *testing.T) {
 	// Normal variables
 	variables := `{"baz": "UNION"}`
-	out, errs := parseAndTestWithOptions(t, `query($baz: __TypeKind) {bar(a: $baz)}`, TestResolveEnumVariableData{}, M{}, 255, ResolveOptions{Variables: variables})
+	out, errs := parseAndTestWithOptions(t, NewSchema(), `query($baz: __TypeKind) {bar(a: $baz)}`, TestResolveEnumVariableData{}, M{}, 255, ResolveOptions{Variables: variables})
 	for _, err := range errs {
 		panic(err)
 	}
 	Equal(t, `{"data":{"bar":"UNION"}}`, out)
 
 	// Default variable
-	out, errs = parseAndTestWithOptions(t, `query($baz: __TypeKind = UNION) {bar(a: $baz)}`, TestResolveEnumVariableData{}, M{}, 255, ResolveOptions{})
+	out, errs = parseAndTestWithOptions(t, NewSchema(), `query($baz: __TypeKind = UNION) {bar(a: $baz)}`, TestResolveEnumVariableData{}, M{}, 255, ResolveOptions{})
 	for _, err := range errs {
 		panic(err)
 	}
@@ -139,14 +139,14 @@ func (TestResolveStructVariableData) ResolveBar(c *Ctx, args struct{ A TestResol
 func TestResolveStructVariable(t *testing.T) {
 	// Normal variables
 	variables := `{"baz": {"a": "foo", "b": 3}}`
-	out, errs := parseAndTestWithOptions(t, `query($baz: TestResolveStructVariableData__input) {bar(a: $baz) {a b}}`, TestResolveStructVariableData{}, M{}, 255, ResolveOptions{Variables: variables})
+	out, errs := parseAndTestWithOptions(t, NewSchema(), `query($baz: TestResolveStructVariableData__input) {bar(a: $baz) {a b}}`, TestResolveStructVariableData{}, M{}, 255, ResolveOptions{Variables: variables})
 	for _, err := range errs {
 		panic(err)
 	}
 	Equal(t, `{"data":{"bar":{"a":"foo","b":3}}}`, out)
 
 	// Default variable
-	out, errs = parseAndTestWithOptions(t, `query($baz: TestResolveStructVariableData__input = {a: "foo", b: 3}) {bar(a: $baz) {a b}}`, TestResolveStructVariableData{}, M{}, 255, ResolveOptions{})
+	out, errs = parseAndTestWithOptions(t, NewSchema(), `query($baz: TestResolveStructVariableData__input = {a: "foo", b: 3}) {bar(a: $baz) {a b}}`, TestResolveStructVariableData{}, M{}, 255, ResolveOptions{})
 	for _, err := range errs {
 		panic(err)
 	}
