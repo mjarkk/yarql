@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mjarkk/go-graphql/helpers"
 	. "github.com/stretchr/testify/assert"
 )
 
@@ -34,13 +35,23 @@ func bytecodeParseAndExpectErrs(t *testing.T, query string, queries interface{},
 	return res, errs
 }
 
+type TestResolveEmptyQueryDataQ struct{}
+type M struct{}
+
 func TestBytecodeResolveOnlyOperation(t *testing.T) {
-	res := bytecodeParseAndExpectNoErrs(t, `{}`, TestExecEmptyQueryDataQ{}, M{})
+	res := bytecodeParseAndExpectNoErrs(t, `{}`, TestResolveEmptyQueryDataQ{}, M{})
 	Equal(t, `{}`, res)
 }
 
+type TestResolveSimpleQueryData struct {
+	A string
+	B string
+	C string
+	D string
+}
+
 func TestBytecodeResolveSingleField(t *testing.T) {
-	res := bytecodeParseAndExpectNoErrs(t, `{a}`, TestExecSimpleQueryData{
+	res := bytecodeParseAndExpectNoErrs(t, `{a}`, TestResolveSimpleQueryData{
 		A: "foo",
 		B: "bar",
 	}, M{})
@@ -48,7 +59,7 @@ func TestBytecodeResolveSingleField(t *testing.T) {
 }
 
 func TestBytecodeResolveMutation(t *testing.T) {
-	schema := TestExecSimpleQueryData{
+	schema := TestResolveSimpleQueryData{
 		A: "foo",
 		B: "bar",
 	}
@@ -60,7 +71,7 @@ func TestBytecodeResolveMutation(t *testing.T) {
 }
 
 func TestBytecodeResolveMultipleFields(t *testing.T) {
-	schema := TestExecSimpleQueryData{
+	schema := TestResolveSimpleQueryData{
 		A: "foo",
 		B: "bar",
 	}
@@ -72,7 +83,7 @@ func TestBytecodeResolveMultipleFields(t *testing.T) {
 }
 
 func TestBytecodeResolveAlias(t *testing.T) {
-	schema := TestExecSimpleQueryData{
+	schema := TestResolveSimpleQueryData{
 		A: "foo",
 		B: "bar",
 	}
@@ -81,7 +92,7 @@ func TestBytecodeResolveAlias(t *testing.T) {
 }
 
 func TestBytecodeResolveOperatorWithName(t *testing.T) {
-	schema := TestExecSimpleQueryData{
+	schema := TestResolveSimpleQueryData{
 		A: "foo",
 		B: "bar",
 	}
@@ -109,13 +120,21 @@ func TestBytecodeResolveOperatorWithName(t *testing.T) {
 	}
 }
 
+type TestResolveStructInStructInlineData struct {
+	Foo struct {
+		A string `json:"a"`
+		B string `json:"b"`
+		C string `json:"c"`
+	} `json:"foo"`
+}
+
 func TestBytecodeResolveNestedFields(t *testing.T) {
-	schema := TestExecStructInStructInlineData{}
+	schema := TestResolveStructInStructInlineData{}
 	json.Unmarshal([]byte(`{"foo": {"a": "foo", "b": "bar", "c": "baz"}}`), &schema)
 
 	out := bytecodeParseAndExpectNoErrs(t, `{foo{a b}}`, schema, M{})
 
-	res := TestExecStructInStructInlineData{}
+	res := TestResolveStructInStructInlineData{}
 	err := json.Unmarshal([]byte(out), &res)
 	NoError(t, err)
 	Equal(t, "foo", res.Foo.A)
@@ -123,7 +142,7 @@ func TestBytecodeResolveNestedFields(t *testing.T) {
 }
 
 func TestBytecodeResolveMultipleNestedFields(t *testing.T) {
-	schema := TestExecSchemaRequestWithFieldsData{}
+	schema := TestResolveSchemaRequestWithFieldsData{}
 	res := bytecodeParseAndExpectNoErrs(t, `{
 		a {
 			foo
@@ -136,8 +155,12 @@ func TestBytecodeResolveMultipleNestedFields(t *testing.T) {
 	Equal(t, `{"a":{"foo":null,"bar":""},"b":{"baz":""}}`, res)
 }
 
+type TestResolveArrayData struct {
+	Foo []string
+}
+
 func TestBytecodeResolveArray(t *testing.T) {
-	schema := TestExecArrayData{
+	schema := TestResolveArrayData{
 		Foo: []string{"foo", "bar"},
 	}
 	res := bytecodeParseAndExpectNoErrs(t, `{foo}`, schema, M{})
@@ -145,12 +168,12 @@ func TestBytecodeResolveArray(t *testing.T) {
 }
 
 type TestBytecodeResolveStructsArrayData struct {
-	Foo []TestExecSimpleQueryData
+	Foo []TestResolveSimpleQueryData
 }
 
 func TestBytecodeResolveStructsArray(t *testing.T) {
 	schema := TestBytecodeResolveStructsArrayData{
-		Foo: []TestExecSimpleQueryData{
+		Foo: []TestResolveSimpleQueryData{
 			{A: "foo", B: "bar"},
 			{A: "baz", B: "boz"},
 		},
@@ -165,79 +188,131 @@ type TestBytecodeResolveTimeData struct {
 
 func TestBytecodeResolveTime(t *testing.T) {
 	now := time.Now()
-	expect := now.Format(timeISO8601Layout)
+	expect := []byte{}
+	helpers.TimeToIso8601String(&expect, now)
 
 	schema := TestBytecodeResolveTimeData{now}
 	res := bytecodeParseAndExpectNoErrs(t, `{t}`, schema, M{})
-	Equal(t, `{"t":"`+expect+`"}`, res)
+	Equal(t, `{"t":"`+string(expect)+`"}`, res)
+}
+
+type TestResolveTimeIOData struct{}
+
+func (TestResolveTimeIOData) ResolveFoo(args struct{ T time.Time }) time.Time {
+	return args.T.AddDate(3, 2, 1).Add(time.Hour + time.Second)
 }
 
 func TestBytecodeResolveTimeIO(t *testing.T) {
 	now := time.Now()
 	testTimeInput := []byte{}
-	timeToString(&testTimeInput, now)
+	helpers.TimeToIso8601String(&testTimeInput, now)
 
 	query := `{foo(t: "` + string(testTimeInput) + `")}`
-	out := bytecodeParseAndExpectNoErrs(t, query, TestExecTimeIOData{}, M{})
+	out := bytecodeParseAndExpectNoErrs(t, query, TestResolveTimeIOData{}, M{})
 
 	exectedOutTime := []byte{}
-	timeToString(&exectedOutTime, now.AddDate(3, 2, 1).Add(time.Hour+time.Second))
+	helpers.TimeToIso8601String(&exectedOutTime, now.AddDate(3, 2, 1).Add(time.Hour+time.Second))
 	Equal(t, `{"foo":"`+string(exectedOutTime)+`"}`, out)
 }
 
+type TestResolveStructTypeMethodData struct {
+	Foo func() string
+}
+
+func (TestResolveStructTypeMethodData) ResolveBar() string {
+	return "foo"
+}
+
+func (TestResolveStructTypeMethodData) ResolveBaz() (string, error) {
+	return "bar", nil
+}
+
 func TestBytecodeResolveMethod(t *testing.T) {
-	schema := TestExecStructTypeMethodData{}
+	schema := TestResolveStructTypeMethodData{}
 	res := bytecodeParseAndExpectNoErrs(t, `{foo, bar, baz}`, schema, M{})
 	Equal(t, `{"foo":null,"bar":"foo","baz":"bar"}`, res)
 }
 
+type TestResolveStructTypeMethodWithArgsData struct{}
+
+func (TestResolveStructTypeMethodWithArgsData) ResolveBar(c *BytecodeCtx, args struct{ A string }) string {
+	return args.A
+}
+
 func TestBytecodeResolveMethodWithArg(t *testing.T) {
-	res := bytecodeParseAndExpectNoErrs(t, `{bar(a: "foo")}`, TestExecStructTypeMethodWithArgsData{}, M{})
+	res := bytecodeParseAndExpectNoErrs(t, `{bar(a: "foo")}`, TestResolveStructTypeMethodWithArgsData{}, M{})
 	Equal(t, `{"bar":"foo"}`, res)
 }
 
+type TestResolveInputAllKindsOfNumbersData struct{}
+
+func (TestResolveInputAllKindsOfNumbersData) ResolveFoo(args TestResolveInputAllKindsOfNumbersDataIO) TestResolveInputAllKindsOfNumbersDataIO {
+	return args
+}
+
+type TestResolveInputAllKindsOfNumbersDataIO struct {
+	A int8
+	B uint8
+	C float64
+	D float32
+}
+
 func TestBytecodeResolveMethodWithIntArgs(t *testing.T) {
-	res := bytecodeParseAndExpectNoErrs(t, `{foo(a: 1, b: 2, c: 3, d: 1.1) {a b c d}}`, TestExecInputAllKindsOfNumbersData{}, M{})
+	res := bytecodeParseAndExpectNoErrs(t, `{foo(a: 1, b: 2, c: 3, d: 1.1) {a b c d}}`, TestResolveInputAllKindsOfNumbersData{}, M{})
 	Equal(t, `{"foo":{"a":1,"b":2,"c":3,"d":1.1}}`, res)
 }
 
 func TestBytecodeResolveTypename(t *testing.T) {
-	schema := TestExecStructTypeMethodData{}
+	schema := TestResolveStructTypeMethodData{}
 	res := bytecodeParseAndExpectNoErrs(t, `{__typename}`, schema, M{})
-	Equal(t, `{"__typename":"TestExecStructTypeMethodData"}`, res)
+	Equal(t, `{"__typename":"TestResolveStructTypeMethodData"}`, res)
+}
+
+type TestResolvePtrData struct {
+	Foo *string
+}
+
+type TestResolvePtrInPtrData struct {
+	Foo **string
 }
 
 func TestBytecodeResolveOutputPointer(t *testing.T) {
-	res := bytecodeParseAndExpectNoErrs(t, `{foo}`, TestExecPtrData{}, M{})
+	res := bytecodeParseAndExpectNoErrs(t, `{foo}`, TestResolvePtrData{}, M{})
 	Equal(t, `{"foo":null}`, res)
 
 	data := "bar"
-	res = bytecodeParseAndExpectNoErrs(t, `{foo}`, TestExecPtrData{&data}, M{})
+	res = bytecodeParseAndExpectNoErrs(t, `{foo}`, TestResolvePtrData{&data}, M{})
 	Equal(t, `{"foo":"bar"}`, res)
 
 	// Nested pointers
-	res = bytecodeParseAndExpectNoErrs(t, `{foo}`, TestExecPtrInPtrData{}, M{})
+	res = bytecodeParseAndExpectNoErrs(t, `{foo}`, TestResolvePtrInPtrData{}, M{})
 	Equal(t, `{"foo":null}`, res)
 
 	ptrToData := &data
-	res = bytecodeParseAndExpectNoErrs(t, `{foo}`, TestExecPtrInPtrData{&ptrToData}, M{})
+	res = bytecodeParseAndExpectNoErrs(t, `{foo}`, TestResolvePtrInPtrData{&ptrToData}, M{})
 	Equal(t, `{"foo":"bar"}`, res)
 }
 
+type TestResolveStructTypeMethodWithPtrArgData struct{}
+
+func (TestResolveStructTypeMethodWithPtrArgData) ResolveBar(c *BytecodeCtx, args struct{ A *string }) *string {
+	return args.A
+}
+
 func TestBytecodeResolveMethodPointerInput(t *testing.T) {
-	res := bytecodeParseAndExpectNoErrs(t, `{bar()}`, TestExecStructTypeMethodWithPtrArgData{}, M{})
+	res := bytecodeParseAndExpectNoErrs(t, `{bar()}`, TestResolveStructTypeMethodWithPtrArgData{}, M{})
 	Equal(t, `{"bar":null}`, res)
 
-	res = bytecodeParseAndExpectNoErrs(t, `{bar(a: null)}`, TestExecStructTypeMethodWithPtrArgData{}, M{})
+	res = bytecodeParseAndExpectNoErrs(t, `{bar(a: null)}`, TestResolveStructTypeMethodWithPtrArgData{}, M{})
 	Equal(t, `{"bar":null}`, res)
 
-	res = bytecodeParseAndExpectNoErrs(t, `{bar(a: "foo")}`, TestExecStructTypeMethodWithPtrArgData{}, M{})
+	res = bytecodeParseAndExpectNoErrs(t, `{bar(a: "foo")}`, TestResolveStructTypeMethodWithPtrArgData{}, M{})
 	Equal(t, `{"bar":"foo"}`, res)
 }
 
 type TestBytecodeResolveMethodListInputData struct{}
 
-func (TestBytecodeResolveMethodListInputData) ResolveBar(c *Ctx, args struct{ A []string }) []string {
+func (TestBytecodeResolveMethodListInputData) ResolveBar(c *BytecodeCtx, args struct{ A []string }) []string {
 	return args.A
 }
 
@@ -252,8 +327,14 @@ func TestBytecodeResolveMethodListInput(t *testing.T) {
 	Equal(t, `{"bar":["foo","baz"]}`, res)
 }
 
+type TestResolveStructTypeMethodWithStructArgData struct{}
+
+func (TestResolveStructTypeMethodWithStructArgData) ResolveBar(c *BytecodeCtx, args struct{ A struct{ B string } }) string {
+	return args.A.B
+}
+
 func TestBytecodeResolveMethodNestedInputs(t *testing.T) {
-	res := bytecodeParseAndExpectNoErrs(t, `{bar(a: {b: "foo"})}`, TestExecStructTypeMethodWithStructArgData{}, M{})
+	res := bytecodeParseAndExpectNoErrs(t, `{bar(a: {b: "foo"})}`, TestResolveStructTypeMethodWithStructArgData{}, M{})
 	Equal(t, `{"bar":"foo"}`, res)
 }
 
@@ -289,7 +370,7 @@ func TestBytecodeResolveCorrectMeta(t *testing.T) {
 			baz
 		}
 	}`
-	schema := TestExecSchemaRequestWithFieldsData{}
+	schema := TestResolveSchemaRequestWithFieldsData{}
 	res, _ := bytecodeParse(t, NewSchema(), query, schema, M{}, BytecodeParseOptions{})
 	if !json.Valid([]byte(res)) {
 		panic("invalid json: " + res)
@@ -303,7 +384,7 @@ func TestBytecodeResolveCorrectMetaWithError(t *testing.T) {
 			foo(a: "")
 		}
 	}`
-	schema := TestExecSchemaRequestWithFieldsData{}
+	schema := TestResolveSchemaRequestWithFieldsData{}
 	res, _ := bytecodeParse(t, NewSchema(), query, schema, M{}, BytecodeParseOptions{})
 	if !json.Valid([]byte(res)) {
 		panic("invalid json: " + res)
@@ -313,20 +394,20 @@ func TestBytecodeResolveCorrectMetaWithError(t *testing.T) {
 
 func TestBytecodeResolveWithArgs(t *testing.T) {
 	query := `query A($a: Int) {}`
-	schema := TestExecEmptyQueryDataQ{}
+	schema := TestResolveEmptyQueryDataQ{}
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
 	Equal(t, `{}`, res)
 }
 
 func TestBytecodeResolveVariableInputWithDefault(t *testing.T) {
 	query := `query A($baz: String = "foo") {bar(a: $baz)}`
-	res := bytecodeParseAndExpectNoErrs(t, query, TestExecStructTypeMethodWithPtrArgData{}, M{})
+	res := bytecodeParseAndExpectNoErrs(t, query, TestResolveStructTypeMethodWithPtrArgData{}, M{})
 	Equal(t, `{"bar":"foo"}`, res)
 }
 
 func TestBytecodeResolveVariable(t *testing.T) {
 	query := `query A($baz: String) {bar(a: $baz)}`
-	res := bytecodeParseAndExpectNoErrs(t, query, TestExecStructTypeMethodWithPtrArgData{}, M{}, BytecodeParseOptions{
+	res := bytecodeParseAndExpectNoErrs(t, query, TestResolveStructTypeMethodWithPtrArgData{}, M{}, BytecodeParseOptions{
 		NoMeta:    true,
 		Variables: `{"baz": "foo"}`,
 	})
@@ -657,8 +738,113 @@ func TestBytecodeResolveSpread(t *testing.T) {
 	Equal(t, `{"inner":{"fieldA":"a","fieldB":"b","fieldC":"c","fieldD":"d"}}`, res)
 }
 
+// This is the request graphql playground makes to get the schema
+var schemaQuery = `
+query IntrospectionQuery {
+	__schema {
+		queryType {
+			name
+		}
+		mutationType {
+			name
+		}
+		subscriptionType {
+			name
+		}
+		types {
+			...FullType
+		}
+		directives {
+			name
+			description
+			locations
+			args {
+				...InputValue
+			}
+		}
+	}
+}
+
+fragment FullType on __Type {
+	kind
+	name
+	description
+	fields(includeDeprecated: true) {
+		name
+		description
+		args {
+			...InputValue
+		}
+		type {
+			...TypeRef
+		}
+		isDeprecated
+		deprecationReason
+	}
+	inputFields {
+		...InputValue
+	}
+	interfaces {
+		...TypeRef
+	}
+	enumValues(includeDeprecated: true) {
+		name
+		description
+		isDeprecated
+		deprecationReason
+	}
+	possibleTypes {
+		...TypeRef
+	}
+}
+
+fragment InputValue on __InputValue {
+	name
+	description
+	type {
+		...TypeRef
+	}
+	defaultValue
+}
+
+fragment TypeRef on __Type {
+	kind
+	name
+	ofType {
+		kind
+		name
+		ofType {
+			kind
+			name
+			ofType {
+				kind
+				name
+				ofType {
+					kind
+					name
+					ofType {
+						kind
+						name
+						ofType {
+							kind
+							name
+							ofType {
+								kind
+								name
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+`
+
+type TestResolveSchemaRequestSimpleData struct{}
+
 func TestBytecodeResolveSchemaRequestSimple(t *testing.T) {
-	resString := bytecodeParseAndExpectNoErrs(t, schemaQuery, TestExecSchemaRequestSimpleData{}, M{})
+	resString := bytecodeParseAndExpectNoErrs(t, schemaQuery, TestResolveSchemaRequestSimpleData{}, M{})
 
 	res := struct {
 		Schema qlSchema `json:"__schema"`
@@ -687,7 +873,7 @@ func TestBytecodeResolveSchemaRequestSimple(t *testing.T) {
 	is("SCALAR", "Int")
 	is("OBJECT", "M")
 	is("SCALAR", "String")
-	is("OBJECT", "TestExecSchemaRequestSimpleData")
+	is("OBJECT", "TestResolveSchemaRequestSimpleData")
 	is("SCALAR", "Time")
 	is("OBJECT", "__Directive")
 	is("ENUM", "__DirectiveLocation")
@@ -699,8 +885,27 @@ func TestBytecodeResolveSchemaRequestSimple(t *testing.T) {
 	is("ENUM", "__TypeKind")
 }
 
+type TestResolveSchemaRequestWithFieldsData struct {
+	A TestResolveSchemaRequestWithFieldsDataInnerStruct
+	B struct {
+		Baz string
+	}
+	C struct {
+		FooBar []TestResolveSchemaRequestWithFieldsDataInnerStruct
+	}
+}
+
+type TestResolveSchemaRequestWithFieldsDataInnerStruct struct {
+	Foo *string
+	Bar string
+}
+
+func (TestResolveSchemaRequestWithFieldsData) ResolveD(args struct{ Foo struct{ Bar string } }) TestResolveSchemaRequestWithFieldsDataInnerStruct {
+	return TestResolveSchemaRequestWithFieldsDataInnerStruct{}
+}
+
 func TestBytecodeResolveSchemaRequestWithFields(t *testing.T) {
-	resString := bytecodeParseAndExpectNoErrs(t, schemaQuery, TestExecSchemaRequestWithFieldsData{}, M{})
+	resString := bytecodeParseAndExpectNoErrs(t, schemaQuery, TestResolveSchemaRequestWithFieldsData{}, M{})
 
 	res := struct {
 		Schema qlSchema `json:"__schema"`
@@ -730,8 +935,8 @@ func TestBytecodeResolveSchemaRequestWithFields(t *testing.T) {
 	is("SCALAR", "Int")
 	is("OBJECT", "M")
 	is("SCALAR", "String")
-	queryIdx := is("OBJECT", "TestExecSchemaRequestWithFieldsData")
-	is("OBJECT", "TestExecSchemaRequestWithFieldsDataInnerStruct")
+	queryIdx := is("OBJECT", "TestResolveSchemaRequestWithFieldsData")
+	is("OBJECT", "TestResolveSchemaRequestWithFieldsDataInnerStruct")
 	is("SCALAR", "Time")
 	is("OBJECT", "__Directive")
 	is("ENUM", "__DirectiveLocation")
@@ -774,24 +979,24 @@ func TestBytecodeResolveSchemaRequestWithFields(t *testing.T) {
 
 func TestBytecodeResolveGraphqlTypenameByName(t *testing.T) {
 	query := `{
-		__type(name: "TestExecSchemaRequestWithFieldsDataInnerStruct") {
+		__type(name: "TestResolveSchemaRequestWithFieldsDataInnerStruct") {
 			kind
 			name
 		}
 	}`
 
-	res := bytecodeParseAndExpectNoErrs(t, query, TestExecSchemaRequestWithFieldsData{}, M{})
-	Equal(t, `{"__type":{"kind":"OBJECT","name":"TestExecSchemaRequestWithFieldsDataInnerStruct"}}`, res)
+	res := bytecodeParseAndExpectNoErrs(t, query, TestResolveSchemaRequestWithFieldsData{}, M{})
+	Equal(t, `{"__type":{"kind":"OBJECT","name":"TestResolveSchemaRequestWithFieldsDataInnerStruct"}}`, res)
 }
 
 func TestBytecodeResolveGraphqlTypename(t *testing.T) {
-	res := bytecodeParseAndExpectNoErrs(t, `{a {__typename}}`, TestExecSchemaRequestWithFieldsData{}, M{})
-	Equal(t, `{"a":{"__typename":"TestExecSchemaRequestWithFieldsDataInnerStruct"}}`, res)
+	res := bytecodeParseAndExpectNoErrs(t, `{a {__typename}}`, TestResolveSchemaRequestWithFieldsData{}, M{})
+	Equal(t, `{"a":{"__typename":"TestResolveSchemaRequestWithFieldsDataInnerStruct"}}`, res)
 }
 
 func TestBytecodeResolveTracing(t *testing.T) {
 	query := `{foo{a b}}`
-	schema := TestExecStructInStructInlineData{}
+	schema := TestResolveStructInStructInlineData{}
 	json.Unmarshal([]byte(`{"foo": {"a": "foo", "b": "bar", "c": "baz"}}`), &schema)
 	opts := BytecodeParseOptions{
 		Tracing: true,
@@ -833,7 +1038,7 @@ func TestBytecodeResolveTracing(t *testing.T) {
 }
 
 func TestBytecodeResolveDirective(t *testing.T) {
-	schema := TestExecSimpleQueryData{A: "foo", B: "bar", C: "baz", D: "foo_bar"}
+	schema := TestResolveSimpleQueryData{A: "foo", B: "bar", C: "baz", D: "foo_bar"}
 
 	t.Run("inside field", func(t *testing.T) {
 		tests := []struct {

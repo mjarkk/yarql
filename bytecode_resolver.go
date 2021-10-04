@@ -14,6 +14,7 @@ import (
 	"unsafe"
 
 	"github.com/mjarkk/go-graphql/bytecode"
+	"github.com/mjarkk/go-graphql/helpers"
 	"github.com/valyala/fastjson"
 )
 
@@ -40,13 +41,14 @@ type BytecodeCtx struct {
 	reflectValues          [256]reflect.Value
 	currentReflectValueIdx uint8
 	funcInputs             []reflect.Value
+	ctxReflection          reflect.Value // ptr to the value
 
 	// public / kinda public fields
 	values *map[string]interface{} // API User values, user can put all their shitty things in here like poems or tax papers
 }
 
-func NewBytecodeCtx(s *Schema) BytecodeCtx {
-	return BytecodeCtx{
+func NewBytecodeCtx(s *Schema) *BytecodeCtx {
+	ctx := &BytecodeCtx{
 		schema: s,
 		query: bytecode.ParserCtx{
 			Res:               make([]byte, 2048),
@@ -62,6 +64,8 @@ func NewBytecodeCtx(s *Schema) BytecodeCtx {
 		variablesJSONParser:    &fastjson.Parser{},
 		tracing:                newTracer(),
 	}
+	ctx.ctxReflection = reflect.ValueOf(ctx)
+	return ctx
 }
 
 func (ctx *BytecodeCtx) getGoValue() reflect.Value {
@@ -153,6 +157,7 @@ func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions)
 		tracingEnabled:         opts.Tracing,
 		tracing:                ctx.tracing,
 		prefRecordingStartTime: ctx.prefRecordingStartTime,
+		ctxReflection:          ctx.ctxReflection,
 
 		Result:                 ctx.Result[:0],
 		reflectValues:          ctx.reflectValues,
@@ -281,6 +286,15 @@ func (ctx *BytecodeCtx) skipInst(num int) {
 
 func (ctx *BytecodeCtx) lastInst() byte {
 	return ctx.query.Res[ctx.charNr-1]
+}
+
+type ErrorWPath struct {
+	err  error
+	path []byte // a json representation of the path without the [] around it
+}
+
+func (e ErrorWPath) Error() string {
+	return e.err.Error()
 }
 
 func (ctx *BytecodeCtx) err(msg string) bool {
@@ -573,12 +587,7 @@ func (ctx *BytecodeCtx) callQlMethod(method *objMethod, goValue *reflect.Value, 
 	ctx.funcInputs = ctx.funcInputs[:0]
 	for _, in := range method.ins {
 		if in.isCtx {
-			// TODO remove this hack when the other resolver is removed
-			if ctx.schema.ctx.bytecodeCtx == nil {
-				ctx.schema.ctx.bytecodeCtx = ctx
-			}
-
-			ctx.funcInputs = append(ctx.funcInputs, ctx.schema.ctxReflection)
+			ctx.funcInputs = append(ctx.funcInputs, ctx.ctxReflection)
 		} else {
 			ctx.funcInputs = append(ctx.funcInputs, reflect.New(*in.type_).Elem())
 		}
@@ -811,7 +820,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 		timeValue, ok := goValue.Interface().(time.Time)
 		if ok {
 			ctx.writeByte('"')
-			timeToString(&ctx.Result, timeValue)
+			helpers.TimeToIso8601String(&ctx.Result, timeValue)
 			ctx.writeByte('"')
 		} else {
 			ctx.writeNull()
@@ -1055,7 +1064,7 @@ func (ctx *BytecodeCtx) bindJSONToValue(goValue *reflect.Value, valueStructure *
 				return ctx.err("cannot assign " + jsonDataType.String() + " to Time value")
 			}
 
-			parsedTime, err := parseTime(stringValue)
+			parsedTime, err := helpers.ParseIso8601String(stringValue)
 			if err != nil {
 				return ctx.err(err.Error())
 			}
@@ -1245,7 +1254,7 @@ func (ctx *BytecodeCtx) assignStringToValue(goValue *reflect.Value, valueStructu
 		}
 		goValue.Set(reflect.ValueOf(file))
 	} else if valueStructure.isTime {
-		parsedTime, err := parseTime(stringValue)
+		parsedTime, err := helpers.ParseIso8601String(stringValue)
 		if err != nil {
 			return ctx.err(err.Error())
 		}

@@ -99,19 +99,9 @@ func TestEnum(t *testing.T) {
 	True(t, added)
 	NoError(t, err)
 
-	out, errs := parseAndTestWithOptions(
-		t,
-		s,
-		`{bar(e: BAZ)}`,
-		TestEnumFunctionInput{},
-		M{},
-		255,
-		ResolveOptions{
-			ReturnOnlyData: true,
-		},
-	)
+	res, errs := bytecodeParse(t, s, `{bar(e: BAZ)}`, TestEnumFunctionInput{}, M{}, BytecodeParseOptions{NoMeta: true})
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"bar":"BAZ"}`, out)
+	Equal(t, `{"bar":"BAZ"}`, res)
 }

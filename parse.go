@@ -46,8 +46,6 @@ type Schema struct {
 	definedDirectives map[DirectiveLocation][]*Directive
 
 	// Zero alloc variables
-	ctx              Ctx
-	ctxReflection    reflect.Value
 	graphqlTypesMap  map[string]qlType
 	graphqlTypesList []qlType
 	graphqlObjFields map[string][]qlField
@@ -218,16 +216,8 @@ func NewSchema() *Schema {
 		graphqlObjFields:  map[string][]qlField{},
 		definedEnums:      []enum{},
 		definedDirectives: map[DirectiveLocation][]*Directive{},
-		ctx: Ctx{
-			result:      make([]byte, 2048),
-			errors:      []error{},
-			path:        []byte{},
-			funcInputs:  []reflect.Value{},
-			fieldHasher: fnv.New32(),
-		},
-		iter: newIter(false),
+		iter:              newIter(false),
 	}
-	s.ctxReflection = reflect.ValueOf(&s.ctx)
 
 	added, err := s.RegisterEnum(directiveLocationMap)
 	if err != nil {
@@ -504,10 +494,10 @@ func (c *parseCtx) checkStructFieldFunc(fieldName string, type_ reflect.Type, ha
 	}, nil
 }
 
-var simpleCtx = reflect.TypeOf(Ctx{})
+var ctxType = reflect.TypeOf(BytecodeCtx{})
 
 func isCtx(t reflect.Type) bool {
-	return t.Kind() == reflect.Struct && simpleCtx.Name() == t.Name() && simpleCtx.PkgPath() == t.PkgPath()
+	return t.Kind() == reflect.Struct && ctxType.Name() == t.Name() && ctxType.PkgPath() == t.PkgPath()
 }
 
 func (c *parseCtx) checkFunctionInputStruct(field *reflect.StructField, idx int) (res input, skipThisField bool, err error) {
@@ -852,4 +842,31 @@ func checkValidIDKind(kind reflect.Kind) error {
 		return errors.New("strings and numbers can only be labeld with the ID property")
 	}
 	return nil
+}
+
+func (s *Schema) objToQlTypeName(item *obj, target *bytes.Buffer) {
+	suffix := []byte{}
+
+	qlType := wrapQLTypeInNonNull(s.objToQLType(item))
+
+	for {
+		switch qlType.Kind {
+		case typeKindList:
+			target.WriteByte('[')
+			suffix = append(suffix, ']')
+		case typeKindNonNull:
+			suffix = append(suffix, '!')
+		default:
+			if qlType.Name != nil {
+				target.WriteString(*qlType.Name)
+			} else {
+				target.Write([]byte("Unknown"))
+			}
+			if len(suffix) > 0 {
+				target.Write(suffix)
+			}
+			return
+		}
+		qlType = qlType.OfType
+	}
 }

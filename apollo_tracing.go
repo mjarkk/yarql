@@ -60,16 +60,3 @@ func (t *tracer) finish() {
 	t.EndTime = now.Format(time.RFC3339Nano)
 	t.Duration = now.Sub(t.GoStartTime).Nanoseconds()
 }
-
-func (ctx *Ctx) finishTrace(report func(offset, duration int64)) {
-	f := ctx.prefRecordingStartTime
-	offset := f.Sub(ctx.tracing.GoStartTime).Nanoseconds()
-	duration := time.Since(f).Nanoseconds()
-	report(offset, duration)
-}
-
-func (ctx *Ctx) startTrace() {
-	if ctx.tracingEnabled {
-		ctx.prefRecordingStartTime = time.Now()
-	}
-}

@@ -28,7 +28,7 @@ func (s *Schema) HandleRequest(
 	method = strings.ToUpper(method)
 
 	errRes := func(errorMsg string) ([]byte, []error) {
-		// TODO have some general way to easially create responses that is fast
+		// TODO have some general way to easily create responses that is fast
 		s.m.Lock()
 		defer s.m.Unlock()
 
