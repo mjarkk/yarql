@@ -832,3 +832,56 @@ func TestBytecodeResolveTracing(t *testing.T) {
 		NotEqual(t, int64(0), resolver.Duration)
 	}
 }
+
+func TestBytecodeResolveFieldDirective(t *testing.T) {
+	tests := []struct {
+		name    string
+		query   string
+		expects string
+	}{
+		{
+			"skip field",
+			`{
+				a
+				b @skip(if: true)
+				c
+			}`,
+			`{"a":"foo","c":"baz"}`,
+		},
+		{
+			"not skip field",
+			`{
+				a
+				b @skip(if: false)
+				c
+			}`,
+			`{"a":"foo","b":"bar","c":"baz"}`,
+		},
+		{
+			"do not include field",
+			`{
+				a
+				b @include(if: false)
+				c
+			}`,
+			`{"a":"foo","c":"baz"}`,
+		},
+		{
+			"include field",
+			`{
+				a
+				b @include(if: true)
+				c
+			}`,
+			`{"a":"foo","b":"bar","c":"baz"}`,
+		},
+	}
+
+	schema := TestExecSimpleQueryData{A: "foo", B: "bar", C: "baz", D: "foo_bar"}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			res := bytecodeParseAndExpectNoErrs(t, test.query, schema, M{})
+			Equal(t, test.expects, res, test.query)
+		})
+	}
+}

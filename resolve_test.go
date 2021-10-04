@@ -1143,7 +1143,7 @@ func TestExecWithFile(t *testing.T) {
 	Equal(t, `{"data":{"foo":"hello world"}}`, out)
 }
 
-func TestExecTheSkipDerive(t *testing.T) {
+func TestExecTheSkipDirective(t *testing.T) {
 	tests := []struct {
 		query   string
 		expects string

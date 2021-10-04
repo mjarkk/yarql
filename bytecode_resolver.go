@@ -366,11 +366,13 @@ func (ctx *BytecodeCtx) resolveSelectionSet(typeObj *obj, dept uint8, firstField
 			return false
 		case bytecode.ActionField:
 			// Parse field
-			criticalErr := ctx.resolveField(typeObj, dept, !*firstField)
+			skipped, criticalErr := ctx.resolveField(typeObj, dept, !*firstField)
 			if criticalErr {
 				return criticalErr
 			}
-			*firstField = false
+			if !skipped {
+				*firstField = false
+			}
 		case bytecode.ActionSpread:
 			criticalErr := ctx.resolveSpread(typeObj, dept, firstField)
 			if criticalErr {
@@ -435,15 +437,10 @@ func (ctx *BytecodeCtx) resolveSpread(typeObj *obj, dept uint8, firstField *bool
 	return ctx.err("fragment " + b2s(name) + " not defined")
 }
 
-func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bool) bool {
+func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bool) (skipped bool, criticalErr bool) {
 	ctx.startTrace()
 
-	// Read directives
-	// TODO
 	directivesCount := ctx.readInst()
-	if directivesCount > 0 {
-		return ctx.err("field directives unsupported")
-	}
 
 	fieldLen := ctx.readUint32(ctx.charNr)
 	ctx.skipInst(4)
@@ -476,6 +473,23 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 	}
 	ctx.skipInst(1)
 
+	var contentModifiers []ModifyOnWriteContent
+	for i := uint8(0); i < directivesCount; i++ {
+		modifier, criticalErr := ctx.resolveDirective(DirectiveLocationField)
+
+		if criticalErr || modifier.Skip {
+			// Restore the path
+			ctx.path = ctx.path[:prefPathLen]
+			ctx.charNr = endOfField + 1
+
+			return true, criticalErr
+		}
+
+		if modifier.ModifyOnWriteContent != nil {
+			contentModifiers = append(contentModifiers, modifier.ModifyOnWriteContent)
+		}
+	}
+
 	if addCommaBefore {
 		ctx.writeByte(',')
 	}
@@ -483,7 +497,6 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 	ctx.writeQouted(alias)
 	ctx.writeByte(':')
 
-	criticalErr := false
 	fieldHasSelection := ctx.seekInst() != 'e'
 
 	typeObjField, ok := typeObj.objContents[nameKey]
@@ -536,7 +549,76 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 
 	ctx.charNr = endOfField + 1
 
-	return criticalErr
+	return false, criticalErr
+}
+
+func (ctx *BytecodeCtx) resolveDirective(location DirectiveLocation) (modifer DirectiveModifier, criticalErr bool) {
+	ctx.skipInst(1) // read 'd'
+	hasArguments := ctx.readInst() == 't'
+
+	// Read name
+	nameStart := ctx.charNr
+	var nameEnd int
+	for {
+		if ctx.readInst() == 0 {
+			nameEnd = ctx.charNr - 1
+			break
+		}
+	}
+	directiveName := b2s(ctx.query.Res[nameStart:nameEnd])
+	directives, ok := ctx.schema.definedDirectives[location]
+	if !ok {
+		return modifer, ctx.err("unknown directive " + directiveName)
+	}
+
+	var foundDirective *Directive
+	for _, directive := range directives {
+		if directive.Name == directiveName {
+			foundDirective = directive
+			break
+		}
+	}
+
+	if foundDirective == nil {
+		return modifer, ctx.err("unknown directive " + directiveName)
+	}
+	method := foundDirective.parsedMethod
+
+	ctx.funcInputs = ctx.funcInputs[:0]
+	for _, in := range method.ins {
+		if in.isCtx {
+			// TODO remove this hack when the other resolver is removed
+			if ctx.schema.ctx.bytecodeCtx == nil {
+				ctx.schema.ctx.bytecodeCtx = ctx
+			}
+
+			ctx.funcInputs = append(ctx.funcInputs, ctx.schema.ctxReflection)
+		} else {
+			ctx.funcInputs = append(ctx.funcInputs, reflect.New(*in.type_).Elem())
+		}
+	}
+
+	if hasArguments {
+		// Read arguments
+		criticalErr = ctx.walkInputObject(
+			func(key []byte) bool {
+				keyStr := b2s(key)
+				inField, ok := method.inFields[keyStr]
+				if !ok {
+					return ctx.err("undefined input: " + keyStr)
+				}
+				goField := ctx.funcInputs[inField.inputIdx].Field(inField.input.goFieldIdx)
+				return ctx.bindInputToGoValue(&goField, &inField.input, true)
+			},
+		)
+		if criticalErr {
+			return modifer, criticalErr
+		}
+	}
+
+	out := foundDirective.methodReflection.Call(ctx.funcInputs)[0]
+	modifer = out.Interface().(DirectiveModifier)
+	return modifer, false
 }
 
 func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSelection bool) bool {

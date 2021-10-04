@@ -97,7 +97,7 @@ type qlType struct {
 	// NON_NULL and LIST only
 	OfType *qlType `json:"ofType"`
 
-	// For testing perposes mainly
+	// For testing perposes
 	JSONKind        string    `json:"kind" gq:"-"`
 	JSONFields      []qlField `json:"fields" gq:"-"`
 	JSONInputFields []qlField `json:"inputFields" gq:"-"`

@@ -47,12 +47,15 @@ type Directive struct {
 	Name  string
 	Where []DirectiveLocation
 	// Should be of type: func(args like any other method) DirectiveModifier
-	Method       interface{}
-	parsedMethod *objMethod
+	Method           interface{}
+	methodReflection reflect.Value
+	parsedMethod     *objMethod
 
 	// Not required
 	Description string
 }
+
+type ModifyOnWriteContent func(bytes []byte) []byte
 
 // DirectiveModifier defines modifications to the response
 // Nothing is this struct is required and will be ignored if not set
@@ -62,7 +65,7 @@ type DirectiveModifier struct {
 
 	// ModifyOnWriteContent allows you to modify field JSON response data before it's written to the result
 	// Note that there is no checking for validation here it's up to you to return valid json
-	ModifyOnWriteContent func(bytes []byte) []byte
+	ModifyOnWriteContent ModifyOnWriteContent
 }
 
 func (s *Schema) RegisterDirective(directive Directive) error {
@@ -110,14 +113,14 @@ func checkDirective(directive *Directive) error {
 	if directive.Method == nil {
 		return errors.New("method must be defined")
 	}
-	methodReflection := reflect.ValueOf(directive.Method)
-	if methodReflection.IsNil() {
+	directive.methodReflection = reflect.ValueOf(directive.Method)
+	if directive.methodReflection.IsNil() {
 		return errors.New("method must be defined")
 	}
-	if methodReflection.Kind() != reflect.Func {
+	if directive.methodReflection.Kind() != reflect.Func {
 		return errors.New("method is not a function")
 	}
-	methodType := methodReflection.Type()
+	methodType := directive.methodReflection.Type()
 	switch methodType.NumOut() {
 	case 0:
 		return errors.New("method should return DirectiveModifier")
