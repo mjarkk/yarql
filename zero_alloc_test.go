@@ -14,24 +14,24 @@ type TestPathStaysCorrectData struct {
 	FooBar []TestPathStaysCorrectDataBar
 }
 
-func (TestPathStaysCorrectData) ResolvePath(c *Ctx) string {
-	return c.Path()
+func (TestPathStaysCorrectData) ResolvePath(c *BytecodeCtx) string {
+	return string(c.GetPath())
 }
 
 type TestPathStaysCorrectDataFoo struct {
 	Bar TestPathStaysCorrectDataBar
 }
 
-func (TestPathStaysCorrectDataFoo) ResolvePath(c *Ctx) string {
-	return c.Path()
+func (TestPathStaysCorrectDataFoo) ResolvePath(c *BytecodeCtx) string {
+	return string(c.GetPath())
 }
 
 type TestPathStaysCorrectDataBar struct {
 	Foo []TestPathStaysCorrectDataFoo
 }
 
-func (TestPathStaysCorrectDataBar) ResolvePath(c *Ctx) string {
-	return c.Path()
+func (TestPathStaysCorrectDataBar) ResolvePath(c *BytecodeCtx) string {
+	return string(c.GetPath())
 }
 
 func TestPathStaysCorrect(t *testing.T) {

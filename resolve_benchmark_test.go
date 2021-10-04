@@ -53,7 +53,7 @@ func BenchmarkQueryParser(b *testing.B) {
 
 func BenchmarkBytecodeResolve(b *testing.B) {
 	s := NewSchema()
-	s.Parse(TestExecSchemaRequestWithFieldsData{}, M{}, nil)
+	s.Parse(TestResolveSchemaRequestWithFieldsData{}, M{}, nil)
 	ctx := NewBytecodeCtx(s)
 
 	query := []byte(schemaQuery)

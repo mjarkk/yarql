@@ -36,7 +36,7 @@ func TestHandleRequestRequestInURL(t *testing.T) {
 
 func TestHandleRequestRequestJsonBody(t *testing.T) {
 	s := NewSchema()
-	err := s.Parse(TestExecSchemaRequestWithFieldsData{A: TestExecSchemaRequestWithFieldsDataInnerStruct{Bar: "baz"}}, M{}, nil)
+	err := s.Parse(TestResolveSchemaRequestWithFieldsData{A: TestResolveSchemaRequestWithFieldsDataInnerStruct{Bar: "baz"}}, M{}, nil)
 	NoError(t, err)
 
 	query := `
@@ -76,7 +76,7 @@ func TestHandleRequestRequestJsonBody(t *testing.T) {
 
 func TestHandleRequestRequestForm(t *testing.T) {
 	s := NewSchema()
-	err := s.Parse(TestExecSchemaRequestWithFieldsData{A: TestExecSchemaRequestWithFieldsDataInnerStruct{Bar: "baz"}}, M{}, nil)
+	err := s.Parse(TestResolveSchemaRequestWithFieldsData{A: TestResolveSchemaRequestWithFieldsDataInnerStruct{Bar: "baz"}}, M{}, nil)
 	NoError(t, err)
 
 	query := `
@@ -120,7 +120,7 @@ func TestHandleRequestRequestForm(t *testing.T) {
 
 func TestHandleRequestRequestBatch(t *testing.T) {
 	s := NewSchema()
-	err := s.Parse(TestExecSchemaRequestWithFieldsData{A: TestExecSchemaRequestWithFieldsDataInnerStruct{Bar: "baz"}}, M{}, nil)
+	err := s.Parse(TestResolveSchemaRequestWithFieldsData{A: TestResolveSchemaRequestWithFieldsDataInnerStruct{Bar: "baz"}}, M{}, nil)
 	NoError(t, err)
 
 	query := `
