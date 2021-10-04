@@ -63,9 +63,10 @@ type DirectiveModifier struct {
 	// Skip field/(inline)fragment
 	Skip bool
 
+	// TODO make this
 	// ModifyOnWriteContent allows you to modify field JSON response data before it's written to the result
 	// Note that there is no checking for validation here it's up to you to return valid json
-	ModifyOnWriteContent ModifyOnWriteContent
+	// ModifyOnWriteContent ModifyOnWriteContent
 }
 
 func (s *Schema) RegisterDirective(directive Directive) error {

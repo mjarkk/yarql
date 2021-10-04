@@ -473,7 +473,6 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 	}
 	ctx.skipInst(1)
 
-	var contentModifiers []ModifyOnWriteContent
 	for i := uint8(0); i < directivesCount; i++ {
 		modifier, criticalErr := ctx.resolveDirective(DirectiveLocationField)
 
@@ -485,9 +484,10 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 			return true, criticalErr
 		}
 
-		if modifier.ModifyOnWriteContent != nil {
-			contentModifiers = append(contentModifiers, modifier.ModifyOnWriteContent)
-		}
+		// TODO
+		// if modifier.ModifyOnWriteContent != nil {
+		// 	contentModifiers = append(contentModifiers, modifier.ModifyOnWriteContent)
+		// }
 	}
 
 	if addCommaBefore {
