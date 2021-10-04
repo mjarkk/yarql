@@ -17,7 +17,7 @@ type RequestOptions struct {
 	Tracing     bool                                            // https://github.com/apollographql/apollo-tracing
 }
 
-func (s *Schema) HandleRequest(
+func (ctx *BytecodeCtx) HandleRequest(
 	method string, // GET, POST, etc..
 	getQuery func(key string) string, // URL value (needs to be un-escaped before returning)
 	getFormField func(key string) (string, error), // get form field, only used if content type == form data
@@ -28,16 +28,10 @@ func (s *Schema) HandleRequest(
 	method = strings.ToUpper(method)
 
 	errRes := func(errorMsg string) ([]byte, []error) {
-		// TODO have some general way to easily create responses that is fast
-		s.m.Lock()
-		defer s.m.Unlock()
-
-		s.ctx.result = s.ctx.result[:0]
-		s.ctx.errors = append(s.ctx.errors[:0], errors.New(errorMsg))
-
-		s.ctx.CompleteResult(true, true, false)
-
-		return s.ctx.result, s.ctx.errors
+		response := []byte(`{"data":{},"errors":[{"message":`)
+		stringToJson(errorMsg, &response)
+		response = append(response, []byte(`}],"extensions":{}}`)...)
+		return response, []error{errors.New(errorMsg)}
 	}
 
 	if contentType == "application/json" || ((contentType == "text/plain" || contentType == "multipart/form-data") && method != "GET") {
@@ -45,7 +39,7 @@ func (s *Schema) HandleRequest(
 		if contentType == "multipart/form-data" {
 			value, err := getFormField("operations")
 			if err != nil {
-				return []byte("{}"), []error{err}
+				return errRes(err.Error())
 			}
 			body = []byte(value)
 		} else {
@@ -80,14 +74,14 @@ func (s *Schema) HandleRequest(
 					res, _ := errRes(err.Error())
 					response.Write(res)
 				} else {
-					res, errs := s.handleSingleRequest(
+					errs := ctx.handleSingleRequest(
 						query,
 						variables,
 						operationName,
 						options,
 					)
 					responseErrs = append(responseErrs, errs...)
-					response.Write(res)
+					response.Write(ctx.Result)
 				}
 			}
 			response.WriteByte(']')
@@ -98,29 +92,31 @@ func (s *Schema) HandleRequest(
 		if err != nil {
 			return errRes(err.Error())
 		}
-		return s.handleSingleRequest(
+		errs := ctx.handleSingleRequest(
 			query,
 			variables,
 			operationName,
 			options,
 		)
+		return ctx.Result, errs
 	}
 
-	return s.handleSingleRequest(
+	errs := ctx.handleSingleRequest(
 		getQuery("query"),
 		getQuery("variables"),
 		getQuery("operationName"),
 		options,
 	)
+	return ctx.Result, errs
 }
 
-func (s *Schema) handleSingleRequest(
+func (ctx *BytecodeCtx) handleSingleRequest(
 	query,
 	variables,
 	operationName string,
 	options *RequestOptions,
-) ([]byte, []error) {
-	resolveOptions := ResolveOptions{
+) []error {
+	resolveOptions := BytecodeParseOptions{
 		OperatorTarget: operationName,
 		Variables:      variables,
 	}
@@ -129,7 +125,7 @@ func (s *Schema) handleSingleRequest(
 			resolveOptions.Context = options.Context
 		}
 		if options.Values != nil {
-			resolveOptions.Values = options.Values
+			resolveOptions.Values = &options.Values
 		}
 		if options.GetFormFile != nil {
 			resolveOptions.GetFormFile = options.GetFormFile
@@ -137,7 +133,7 @@ func (s *Schema) handleSingleRequest(
 		resolveOptions.Tracing = options.Tracing
 	}
 
-	return s.Resolve(query, resolveOptions)
+	return ctx.BytecodeResolve(s2b(query), resolveOptions)
 }
 
 func getBodyData(body *fastjson.Value) (query, operationName, variables string, err error) {
