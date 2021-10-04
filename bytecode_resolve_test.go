@@ -1,7 +1,11 @@
 package graphql
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"io/ioutil"
+	"mime/multipart"
 	"reflect"
 	"testing"
 	"time"
@@ -1267,4 +1271,117 @@ func TestValueToJson(t *testing.T) {
 		c.valueToJson(v, v.Kind())
 		Equal(t, option.expect, string(c.Result))
 	}
+}
+
+type TestResolveWithFileData struct{}
+
+func (TestResolveWithFileData) ResolveFoo(args struct{ File *multipart.FileHeader }) string {
+	if args.File == nil {
+		return ""
+	}
+	f, err := args.File.Open()
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	fileContents, err := ioutil.ReadAll(f)
+	if err != nil {
+		return ""
+	}
+	return string(fileContents)
+}
+
+func TestResolveBytecodeWithFile(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+
+	multiPartWriter := multipart.NewWriter(buf)
+	writer, err := multiPartWriter.CreateFormFile("FILE_ID", "test.txt")
+	if err != nil {
+		panic(err)
+	}
+	writer.Write([]byte("hello world"))
+	boundary := multiPartWriter.Boundary()
+	err = multiPartWriter.Close()
+	if err != nil {
+		panic(err)
+	}
+
+	multiPartReader := multipart.NewReader(buf, boundary)
+	form, err := multiPartReader.ReadForm(1024 * 1024)
+	if err != nil {
+		panic(err)
+	}
+
+	opts := BytecodeParseOptions{
+		NoMeta: true,
+		GetFormFile: func(key string) (*multipart.FileHeader, error) {
+			f, ok := form.File[key]
+			if !ok || len(f) == 0 {
+				return nil, nil
+			}
+			return f[0], nil
+		},
+	}
+
+	out, errs := bytecodeParse(t, NewSchema(), `{foo(file: "FILE_ID")}`, TestResolveWithFileData{}, M{}, opts)
+	for _, err := range errs {
+		panic(err)
+	}
+	Equal(t, `{"data":{"foo":"hello world"}}`, out)
+}
+
+type TestResolveMaxDeptData struct {
+	Foo struct {
+		Bar struct {
+			Baz struct {
+				FooBar struct {
+					BarBaz struct {
+						BazFoo string
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestExecMaxDept(t *testing.T) {
+	s := NewSchema()
+	s.MaxDepth = 3
+	out, errs := bytecodeParse(t, s, `{foo{bar{baz{fooBar{barBaz{bazFoo}}}}}}`, TestResolveMaxDeptData{}, M{}, BytecodeParseOptions{})
+	Greater(t, len(errs), 0)
+	Equal(t, `{"data":{"foo":{"bar":{"baz":null}}},"errors":[{"message":"reached max dept","path":["foo","bar","baz"]}]}`, out)
+}
+
+type TestResolveStructTypeMethodWithCtxData struct{}
+
+func (TestResolveStructTypeMethodWithCtxData) ResolveBar(c *BytecodeCtx) TestResolveStructTypeMethodWithCtxDataInner {
+	c.SetValue("baz", "bar")
+	return TestResolveStructTypeMethodWithCtxDataInner{}
+}
+
+type TestResolveStructTypeMethodWithCtxDataInner struct{}
+
+func (TestResolveStructTypeMethodWithCtxDataInner) ResolveFoo(c *BytecodeCtx) string {
+	return c.GetValue("baz").(string)
+}
+
+func (TestResolveStructTypeMethodWithCtxData) ResolveBaz(c *BytecodeCtx) (string, error) {
+	value, ok := c.GetValueOk("baz")
+	if !ok {
+		return "", errors.New("baz not set by bar resolver")
+	}
+	return value.(string), nil
+}
+
+func TestBytecodeResolveCtxValues(t *testing.T) {
+	query := `
+		{
+			bar {
+				foo
+			}
+			baz
+		}
+	`
+	res := bytecodeParseAndExpectNoErrs(t, query, TestResolveStructTypeMethodWithCtxData{}, M{})
+	Equal(t, `{"bar":{"foo":"bar"},"baz":"bar"}`, res)
 }
