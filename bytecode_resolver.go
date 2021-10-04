@@ -569,6 +569,42 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 	return false, criticalErr
 }
 
+func (ctx *BytecodeCtx) callQlMethod(method *objMethod, goValue *reflect.Value, parseArguments bool) ([]reflect.Value, bool) {
+	ctx.funcInputs = ctx.funcInputs[:0]
+	for _, in := range method.ins {
+		if in.isCtx {
+			// TODO remove this hack when the other resolver is removed
+			if ctx.schema.ctx.bytecodeCtx == nil {
+				ctx.schema.ctx.bytecodeCtx = ctx
+			}
+
+			ctx.funcInputs = append(ctx.funcInputs, ctx.schema.ctxReflection)
+		} else {
+			ctx.funcInputs = append(ctx.funcInputs, reflect.New(*in.type_).Elem())
+		}
+	}
+
+	if parseArguments {
+		criticalErr := ctx.walkInputObject(
+			func(key []byte) bool {
+				keyStr := b2s(key)
+				inField, ok := method.inFields[keyStr]
+				if !ok {
+					return ctx.err("undefined input: " + keyStr)
+				}
+				goField := ctx.funcInputs[inField.inputIdx].Field(inField.input.goFieldIdx)
+				return ctx.bindInputToGoValue(&goField, &inField.input, true)
+			},
+		)
+		if criticalErr {
+			return nil, criticalErr
+		}
+	}
+
+	outs := goValue.Call(ctx.funcInputs)
+	return outs, false
+}
+
 func (ctx *BytecodeCtx) resolveDirective(location DirectiveLocation) (modifer DirectiveModifier, criticalErr bool) {
 	ctx.skipInst(1) // read 'd'
 	hasArguments := ctx.readInst() == 't'
@@ -601,40 +637,12 @@ func (ctx *BytecodeCtx) resolveDirective(location DirectiveLocation) (modifer Di
 	}
 	method := foundDirective.parsedMethod
 
-	ctx.funcInputs = ctx.funcInputs[:0]
-	for _, in := range method.ins {
-		if in.isCtx {
-			// TODO remove this hack when the other resolver is removed
-			if ctx.schema.ctx.bytecodeCtx == nil {
-				ctx.schema.ctx.bytecodeCtx = ctx
-			}
-
-			ctx.funcInputs = append(ctx.funcInputs, ctx.schema.ctxReflection)
-		} else {
-			ctx.funcInputs = append(ctx.funcInputs, reflect.New(*in.type_).Elem())
-		}
+	outs, criticalErr := ctx.callQlMethod(method, &foundDirective.methodReflection, hasArguments)
+	if criticalErr {
+		return modifer, criticalErr
 	}
 
-	if hasArguments {
-		// Read arguments
-		criticalErr = ctx.walkInputObject(
-			func(key []byte) bool {
-				keyStr := b2s(key)
-				inField, ok := method.inFields[keyStr]
-				if !ok {
-					return ctx.err("undefined input: " + keyStr)
-				}
-				goField := ctx.funcInputs[inField.inputIdx].Field(inField.input.goFieldIdx)
-				return ctx.bindInputToGoValue(&goField, &inField.input, true)
-			},
-		)
-		if criticalErr {
-			return modifer, criticalErr
-		}
-	}
-
-	out := foundDirective.methodReflection.Call(ctx.funcInputs)[0]
-	modifer = out.Interface().(DirectiveModifier)
+	modifer = outs[0].Interface().(DirectiveModifier)
 	return modifer, false
 }
 
@@ -738,39 +746,12 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 			return false
 		}
 
-		ctx.funcInputs = ctx.funcInputs[:0]
-		for _, in := range method.ins {
-			if in.isCtx {
-				// TODO remove this hack when the other resolver is removed
-				if ctx.schema.ctx.bytecodeCtx == nil {
-					ctx.schema.ctx.bytecodeCtx = ctx
-				}
-
-				ctx.funcInputs = append(ctx.funcInputs, ctx.schema.ctxReflection)
-			} else {
-				ctx.funcInputs = append(ctx.funcInputs, reflect.New(*in.type_).Elem())
-			}
+		outs, criticalErr := ctx.callQlMethod(method, &goValue, ctx.seekInst() == 'v')
+		if criticalErr {
+			return criticalErr
 		}
 
-		if ctx.seekInst() == 'v' {
-			criticalErr := ctx.walkInputObject(
-				func(key []byte) bool {
-					keyStr := b2s(key)
-					inField, ok := method.inFields[keyStr]
-					if !ok {
-						return ctx.err("undefined input: " + keyStr)
-					}
-					goField := ctx.funcInputs[inField.inputIdx].Field(inField.input.goFieldIdx)
-					return ctx.bindInputToGoValue(&goField, &inField.input, true)
-				},
-			)
-			if criticalErr {
-				return criticalErr
-			}
-			hasSubSelection = ctx.seekInst() != 'e'
-		}
-
-		outs := goValue.Call(ctx.funcInputs)
+		hasSubSelection = ctx.seekInst() != 'e'
 		if method.errorOutNr != nil {
 			errOut := outs[*method.errorOutNr]
 			if !errOut.IsNil() {
@@ -795,7 +776,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 		}
 
 		ctx.setGoValue(outs[method.outNr])
-		criticalErr := ctx.resolveFieldDataValue(&method.outType, dept, hasSubSelection)
+		criticalErr = ctx.resolveFieldDataValue(&method.outType, dept, hasSubSelection)
 		return criticalErr
 	case valueTypeEnum:
 		enum := ctx.schema.definedEnums[typeObj.enumTypeIndex]
