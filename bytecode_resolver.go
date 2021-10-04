@@ -387,9 +387,9 @@ func (ctx *BytecodeCtx) resolveSelectionSet(typeObj *obj, dept uint8, firstField
 func (ctx *BytecodeCtx) resolveSpread(typeObj *obj, dept uint8, firstField *bool) bool {
 	isInline := ctx.readInst() == 't'
 	directivesCount := ctx.readInst()
-	if directivesCount > 0 {
-		return ctx.err("spread selection directives unsupported")
-	}
+
+	lenOfDirective := ctx.readUint32(ctx.charNr)
+	ctx.skipInst(4)
 
 	// Read name
 	nameStart := ctx.charNr
@@ -398,6 +398,21 @@ func (ctx *BytecodeCtx) resolveSpread(typeObj *obj, dept uint8, firstField *bool
 		if ctx.readInst() == 0 {
 			endName = ctx.charNr - 1
 			break
+		}
+	}
+
+	if directivesCount != 0 {
+		location := DirectiveLocationFragment
+		if isInline {
+			location = DirectiveLocationFragmentInline
+		}
+
+		for i := uint8(0); i < directivesCount; i++ {
+			modifer, criticalErr := ctx.resolveDirective(location)
+			if criticalErr || modifer.Skip {
+				ctx.charNr = nameStart + int(lenOfDirective) + 1
+				return criticalErr
+			}
 		}
 	}
 
@@ -473,21 +488,23 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 	}
 	ctx.skipInst(1)
 
-	for i := uint8(0); i < directivesCount; i++ {
-		modifier, criticalErr := ctx.resolveDirective(DirectiveLocationField)
+	if directivesCount != 0 {
+		for i := uint8(0); i < directivesCount; i++ {
+			modifier, criticalErr := ctx.resolveDirective(DirectiveLocationField)
 
-		if criticalErr || modifier.Skip {
-			// Restore the path
-			ctx.path = ctx.path[:prefPathLen]
-			ctx.charNr = endOfField + 1
+			if criticalErr || modifier.Skip {
+				// Restore the path
+				ctx.path = ctx.path[:prefPathLen]
+				ctx.charNr = endOfField + 1
 
-			return true, criticalErr
+				return true, criticalErr
+			}
+
+			// TODO
+			// if modifier.ModifyOnWriteContent != nil {
+			// 	contentModifiers = append(contentModifiers, modifier.ModifyOnWriteContent)
+			// }
 		}
-
-		// TODO
-		// if modifier.ModifyOnWriteContent != nil {
-		// 	contentModifiers = append(contentModifiers, modifier.ModifyOnWriteContent)
-		// }
 	}
 
 	if addCommaBefore {

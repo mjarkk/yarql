@@ -442,7 +442,8 @@ func (ctx *ParserCtx) parseSelectionSet() bool {
 				}
 
 				ctx.instructionNewFragmentSpread(isInline)
-				directivesCountLocation := len(ctx.Res) - 1
+				directivesCountLocation := len(ctx.Res) - 5
+				startFragment := len(ctx.Res)
 
 				nameLen, criticalErr := ctx.parseAndWriteName()
 				if criticalErr {
@@ -483,6 +484,8 @@ func (ctx *ParserCtx) parseSelectionSet() bool {
 						return ctx.unexpectedEOF()
 					}
 				}
+
+				ctx.Res = writeUint32At(ctx.Res, startFragment-4, uint32(len(ctx.Res)-startFragment))
 
 				if c == ',' {
 					ctx.charNr++

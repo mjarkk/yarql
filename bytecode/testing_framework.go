@@ -229,6 +229,9 @@ func (o testField) toBytes(res []byte) []byte {
 			res = append(res, 'f')
 		}
 		res = append(res, byte(len(o.directives)))
+		res = append(res, 0, 0, 0, 0)
+		fragmentStart := len(res)
+
 		res = append(res, []byte(o.name)...)
 		for _, directive := range o.directives {
 			res = directive.toBytes(res)
@@ -239,6 +242,9 @@ func (o testField) toBytes(res []byte) []byte {
 			}
 			res = append(res, 0, 'e')
 		}
+
+		fragmentEnd := len(res)
+		res = writeUint32At(res, fragmentStart-4, uint32(fragmentEnd-fragmentStart))
 		return res
 	}
 
