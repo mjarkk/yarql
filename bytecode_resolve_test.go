@@ -8,8 +8,7 @@ import (
 	. "github.com/stretchr/testify/assert"
 )
 
-func bytecodeParse(t *testing.T, query string, queries interface{}, methods interface{}, opts ...BytecodeParseOptions) (string, []error) {
-	s := NewSchema()
+func bytecodeParse(t *testing.T, s *Schema, query string, queries interface{}, methods interface{}, opts ...BytecodeParseOptions) (string, []error) {
 	err := s.Parse(queries, methods, nil)
 	NoError(t, err, query)
 
@@ -22,7 +21,7 @@ func bytecodeParse(t *testing.T, query string, queries interface{}, methods inte
 }
 
 func bytecodeParseAndExpectNoErrs(t *testing.T, query string, queries interface{}, methods interface{}, opts ...BytecodeParseOptions) string {
-	res, errs := bytecodeParse(t, query, queries, methods, opts...)
+	res, errs := bytecodeParse(t, NewSchema(), query, queries, methods, opts...)
 	for _, err := range errs {
 		panic(err.Error())
 	}
@@ -30,7 +29,7 @@ func bytecodeParseAndExpectNoErrs(t *testing.T, query string, queries interface{
 }
 
 func bytecodeParseAndExpectErrs(t *testing.T, query string, queries interface{}, methods interface{}, opts ...BytecodeParseOptions) (string, []error) {
-	res, errs := bytecodeParse(t, query, queries, methods, opts...)
+	res, errs := bytecodeParse(t, NewSchema(), query, queries, methods, opts...)
 	NotEqual(t, 0, len(res), query)
 	return res, errs
 }
@@ -98,7 +97,7 @@ func TestBytecodeResolveOperatorWithName(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run("target "+testCase.target, func(t *testing.T) {
-			res, errs := bytecodeParse(t, `query a {a} query b {b}`, schema, M{}, BytecodeParseOptions{
+			res, errs := bytecodeParse(t, NewSchema(), `query a {a} query b {b}`, schema, M{}, BytecodeParseOptions{
 				NoMeta:         true,
 				OperatorTarget: testCase.target,
 			})
@@ -291,7 +290,7 @@ func TestBytecodeResolveCorrectMeta(t *testing.T) {
 		}
 	}`
 	schema := TestExecSchemaRequestWithFieldsData{}
-	res, _ := bytecodeParse(t, query, schema, M{}, BytecodeParseOptions{})
+	res, _ := bytecodeParse(t, NewSchema(), query, schema, M{}, BytecodeParseOptions{})
 	if !json.Valid([]byte(res)) {
 		panic("invalid json: " + res)
 	}
@@ -305,7 +304,7 @@ func TestBytecodeResolveCorrectMetaWithError(t *testing.T) {
 		}
 	}`
 	schema := TestExecSchemaRequestWithFieldsData{}
-	res, _ := bytecodeParse(t, query, schema, M{}, BytecodeParseOptions{})
+	res, _ := bytecodeParse(t, NewSchema(), query, schema, M{}, BytecodeParseOptions{})
 	if !json.Valid([]byte(res)) {
 		panic("invalid json: " + res)
 	}
@@ -886,6 +885,43 @@ func TestBytecodeResolveDirective(t *testing.T) {
 				Equal(t, test.expects, res, test.query)
 			})
 		}
+	})
+
+	t.Run("multiple field directives", func(t *testing.T) {
+		query := `{
+			a
+			b @foo @bar
+			c
+		}`
+
+		value := 1
+
+		s := NewSchema()
+		s.RegisterDirective(Directive{
+			Name:  "foo",
+			Where: []DirectiveLocation{DirectiveLocationField},
+			Method: func() DirectiveModifier {
+				value++
+				return DirectiveModifier{}
+			},
+		})
+		s.RegisterDirective(Directive{
+			Name:  "bar",
+			Where: []DirectiveLocation{DirectiveLocationField},
+			Method: func() DirectiveModifier {
+				value++
+				return DirectiveModifier{}
+			},
+		})
+
+		res, errs := bytecodeParse(t, s, query, schema, M{}, BytecodeParseOptions{
+			NoMeta: true,
+		})
+		for _, err := range errs {
+			panic(err.Error())
+		}
+		Equal(t, `{"a":"foo","b":"bar","c":"baz"}`, res, query)
+		Equal(t, 3, value)
 	})
 
 	t.Run("inside fragment", func(t *testing.T) {

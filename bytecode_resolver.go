@@ -182,7 +182,7 @@ func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions)
 		})
 
 		// Set the validation prop
-		ctx.tracing.Validation.StartOffset = time.Since(ctx.prefRecordingStartTime).Nanoseconds()
+		ctx.tracing.Validation.StartOffset = time.Now().Sub(ctx.prefRecordingStartTime).Nanoseconds()
 	}
 
 	if !opts.NoMeta {
