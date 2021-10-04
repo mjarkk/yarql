@@ -1,6 +1,9 @@
 package graphql
 
-import "reflect"
+import (
+	"errors"
+	"reflect"
+)
 
 type DirectiveLocation uint8
 
@@ -26,20 +29,34 @@ func (l DirectiveLocation) String() string {
 	}
 }
 
+func (l DirectiveLocation) ToQlDirectiveLocation() __DirectiveLocation {
+	switch l {
+	case DirectiveLocationField:
+		return directiveLocationField
+	case DirectiveLocationFragment:
+		return directiveLocationFragmentSpread
+	case DirectiveLocationFragmentInline:
+		return directiveLocationInlineFragment
+	default:
+		return directiveLocationField
+	}
+}
+
 type Directive struct {
 	// Required
 	Name  string
 	Where []DirectiveLocation
-	// Should be of type: func(args like any other method) DirectiveModdifier
-	Method interface{}
+	// Should be of type: func(args like any other method) DirectiveModifier
+	Method       interface{}
+	parsedMethod *objMethod
 
 	// Not required
 	Description string
 }
 
-// DirectiveModdifier defines modifications to the response
+// DirectiveModifier defines modifications to the response
 // Nothing is this struct is required and will be ignored if not set
-type DirectiveModdifier struct {
+type DirectiveModifier struct {
 	// Skip field/(inline)fragment
 	Skip bool
 
@@ -48,76 +65,84 @@ type DirectiveModdifier struct {
 	ModifyOnWriteContent func(bytes []byte) []byte
 }
 
-var definedDirectives = map[DirectiveLocation][]Directive{}
+func (s *Schema) RegisterDirective(directive Directive) error {
+	err := checkDirective(&directive)
+	if err != nil {
+		return err
+	}
 
-func RegisterDirective(directive Directive) bool {
-	checkDirective(&directive)
+	ptrToDirective := &directive
 	for _, location := range directive.Where {
-		directivesForLocation, ok := definedDirectives[location]
+		directivesForLocation, ok := s.definedDirectives[location]
 		if !ok {
-			directivesForLocation = []Directive{}
+			directivesForLocation = []*Directive{}
 		} else {
 			// Check for already defined directives with the same name
 			for _, alreadyDefinedDirective := range directivesForLocation {
 				if directive.Name == alreadyDefinedDirective.Name {
-					panic("you cannot have duplicated directive names in " + location.String() + " with name " + directive.Name)
+					return errors.New("you cannot have duplicated directive names in " + location.String() + " with name " + directive.Name)
 				}
 			}
 		}
-		directivesForLocation = append(directivesForLocation, directive)
-		definedDirectives[location] = directivesForLocation
+		directivesForLocation = append(directivesForLocation, ptrToDirective)
+		s.definedDirectives[location] = directivesForLocation
 	}
-	return true
+
+	return nil
 }
 
-func checkDirective(directive *Directive) {
+func checkDirective(directive *Directive) error {
 	if len(directive.Name) == 0 {
-		panic("cannot register directive with empty name")
+		return errors.New("cannot register directive with empty name")
 	}
 	for _, char := range directive.Name {
 		if char >= '0' && char <= '9' || char >= 'A' && char <= 'Z' || char >= 'a' && char <= 'z' || char == '_' {
 			continue
 		}
-		panic(string(char) + " in " + directive.Name + " is not allowed as directive name")
+		return errors.New(string(char) + " in " + directive.Name + " is not allowed as directive name")
 	}
 	if directive.Where == nil {
-		panic("Where must be defined")
+		return errors.New("where must be defined")
 	}
 	if directive.Method == nil {
-		panic("Method must be defined")
+		return errors.New("method must be defined")
+	}
+	if directive.Method == nil {
+		return errors.New("method must be defined")
 	}
 	methodReflection := reflect.ValueOf(directive.Method)
 	if methodReflection.IsNil() {
-		panic("Method must be defined")
+		return errors.New("method must be defined")
 	}
+	if methodReflection.Kind() != reflect.Func {
+		return errors.New("method is not a function")
+	}
+	methodType := methodReflection.Type()
+	switch methodType.NumOut() {
+	case 0:
+		return errors.New("method should return DirectiveModifier")
+	case 1:
+		// OK
+	default:
+		return errors.New("method should only return DirectiveModifier")
+	}
+
+	outType := methodType.Out(0)
+	directiveModifierType := reflect.TypeOf(DirectiveModifier{})
+	if outType.Name() != directiveModifierType.Name() || outType.PkgPath() != directiveModifierType.PkgPath() {
+		return errors.New("method should return DirectiveModifier")
+	}
+
+	directive.parsedMethod = &objMethod{
+		isTypeMethod: false,
+		type_:        methodType,
+
+		ins:        []baseInput{},
+		inFields:   map[string]referToInput{},
+		checkedIns: false,
+	}
+
+	// Inputs checked in (s *Schema).Parse(..)
+
+	return nil
 }
-
-var _ = RegisterDirective(Directive{
-	Name: "skip",
-	Where: []DirectiveLocation{
-		DirectiveLocationField,
-		DirectiveLocationFragment,
-		DirectiveLocationFragmentInline,
-	},
-	Method: func(args struct{ If bool }) DirectiveModdifier {
-		return DirectiveModdifier{
-			Skip: args.If,
-		}
-	},
-	Description: "Directs the executor to skip this field or fragment when the `if` argument is true.",
-})
-
-var _ = RegisterDirective(Directive{
-	Name: "include",
-	Where: []DirectiveLocation{
-		DirectiveLocationField,
-		DirectiveLocationFragment,
-		DirectiveLocationFragmentInline,
-	},
-	Method: func(args struct{ If bool }) DirectiveModdifier {
-		return DirectiveModdifier{
-			Skip: !args.If,
-		}
-	},
-	Description: "Directs the executor to include this field or fragment only when the `if` argument is true.",
-})

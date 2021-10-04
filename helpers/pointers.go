@@ -1,5 +1,12 @@
 package helpers
 
+func CheckStrPtr(v string) *string {
+	if len(v) == 0 {
+		return nil
+	}
+	return StrPtr(v)
+}
+
 func StrPtr(v string) *string {
 	return &v
 }

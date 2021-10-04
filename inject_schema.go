@@ -82,40 +82,26 @@ func (s *Schema) getQLSchema() qlSchema {
 }
 
 func (s *Schema) getDirectives() []qlDirective {
-	return []qlDirective{
-		{
-			Name:        "skip",
-			Description: h.StrPtr("Directs the executor to skip this field or fragment when the `if` argument is true."),
-			Locations: []__DirectiveLocation{
-				directiveLocationField,
-				directiveLocationFragmentSpread,
-				directiveLocationInlineFragment,
-			},
-			Args: []qlInputValue{
-				{
-					Name:        "if",
-					Description: h.StrPtr("Skipped when true."),
-					Type:        ScalarBoolean,
-				},
-			},
-		},
-		{
-			Name:        "include",
-			Description: h.StrPtr("Directs the executor to include this field or fragment only when the `if` argument is true."),
-			Locations: []__DirectiveLocation{
-				directiveLocationField,
-				directiveLocationFragmentSpread,
-				directiveLocationInlineFragment,
-			},
-			Args: []qlInputValue{
-				{
-					Name:        "if",
-					Description: h.StrPtr("Included when true."),
-					Type:        ScalarBoolean,
-				},
-			},
-		},
+	res := []qlDirective{}
+
+	for _, directiveLocation := range s.definedDirectives {
+		for _, directive := range directiveLocation {
+			locations := make([]__DirectiveLocation, len(directive.Where))
+			for idx, location := range directive.Where {
+				locations[idx] = location.ToQlDirectiveLocation()
+			}
+			res = append(res, qlDirective{
+				Name:        directive.Name,
+				Description: h.CheckStrPtr(directive.Description),
+				Locations:   locations,
+				Args:        s.getMethodArgs(directive.parsedMethod.inFields),
+			})
+		}
 	}
+
+	sort.Slice(res, func(a int, b int) bool { return res[a].Name < res[b].Name })
+
+	return res
 }
 
 func (s *Schema) getAllQLTypes() []qlType {
@@ -248,18 +234,23 @@ func (s *Schema) inputToQLType(in *input) (res *qlType, isNonNull bool) {
 }
 
 func (s *Schema) getObjectArgs(item *obj) []qlInputValue {
-	res := []qlInputValue{}
-	if item.valueType == valueTypeMethod {
-		for key, value := range item.method.inFields {
-			res = append(res, qlInputValue{
-				Name:         key,
-				Description:  h.PtrToEmptyStr,
-				Type:         *wrapQLTypeInNonNull(s.inputToQLType(&value.input)),
-				DefaultValue: nil,
-			})
-		}
-		sort.Slice(res, func(a int, b int) bool { return res[a].Name < res[b].Name })
+	if item.valueType != valueTypeMethod {
+		return []qlInputValue{}
 	}
+	return s.getMethodArgs(item.method.inFields)
+}
+
+func (s *Schema) getMethodArgs(inputs map[string]referToInput) []qlInputValue {
+	res := []qlInputValue{}
+	for key, value := range inputs {
+		res = append(res, qlInputValue{
+			Name:         key,
+			Description:  h.PtrToEmptyStr,
+			Type:         *wrapQLTypeInNonNull(s.inputToQLType(&value.input)),
+			DefaultValue: nil,
+		})
+	}
+	sort.Slice(res, func(a int, b int) bool { return res[a].Name < res[b].Name })
 	return res
 }
 

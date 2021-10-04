@@ -43,7 +43,7 @@ type Schema struct {
 	m                 sync.Mutex
 	MaxDepth          uint8 // Default 255
 	definedEnums      []enum
-	definedDirectives []Directive
+	definedDirectives map[DirectiveLocation][]*Directive
 
 	// Zero alloc variables
 	ctx              Ctx
@@ -122,8 +122,9 @@ type objMethod struct {
 	goFunctionName string
 	type_          reflect.Type
 
-	ins      []baseInput             // The real function inputs
-	inFields map[string]referToInput // Contains all the fields of all the ins
+	ins        []baseInput             // The real function inputs
+	inFields   map[string]referToInput // Contains all the fields of all the ins
+	checkedIns bool                    // are the ins checked yet
 
 	outNr      int
 	outType    obj
@@ -211,10 +212,12 @@ func newIter(lite bool) iterT {
 
 func NewSchema() *Schema {
 	s := &Schema{
-		types:            types{},
-		inTypes:          inputMap{},
-		MaxDepth:         255,
-		graphqlObjFields: map[string][]qlField{},
+		types:             types{},
+		inTypes:           inputMap{},
+		MaxDepth:          255,
+		graphqlObjFields:  map[string][]qlField{},
+		definedEnums:      []enum{},
+		definedDirectives: map[DirectiveLocation][]*Directive{},
 		ctx: Ctx{
 			result:      make([]byte, 2048),
 			errors:      []error{},
@@ -225,6 +228,7 @@ func NewSchema() *Schema {
 		iter: newIter(false),
 	}
 	s.ctxReflection = reflect.ValueOf(&s.ctx)
+
 	added, err := s.RegisterEnum(directiveLocationMap)
 	if err != nil {
 		panic("INTERNAL ERROR: " + err.Error())
@@ -232,6 +236,7 @@ func NewSchema() *Schema {
 	if !added {
 		panic("INTERNAL ERROR: directive locations ENUM should be added")
 	}
+
 	s.RegisterEnum(typeKindEnumMap)
 	if err != nil {
 		panic("INTERNAL ERROR: " + err.Error())
@@ -239,6 +244,43 @@ func NewSchema() *Schema {
 	if !added {
 		panic("INTERNAL ERROR: type kind ENUM should be added")
 	}
+
+	err = s.RegisterDirective(Directive{
+		Name: "skip",
+		Where: []DirectiveLocation{
+			DirectiveLocationField,
+			DirectiveLocationFragment,
+			DirectiveLocationFragmentInline,
+		},
+		Method: func(args struct{ If bool }) DirectiveModifier {
+			return DirectiveModifier{
+				Skip: args.If,
+			}
+		},
+		Description: "Directs the executor to skip this field or fragment when the `if` argument is true.",
+	})
+	if err != nil {
+		panic("INTERNAL ERROR: " + err.Error())
+	}
+
+	err = s.RegisterDirective(Directive{
+		Name: "include",
+		Where: []DirectiveLocation{
+			DirectiveLocationField,
+			DirectiveLocationFragment,
+			DirectiveLocationFragmentInline,
+		},
+		Method: func(args struct{ If bool }) DirectiveModifier {
+			return DirectiveModifier{
+				Skip: !args.If,
+			}
+		},
+		Description: "Directs the executor to include this field or fragment only when the `if` argument is true.",
+	})
+	if err != nil {
+		panic("INTERNAL ERROR: " + err.Error())
+	}
+
 	return s
 }
 
@@ -282,7 +324,23 @@ func (s *Schema) Parse(queries interface{}, methods interface{}, options *Schema
 	}
 
 	for _, method := range ctx.parsedMethods {
-		ctx.checkFunctionIns(method)
+		err = ctx.checkFunctionIns(method)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, directiveLocation := range ctx.schema.definedDirectives {
+		for _, directive := range directiveLocation {
+			if directive.parsedMethod.checkedIns {
+				continue
+			}
+
+			err = ctx.checkFunctionIns(directive.parsedMethod)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -711,6 +769,7 @@ func (c *parseCtx) checkFunctionIns(method *objMethod) error {
 		method.ins = append(method.ins, input)
 	}
 
+	method.checkedIns = true
 	return nil
 }
 
