@@ -54,6 +54,10 @@ func validEnumType(t reflect.Type) bool {
 }
 
 func (s *Schema) RegisterEnum(map_ interface{}) (added bool, err error) {
+	if s.parsed {
+		return false, errors.New("(*graphql.Schema).RegisterEnum() cannot be ran after (*graphql.Schema).Parse()")
+	}
+
 	enum, err := registerEnumCheck(map_)
 	if enum == nil || err != nil {
 		return false, err

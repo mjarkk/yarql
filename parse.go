@@ -33,6 +33,8 @@ func (t *types) Get(key string) (*obj, bool) {
 
 // Schema defines the graphql schema
 type Schema struct {
+	parsed bool
+
 	types             types
 	inTypes           inputMap
 	rootQuery         *obj
@@ -300,6 +302,7 @@ func (s *Schema) Parse(queries interface{}, methods interface{}, options *Schema
 	}
 
 	s.ctx = newCtx(s)
+	s.parsed = true
 
 	return nil
 }

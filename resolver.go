@@ -141,6 +141,11 @@ type ResolveOptions struct {
 }
 
 func (s *Schema) Resolve(query []byte, opts ResolveOptions) []error {
+	if !s.parsed {
+		fmt.Println("CALL (*graphql.Schema).Parse() before resolve")
+		return []error{errors.New("invalid setup")}
+	}
+
 	s.Result = s.Result[:0]
 
 	ctx := s.ctx

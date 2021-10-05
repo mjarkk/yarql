@@ -70,6 +70,10 @@ type DirectiveModifier struct {
 }
 
 func (s *Schema) RegisterDirective(directive Directive) error {
+	if s.parsed {
+		return errors.New("(*graphql.Schema).RegisterDirective() cannot be ran after (*graphql.Schema).Parse()")
+	}
+
 	err := checkDirective(&directive)
 	if err != nil {
 		return err
