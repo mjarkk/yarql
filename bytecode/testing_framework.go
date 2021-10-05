@@ -113,7 +113,7 @@ func (o testOperatorArg) toBytes(res []byte) []byte {
 	res = append(res, []byte(o.name)...)
 	res = append(res, 0)
 	res = append(res, []byte(o.type_)...)
-	if o.defaultValue != nil { // has deafult value
+	if o.defaultValue != nil { // has default value
 		res = append(res, 0, 't')
 		res = o.defaultValue.toBytes(res)
 	} else {

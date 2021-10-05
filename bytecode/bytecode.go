@@ -1302,7 +1302,7 @@ func (ctx *ParserCtx) parseAndWriteName() (nameLength uint8, criticalError bool)
 }
 
 // b2s converts a byte array into a string without allocating new memory
-// Note that any changes to a will result in a diffrent string
+// Note that any changes to a will result in a different string
 func b2s(a []byte) string {
 	return *(*string)(unsafe.Pointer(&a))
 }

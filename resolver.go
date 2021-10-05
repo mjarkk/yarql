@@ -1309,7 +1309,7 @@ func (ctx *Ctx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input
 	valueKind := ctx.readInst() // read value kind
 	ctx.skipInst(4)             // read length of value
 
-	// TODO if field is: isTime, isFile, is.. and the value provided is diffrent than the expected we'll get wired errors
+	// TODO if field is: isTime, isFile, is.. and the value provided is different than the expected we'll get wired errors
 
 	switch valueKind {
 	case bytecode.ValueVariable:
@@ -1580,7 +1580,7 @@ func (ctx *Ctx) finishTrace(report func(offset, duration int64)) {
 }
 
 // b2s converts a byte array into a string without allocating new memory
-// Note that any changes to a will result in a diffrent string
+// Note that any changes to a will result in a different string
 func b2s(a []byte) string {
 	return *(*string)(unsafe.Pointer(&a))
 }

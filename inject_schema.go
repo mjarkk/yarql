@@ -254,7 +254,7 @@ func (s *Schema) getMethodArgs(inputs map[string]referToInput) []qlInputValue {
 func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 	switch item.valueType {
 	case valueTypeUndefined:
-		// WUT??, we'll just look away and continue as if nothing happend
+		// WUT??, we'll just look away and continue as if nothing happened
 		// FIXME: maybe we should return an error here
 		return
 	case valueTypeArray:

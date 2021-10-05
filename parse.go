@@ -527,7 +527,7 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type, hasIDTag bool) (input, err
 		}
 	case reflect.Ptr:
 		if t.AssignableTo(reflect.TypeOf(&multipart.FileHeader{})) {
-			// This is a file header, these are handled completely diffrent from a normal pointer
+			// This is a file header, these are handled completely different from a normal pointer
 			res.isFile = true
 			return res, nil
 		}
@@ -545,7 +545,7 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type, hasIDTag bool) (input, err
 		res.elem = &input
 	case reflect.Struct:
 		if t.AssignableTo(reflect.TypeOf(time.Time{})) {
-			// This is a time property, these are handled completely diffrent from a normal struct
+			// This is a time property, these are handled completely different from a normal struct
 			return input{
 				kind:   reflect.String,
 				isTime: true,
