@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"log"
 	"mime/multipart"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mjarkk/go-graphql"
@@ -12,10 +13,14 @@ import (
 func main() {
 	r := gin.Default()
 
-	graphqlSchema, err := graphql.ParseSchema(QueryRoot{}, MethodRoot{}, nil)
+	graphqlSchema := graphql.NewSchema()
+	err := graphqlSchema.Parse(QueryRoot{}, MethodRoot{}, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// The GraphQL is not thread safe so we use this lock to prevent race conditions and other errors
+	var lock sync.Mutex
 
 	r.Any("/graphql", func(c *gin.Context) {
 		var form *multipart.Form
@@ -29,6 +34,9 @@ func main() {
 			form, err = c.MultipartForm()
 			return form, err
 		}
+
+		lock.Lock()
+		defer lock.Unlock()
 
 		res, _ := graphqlSchema.HandleRequest(
 			c.Request.Method,

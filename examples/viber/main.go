@@ -11,7 +11,8 @@ import (
 func main() {
 	app := fiber.New()
 
-	graphqlSchema, err := graphql.ParseSchema(QueryRoot{}, MethodRoot{}, nil)
+	graphqlSchema := graphql.NewSchema()
+	err := graphqlSchema.Parse(QueryRoot{}, MethodRoot{}, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
