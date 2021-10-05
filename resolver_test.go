@@ -19,12 +19,11 @@ func bytecodeParse(t *testing.T, s *Schema, query string, queries interface{}, m
 	err := s.Parse(queries, methods, nil)
 	NoError(t, err, query)
 
-	ctx := NewCtx(s)
 	if len(opts) == 0 {
 		opts = []ResolveOptions{{NoMeta: true}}
 	}
-	errs := ctx.Resolve([]byte(query), opts[0])
-	return string(ctx.Result), errs
+	errs := s.Resolve([]byte(query), opts[0])
+	return string(s.Result), errs
 }
 
 func bytecodeParseAndExpectNoErrs(t *testing.T, query string, queries interface{}, methods interface{}, opts ...ResolveOptions) string {
@@ -1266,10 +1265,10 @@ func TestValueToJson(t *testing.T) {
 		{complex64(1), "null"},
 	}
 	for _, option := range options {
-		c := &Ctx{Result: []byte{}}
+		c := &Ctx{schema: &Schema{Result: []byte{}}}
 		v := reflect.ValueOf(option.value)
 		c.valueToJson(v, v.Kind())
-		Equal(t, option.expect, string(c.Result))
+		Equal(t, option.expect, string(c.schema.Result))
 	}
 }
 

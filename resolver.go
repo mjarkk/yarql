@@ -37,7 +37,6 @@ type Ctx struct {
 	variables           *fastjson.Value  // Parsed variables, only use this if variablesParsed == true
 
 	// Zero alloc values
-	Result                 []byte
 	reflectValues          [256]reflect.Value
 	currentReflectValueIdx uint8
 	funcInputs             []reflect.Value
@@ -47,7 +46,7 @@ type Ctx struct {
 	values *map[string]interface{} // API User values, user can put all their shitty things in here like poems or tax papers
 }
 
-func NewCtx(s *Schema) *Ctx {
+func newCtx(s *Schema) *Ctx {
 	ctx := &Ctx{
 		schema: s,
 		query: bytecode.ParserCtx{
@@ -57,7 +56,6 @@ func NewCtx(s *Schema) *Ctx {
 			Errors:            []error{},
 			Hasher:            fnv.New32(),
 		},
-		Result:                 make([]byte, 16384),
 		charNr:                 0,
 		reflectValues:          [256]reflect.Value{},
 		currentReflectValueIdx: 0,
@@ -113,11 +111,11 @@ func (ctx *Ctx) GetPath() json.RawMessage {
 }
 
 func (ctx *Ctx) write(b []byte) {
-	ctx.Result = append(ctx.Result, b...)
+	ctx.schema.Result = append(ctx.schema.Result, b...)
 }
 
 func (ctx *Ctx) writeByte(b byte) {
-	ctx.Result = append(ctx.Result, b)
+	ctx.schema.Result = append(ctx.schema.Result, b)
 }
 
 func (ctx *Ctx) writeQouted(b []byte) {
@@ -142,7 +140,10 @@ type ResolveOptions struct {
 	Tracing        bool                                            // https://github.com/apollographql/apollo-tracing
 }
 
-func (ctx *Ctx) Resolve(query []byte, opts ResolveOptions) []error {
+func (s *Schema) Resolve(query []byte, opts ResolveOptions) []error {
+	s.Result = s.Result[:0]
+
+	ctx := s.ctx
 	*ctx = Ctx{
 		schema:                 ctx.schema,
 		query:                  ctx.query,
@@ -159,7 +160,6 @@ func (ctx *Ctx) Resolve(query []byte, opts ResolveOptions) []error {
 		prefRecordingStartTime: ctx.prefRecordingStartTime,
 		ctxReflection:          ctx.ctxReflection,
 
-		Result:                 ctx.Result[:0],
 		reflectValues:          ctx.reflectValues,
 		currentReflectValueIdx: 0,
 		funcInputs:             ctx.funcInputs,
@@ -229,7 +229,7 @@ func (ctx *Ctx) Resolve(query []byte, opts ResolveOptions) []error {
 						ctx.writeByte(',')
 					}
 					ctx.write([]byte(`{"message":`))
-					stringToJson(err.Error(), &ctx.Result)
+					stringToJson(err.Error(), &ctx.schema.Result)
 
 					errWPath, isErrWPath := err.(ErrorWPath)
 					if isErrWPath && len(errWPath.path) > 0 {
@@ -240,9 +240,9 @@ func (ctx *Ctx) Resolve(query []byte, opts ResolveOptions) []error {
 					errWLocation, isErrWLocation := err.(bytecode.ErrorWLocation)
 					if isErrWLocation {
 						ctx.write([]byte(`,"locations":[{"line":`))
-						ctx.Result = strconv.AppendUint(ctx.Result, uint64(errWLocation.Line), 10)
+						ctx.schema.Result = strconv.AppendUint(ctx.schema.Result, uint64(errWLocation.Line), 10)
 						ctx.write([]byte(`,"column":`))
-						ctx.Result = strconv.AppendUint(ctx.Result, uint64(errWLocation.Column), 10)
+						ctx.schema.Result = strconv.AppendUint(ctx.schema.Result, uint64(errWLocation.Column), 10)
 						ctx.write([]byte{'}', ']'})
 					}
 					ctx.writeByte('}')
@@ -821,7 +821,7 @@ func (ctx *Ctx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSelection 
 		timeValue, ok := goValue.Interface().(time.Time)
 		if ok {
 			ctx.writeByte('"')
-			helpers.TimeToIso8601String(&ctx.Result, timeValue)
+			helpers.TimeToIso8601String(&ctx.schema.Result, timeValue)
 			ctx.writeByte('"')
 		} else {
 			ctx.writeNull()
@@ -1534,7 +1534,7 @@ func (ctx *Ctx) walkInputObject(onValueOfKey func(key []byte) bool) bool {
 func (ctx *Ctx) valueToJson(in reflect.Value, kind reflect.Kind) {
 	switch kind {
 	case reflect.String:
-		stringToJson(in.String(), &ctx.Result)
+		stringToJson(in.String(), &ctx.schema.Result)
 	case reflect.Bool:
 		if in.Bool() {
 			ctx.write([]byte("true"))
@@ -1542,13 +1542,13 @@ func (ctx *Ctx) valueToJson(in reflect.Value, kind reflect.Kind) {
 			ctx.write([]byte("false"))
 		}
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		ctx.Result = strconv.AppendInt(ctx.Result, in.Int(), 10)
+		ctx.schema.Result = strconv.AppendInt(ctx.schema.Result, in.Int(), 10)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		ctx.Result = strconv.AppendUint(ctx.Result, in.Uint(), 10)
+		ctx.schema.Result = strconv.AppendUint(ctx.schema.Result, in.Uint(), 10)
 	case reflect.Float32:
-		floatToJson(32, in.Float(), &ctx.Result)
+		floatToJson(32, in.Float(), &ctx.schema.Result)
 	case reflect.Float64:
-		floatToJson(64, in.Float(), &ctx.Result)
+		floatToJson(64, in.Float(), &ctx.schema.Result)
 	case reflect.Ptr:
 		if in.IsNil() {
 			ctx.writeNull()

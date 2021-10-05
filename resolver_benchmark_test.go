@@ -10,7 +10,6 @@ import (
 func BenchmarkResolve(b *testing.B) {
 	s := NewSchema()
 	s.Parse(TestResolveSchemaRequestWithFieldsData{}, M{}, nil)
-	ctx := NewCtx(s)
 
 	query := []byte(schemaQuery)
 
@@ -29,7 +28,7 @@ func BenchmarkResolve(b *testing.B) {
 
 	var errs []error
 	for i := 0; i < b.N; i++ {
-		errs = ctx.Resolve(query, opts)
+		errs = s.Resolve(query, opts)
 		for _, err := range errs {
 			panic(err)
 		}
@@ -63,7 +62,6 @@ type HelloWorldSchema struct {
 func BenchmarkHelloWorldResolve(b *testing.B) {
 	s := NewSchema()
 	s.Parse(HelloWorldSchema{Hello: "World"}, M{}, nil)
-	ctx := NewCtx(s)
 
 	query := []byte(`{hello}`)
 
@@ -82,7 +80,7 @@ func BenchmarkHelloWorldResolve(b *testing.B) {
 
 	var errs []error
 	for i := 0; i < b.N; i++ {
-		errs = ctx.Resolve(query, opts)
+		errs = s.Resolve(query, opts)
 		for _, err := range errs {
 			panic(err)
 		}

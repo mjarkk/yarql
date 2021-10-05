@@ -17,7 +17,7 @@ type RequestOptions struct {
 	Tracing     bool                                            // https://github.com/apollographql/apollo-tracing
 }
 
-func (ctx *Ctx) HandleRequest(
+func (s *Schema) HandleRequest(
 	method string, // GET, POST, etc..
 	getQuery func(key string) string, // URL value (needs to be un-escaped before returning)
 	getFormField func(key string) (string, error), // get form field, only used if content type == form data
@@ -74,14 +74,14 @@ func (ctx *Ctx) HandleRequest(
 					res, _ := errRes(err.Error())
 					response.Write(res)
 				} else {
-					errs := ctx.handleSingleRequest(
+					errs := s.handleSingleRequest(
 						query,
 						variables,
 						operationName,
 						options,
 					)
 					responseErrs = append(responseErrs, errs...)
-					response.Write(ctx.Result)
+					response.Write(s.Result)
 				}
 			}
 			response.WriteByte(']')
@@ -92,25 +92,25 @@ func (ctx *Ctx) HandleRequest(
 		if err != nil {
 			return errRes(err.Error())
 		}
-		errs := ctx.handleSingleRequest(
+		errs := s.handleSingleRequest(
 			query,
 			variables,
 			operationName,
 			options,
 		)
-		return ctx.Result, errs
+		return s.Result, errs
 	}
 
-	errs := ctx.handleSingleRequest(
+	errs := s.handleSingleRequest(
 		getQuery("query"),
 		getQuery("variables"),
 		getQuery("operationName"),
 		options,
 	)
-	return ctx.Result, errs
+	return s.Result, errs
 }
 
-func (ctx *Ctx) handleSingleRequest(
+func (s *Schema) handleSingleRequest(
 	query,
 	variables,
 	operationName string,
@@ -133,7 +133,7 @@ func (ctx *Ctx) handleSingleRequest(
 		resolveOptions.Tracing = options.Tracing
 	}
 
-	return ctx.Resolve(s2b(query), resolveOptions)
+	return s.Resolve(s2b(query), resolveOptions)
 }
 
 func getBodyData(body *fastjson.Value) (query, operationName, variables string, err error) {

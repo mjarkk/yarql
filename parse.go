@@ -42,8 +42,10 @@ type Schema struct {
 	MaxDepth          uint8 // Default 255
 	definedEnums      []enum
 	definedDirectives map[DirectiveLocation][]*Directive
+	ctx               *Ctx
 
 	// Zero alloc variables
+	Result           []byte
 	graphqlTypesMap  map[string]qlType
 	graphqlTypesList []qlType
 	graphqlObjFields map[string][]qlField
@@ -180,6 +182,7 @@ func NewSchema() *Schema {
 		graphqlObjFields:  map[string][]qlField{},
 		definedEnums:      []enum{},
 		definedDirectives: map[DirectiveLocation][]*Directive{},
+		Result:            make([]byte, 16384),
 	}
 
 	added, err := s.RegisterEnum(directiveLocationMap)
@@ -295,6 +298,8 @@ func (s *Schema) Parse(queries interface{}, methods interface{}, options *Schema
 			}
 		}
 	}
+
+	s.ctx = newCtx(s)
 
 	return nil
 }

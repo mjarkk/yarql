@@ -34,9 +34,7 @@ func TestReadmeExample(t *testing.T) {
 		log.Fatal(err)
 	}
 
-	resolver := NewCtx(s)
-
-	errs := resolver.Resolve([]byte(`
+	errs := s.Resolve([]byte(`
 		{
 			posts {
 				id
@@ -44,10 +42,9 @@ func TestReadmeExample(t *testing.T) {
 			}
 		}
 	`), ResolveOptions{})
-
 	for _, err := range errs {
 		log.Fatal(err)
 	}
 
-	Equal(t, `{"data":{"posts":[{"id":"1","name":"post 1"},{"id":"2","name":"post 2"},{"id":"3","name":"post 3"}]},"errors":[],"extensions":{}}`, string(resolver.Result))
+	Equal(t, `{"data":{"posts":[{"id":"1","name":"post 1"},{"id":"2","name":"post 2"},{"id":"3","name":"post 3"}]},"errors":[],"extensions":{}}`, string(s.Result))
 }
