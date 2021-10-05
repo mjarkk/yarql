@@ -321,13 +321,9 @@ Injecting `resolver_benchmark_test.go > BenchmarkHelloWorldResolve` into [appleb
 # cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
 BenchmarkGoGraphQLMaster
 BenchmarkGoGraphQLMaster-12          	   24992	     48180 ns/op	   26895 B/op	     445 allocs/op
-BenchmarkPlaylyfeGraphQLMaster
 BenchmarkPlaylyfeGraphQLMaster-12    	  320289	      3770 ns/op	    2797 B/op	      57 allocs/op
-BenchmarkGophersGraphQLMaster
 BenchmarkGophersGraphQLMaster-12     	  391269	      3114 ns/op	    3634 B/op	      38 allocs/op
-BenchmarkThunderGraphQLMaster
 BenchmarkThunderGraphQLMaster-12     	  708327	      1707 ns/op	    1288 B/op	      30 allocs/op
-BenchmarkMjarkkGraphQLGoMaster
 BenchmarkMjarkkGraphQLGoMaster-12    	 2560764	       466.5 ns/op	      80 B/op	       1 allocs/op
 ```
 
