@@ -1,5 +1,7 @@
 # Graphql library for GoLang
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/mjarkk/go-graphql.svg)](https://pkg.go.dev/github.com/mjarkk/go-graphql) [![Go Report Card](https://goreportcard.com/badge/github.com/mjarkk/go-graphql)](https://goreportcard.com/report/github.com/mjarkk/go-graphql)
+
 Just a different approach to making graphql servers in Go
 
 ## Features
