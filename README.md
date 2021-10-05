@@ -220,21 +220,64 @@ const (
 	Grapefruit
 )
 
-// The map key is the enum it's key in graphql
-// The map value is the go value the enum key is mapped to or the other way around
-var _ = RegisterEnum(map[string]Fruit{
-	"APPLE":      Apple,
-	"PEER":       Peer,
-	"GRAPEFRUIT": Grapefruit,
-})
+
+func main() {
+	s := NewSchema()
+
+	// The map key is the enum it's key in graphql
+	// The map value is the go value the enum key is mapped to or the other way around
+	// Also the .RegisterEnum(..) method must be called before .Parse(..)
+	s.RegisterEnum(map[string]Fruit{
+		"APPLE":      Apple,
+		"PEER":       Peer,
+		"GRAPEFRUIT": Grapefruit,
+	})
+
+	s.Parse(QueryRoot{}, MethodRoot{}, nil)
+}
 ```
 
 ### Directives
 
-These directives are supported:
+These directives are added by default:
 
 - `@include(if: Boolean!)` _on Fields and fragments_
 - `@skip(if: Boolean!)` _on Fields and fragments_
+
+To add custom directives:
+
+```go
+func main() {
+	s := NewSchema()
+
+	// Also the .RegisterEnum(..) method must be called before .Parse(..)
+	s.RegisterDirective(Directive{
+		// What is the name of the directive
+		Name: "skip_2",
+
+		// Where can this directive be used in the query
+		Where: []DirectiveLocation{
+			DirectiveLocationField,
+			DirectiveLocationFragment,
+			DirectiveLocationFragmentInline,
+		},
+
+		// This methods's input work equal to field arguments
+		// tough the output is required to return DirectiveModifier
+		// This method is called always when the directive is used
+		Method: func(args struct{ If bool }) DirectiveModifier {
+			return DirectiveModifier{
+				Skip: args.If,
+			}
+		},
+
+		// The description of the directive
+		Description: "Directs the executor to skip this field or fragment when the `if` argument is true.",
+	})
+
+	s.Parse(QueryRoot{}, MethodRoot{}, nil)
+}
+```
 
 ### File upload
 
