@@ -48,12 +48,14 @@ func (QueryRoot) ResolvePosts() []Post {
 type MethodRoot struct{}
 
 func main() {
-    s, err := graphql.ParseSchema(QueryRoot{}, MethodRoot{}, nil)
+	s := NewSchema()
+
+    err := s.Parse(QueryRoot{}, MethodRoot{}, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	out, _ := s.Resolve(`
+	errs := s.Resolve(`
 		{
 			posts {
 				id
@@ -61,15 +63,18 @@ func main() {
 			}
 		}
 	`, "")
+	for _, err := range errs {
+		log.Fatal(err)
+	}
 
-    fmt.Println(string(out))
+    fmt.Println(string(s.Result))
     // {"data": {
     //   "posts": [
     //     {"id": "1", "name": "post 1"},
     //     {"id": "2", "name": "post 2"},
     //     {"id": "3", "name": "post 3"}
     //   ]
-    // }}
+    // },"errors":[],"extensions":{}}
 }
 ```
 
