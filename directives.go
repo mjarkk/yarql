@@ -5,17 +5,19 @@ import (
 	"reflect"
 )
 
+// DirectiveLocation defines the location a directive can be used in
 type DirectiveLocation uint8
 
 const (
-	// The directive can be called from a field
+	// DirectiveLocationField can be called from a field
 	DirectiveLocationField DirectiveLocation = iota
-	// The directive can be called from a fragment
+	// DirectiveLocationFragment can be called from a fragment
 	DirectiveLocationFragment
-	// The directive can be called from a inline fragment
+	// DirectiveLocationFragmentInline can be called from a inline fragment
 	DirectiveLocationFragmentInline
 )
 
+// String returns the DirectiveLocation as a string
 func (l DirectiveLocation) String() string {
 	switch l {
 	case DirectiveLocationField:
@@ -29,6 +31,7 @@ func (l DirectiveLocation) String() string {
 	}
 }
 
+// ToQlDirectiveLocation returns the matching graphql location
 func (l DirectiveLocation) ToQlDirectiveLocation() __DirectiveLocation {
 	switch l {
 	case DirectiveLocationField:
@@ -42,6 +45,7 @@ func (l DirectiveLocation) ToQlDirectiveLocation() __DirectiveLocation {
 	}
 }
 
+// Directive is what defines a directive
 type Directive struct {
 	// Required
 	Name  string
@@ -55,7 +59,8 @@ type Directive struct {
 	Description string
 }
 
-type ModifyOnWriteContent func(bytes []byte) []byte
+// TODO
+// type ModifyOnWriteContent func(bytes []byte) []byte
 
 // DirectiveModifier defines modifications to the response
 // Nothing is this struct is required and will be ignored if not set
@@ -69,6 +74,7 @@ type DirectiveModifier struct {
 	// ModifyOnWriteContent ModifyOnWriteContent
 }
 
+// RegisterDirective registers a new directive
 func (s *Schema) RegisterDirective(directive Directive) error {
 	if s.parsed {
 		return errors.New("(*graphql.Schema).RegisterDirective() cannot be ran after (*graphql.Schema).Parse()")

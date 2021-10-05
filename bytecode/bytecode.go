@@ -9,6 +9,7 @@ import (
 	"unsafe"
 )
 
+// ParserCtx has all the information needed to parse a query
 type ParserCtx struct {
 	Res               []byte
 	FragmentLocations []int
@@ -21,6 +22,8 @@ type ParserCtx struct {
 	Hasher            hash.Hash32
 }
 
+// ParseQueryToBytecode parses (*ParserCtx).Query into (*ParserCtx).Res
+// target is a optional string that can be set to define a operator target
 func (ctx *ParserCtx) ParseQueryToBytecode(target *string) {
 	*ctx = ParserCtx{
 		Res:               ctx.Res[:0],

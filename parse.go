@@ -164,9 +164,12 @@ type baseInput struct {
 	type_ *reflect.Type
 }
 
+// SchemaOptions are options for creating a new schema
 type SchemaOptions struct {
-	noMethodEqualToQueryChecks bool // only used for for testing
-	SkipGraphqlTypesInjection  bool
+	// only used for for testing
+	noMethodEqualToQueryChecks bool
+
+	SkipGraphqlTypesInjection bool
 }
 
 type parseCtx struct {
@@ -176,6 +179,7 @@ type parseCtx struct {
 	parsedMethods      []*objMethod
 }
 
+// NewSchema creates a new schema wherevia you can define the graphql types and make queries
 func NewSchema() *Schema {
 	s := &Schema{
 		types:             types{},
@@ -242,6 +246,7 @@ func NewSchema() *Schema {
 	return s
 }
 
+// Parse parses your queries and methods
 func (s *Schema) Parse(queries interface{}, methods interface{}, options *SchemaOptions) error {
 	s.rootQueryValue = reflect.ValueOf(queries)
 	s.rootMethodValue = reflect.ValueOf(methods)

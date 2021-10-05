@@ -1,7 +1,9 @@
 package bytecode
 
+// Action defines an action that should be taken based when parsing the schema
 type Action = byte
 
+// All possible actions
 const (
 	ActionEnd              Action = 'e'
 	ActionOperator         Action = 'o'
@@ -15,8 +17,10 @@ const (
 	ActionDirective        Action = 'd'
 )
 
+// ValueKind defines a input value kind
 type ValueKind = byte
 
+// All possible value kinds
 const (
 	ValueVariable ValueKind = '$'
 	ValueInt      ValueKind = 'i'
@@ -29,8 +33,10 @@ const (
 	ValueObject   ValueKind = 'o'
 )
 
+// OperatorKind defines the kind of operation
 type OperatorKind = byte
 
+// All possible operators
 const (
 	OperatorQuery        OperatorKind = 'q'
 	OperatorMutation     OperatorKind = 'm'

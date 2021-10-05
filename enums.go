@@ -53,6 +53,7 @@ func validEnumType(t reflect.Type) bool {
 	}
 }
 
+// RegisterEnum registers a new enum type
 func (s *Schema) RegisterEnum(map_ interface{}) (added bool, err error) {
 	if s.parsed {
 		return false, errors.New("(*graphql.Schema).RegisterEnum() cannot be ran after (*graphql.Schema).Parse()")

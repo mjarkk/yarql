@@ -18,6 +18,7 @@ import (
 	"github.com/valyala/fastjson"
 )
 
+// Ctx contains all runtime information of a query
 type Ctx struct {
 	// private
 	schema                   *Schema
@@ -79,12 +80,15 @@ func (ctx *Ctx) setGoValue(value reflect.Value) {
 	ctx.reflectValues[ctx.currentReflectValueIdx] = value
 }
 
+// GetValue returns a user defined value
 func (ctx *Ctx) GetValue(key string) (value interface{}) {
 	if ctx.values == nil {
 		return nil
 	}
 	return (*ctx.values)[key]
 }
+
+// GetValueOk returns a user defined value with a boolean indicating if the value was found
 func (ctx *Ctx) GetValueOk(key string) (value interface{}, found bool) {
 	if ctx.values == nil {
 		return nil, false
@@ -92,6 +96,8 @@ func (ctx *Ctx) GetValueOk(key string) (value interface{}, found bool) {
 	val, ok := (*ctx.values)[key]
 	return val, ok
 }
+
+// SetValue sets a user defined value
 func (ctx *Ctx) SetValue(key string, value interface{}) {
 	if ctx.values == nil {
 		ctx.values = &map[string]interface{}{
@@ -102,7 +108,7 @@ func (ctx *Ctx) SetValue(key string, value interface{}) {
 	}
 }
 
-// returns the path json encoded
+// GetPath returns the graphql path to the current field json encoded
 func (ctx *Ctx) GetPath() json.RawMessage {
 	if len(ctx.path) == 0 {
 		return []byte("[]")
@@ -293,6 +299,7 @@ func (ctx *Ctx) lastInst() byte {
 	return ctx.query.Res[ctx.charNr-1]
 }
 
+// ErrorWPath is an error mesage with a graphql path to the field that created the error
 type ErrorWPath struct {
 	err  error
 	path []byte // a json representation of the path without the [] around it

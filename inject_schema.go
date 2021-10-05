@@ -160,14 +160,14 @@ func wrapQLTypeInNonNull(type_ *qlType, isNonNull bool) *qlType {
 
 func (s *Schema) inputToQLType(in *input) (res *qlType, isNonNull bool) {
 	if in.isID {
-		res = &ScalarID
+		res = &scalarID
 		return
 	} else if in.isTime {
-		res = &ScalarTime
+		res = &scalarTime
 		isNonNull = true
 		return
 	} else if in.isFile {
-		res = &ScalarFile
+		res = &scalarFile
 		return
 	}
 
@@ -205,20 +205,20 @@ func (s *Schema) inputToQLType(in *input) (res *qlType, isNonNull bool) {
 		res, _ = s.inputToQLType(in.elem)
 	case reflect.Bool:
 		isNonNull = true
-		res = &ScalarBoolean
+		res = &scalarBoolean
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.UnsafePointer, reflect.Complex64, reflect.Complex128:
 		isNonNull = true
 		if in.isID {
-			res = &ScalarID
+			res = &scalarID
 		} else {
-			res = &ScalarInt
+			res = &scalarInt
 		}
 	case reflect.Float32, reflect.Float64:
 		isNonNull = true
-		res = &ScalarFloat
+		res = &scalarFloat
 	case reflect.String:
 		isNonNull = true
-		res = &ScalarString
+		res = &scalarString
 	default:
 		isNonNull = true
 		res = &qlType{
@@ -317,24 +317,24 @@ func resolveObjToScalar(item *obj) *qlType {
 	switch item.valueType {
 	case valueTypeData:
 		if item.isID {
-			res = ScalarID
+			res = scalarID
 		} else {
 			switch item.dataValueType {
 			case reflect.Bool:
-				res = ScalarBoolean
+				res = scalarBoolean
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.UnsafePointer, reflect.Complex64, reflect.Complex128:
-				res = ScalarInt
+				res = scalarInt
 			case reflect.Float32, reflect.Float64:
-				res = ScalarFloat
+				res = scalarFloat
 			case reflect.String:
-				res = ScalarString
+				res = scalarString
 			default:
 				res = qlType{Kind: typeKindScalar, Name: h.PtrToEmptyStr, Description: h.PtrToEmptyStr}
 			}
 		}
 		return &res
 	case valueTypeTime:
-		res = ScalarTime
+		res = scalarTime
 		return &res
 	}
 	return nil
