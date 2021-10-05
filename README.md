@@ -307,6 +307,32 @@ _Note: This benchmark also profiles the cpu and that effects the score by a bit_
 BenchmarkResolve-12    	   13246	     83731 ns/op	    1344 B/op	      47 allocs/op
 ```
 
+<details>
+<summary>Compared to other libraries</summary>
+<br>
+
+Injecting `resolver_benchmark_test.go > BenchmarkHelloWorldResolve` into [appleboy/golang-graphql-benchmark](https://github.com/appleboy/golang-graphql-benchmark) results in the following result:
+
+```sh
+# go test -v -bench=Master -benchmem
+# goos: darwin
+# goarch: amd64
+# pkg: github.com/appleboy/golang-graphql-benchmark
+# cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+BenchmarkGoGraphQLMaster
+BenchmarkGoGraphQLMaster-12          	   24992	     48180 ns/op	   26895 B/op	     445 allocs/op
+BenchmarkPlaylyfeGraphQLMaster
+BenchmarkPlaylyfeGraphQLMaster-12    	  320289	      3770 ns/op	    2797 B/op	      57 allocs/op
+BenchmarkGophersGraphQLMaster
+BenchmarkGophersGraphQLMaster-12     	  391269	      3114 ns/op	    3634 B/op	      38 allocs/op
+BenchmarkThunderGraphQLMaster
+BenchmarkThunderGraphQLMaster-12     	  708327	      1707 ns/op	    1288 B/op	      30 allocs/op
+BenchmarkMjarkkGraphQLGoMaster
+BenchmarkMjarkkGraphQLGoMaster-12    	 2560764	       466.5 ns/op	      80 B/op	       1 allocs/op
+```
+
+</details>
+
 ## Alternatives
 
 - [graph-gophers/graphql-go](https://github.com/graph-gophers/graphql-go)
