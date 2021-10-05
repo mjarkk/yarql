@@ -13,7 +13,7 @@ func TestHandleRequestRequestInURL(t *testing.T) {
 	err := s.Parse(TestResolveSchemaRequestWithFieldsData{A: TestResolveSchemaRequestWithFieldsDataInnerStruct{Bar: "baz"}}, M{}, nil)
 	NoError(t, err)
 
-	res, errs := NewBytecodeCtx(s).HandleRequest(
+	res, errs := NewCtx(s).HandleRequest(
 		"GET",
 		func(key string) string {
 			switch key {
@@ -54,7 +54,7 @@ func TestHandleRequestRequestJsonBody(t *testing.T) {
 	query = strings.ReplaceAll(query, "\n", "\\n")
 	query = strings.ReplaceAll(query, "\t", "\\t")
 
-	res, errs := NewBytecodeCtx(s).HandleRequest(
+	res, errs := NewCtx(s).HandleRequest(
 		"POST",
 		func(key string) string { return "" },
 		func(key string) (string, error) { return "", errors.New("this should not be called") },
@@ -94,7 +94,7 @@ func TestHandleRequestRequestForm(t *testing.T) {
 	query = strings.ReplaceAll(query, "\n", "\\n")
 	query = strings.ReplaceAll(query, "\t", "\\t")
 
-	res, errs := NewBytecodeCtx(s).HandleRequest(
+	res, errs := NewCtx(s).HandleRequest(
 		"POST",
 		func(key string) string { return "" },
 		func(key string) (string, error) {
@@ -138,7 +138,7 @@ func TestHandleRequestRequestBatch(t *testing.T) {
 	query = strings.ReplaceAll(query, "\n", "\\n")
 	query = strings.ReplaceAll(query, "\t", "\\t")
 
-	res, errs := NewBytecodeCtx(s).HandleRequest(
+	res, errs := NewCtx(s).HandleRequest(
 		"POST",
 		func(key string) string { return "" },
 		func(key string) (string, error) { return "", errors.New("this should not be called") },

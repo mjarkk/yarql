@@ -34,7 +34,7 @@ func TestReadmeExample(t *testing.T) {
 		log.Fatal(err)
 	}
 
-	resolver := NewBytecodeCtx(s)
+	resolver := NewCtx(s)
 
 	errs := resolver.BytecodeResolve([]byte(`
 		{

@@ -54,7 +54,7 @@ func BenchmarkQueryParser(b *testing.B) {
 func BenchmarkBytecodeResolve(b *testing.B) {
 	s := NewSchema()
 	s.Parse(TestResolveSchemaRequestWithFieldsData{}, M{}, nil)
-	ctx := NewBytecodeCtx(s)
+	ctx := NewCtx(s)
 
 	query := []byte(schemaQuery)
 
@@ -107,7 +107,7 @@ type HelloWorldSchema struct {
 func BenchmarkBytecodeHelloWorldResolve(b *testing.B) {
 	s := NewSchema()
 	s.Parse(HelloWorldSchema{Hello: "World"}, M{}, nil)
-	ctx := NewBytecodeCtx(s)
+	ctx := NewCtx(s)
 
 	query := []byte(`{hello}`)
 

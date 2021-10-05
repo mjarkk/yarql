@@ -19,7 +19,7 @@ func bytecodeParse(t *testing.T, s *Schema, query string, queries interface{}, m
 	err := s.Parse(queries, methods, nil)
 	NoError(t, err, query)
 
-	ctx := NewBytecodeCtx(s)
+	ctx := NewCtx(s)
 	if len(opts) == 0 {
 		opts = []BytecodeParseOptions{{NoMeta: true}}
 	}
@@ -241,7 +241,7 @@ func TestBytecodeResolveMethod(t *testing.T) {
 
 type TestResolveStructTypeMethodWithArgsData struct{}
 
-func (TestResolveStructTypeMethodWithArgsData) ResolveBar(c *BytecodeCtx, args struct{ A string }) string {
+func (TestResolveStructTypeMethodWithArgsData) ResolveBar(c *Ctx, args struct{ A string }) string {
 	return args.A
 }
 
@@ -301,7 +301,7 @@ func TestBytecodeResolveOutputPointer(t *testing.T) {
 
 type TestResolveStructTypeMethodWithPtrArgData struct{}
 
-func (TestResolveStructTypeMethodWithPtrArgData) ResolveBar(c *BytecodeCtx, args struct{ A *string }) *string {
+func (TestResolveStructTypeMethodWithPtrArgData) ResolveBar(c *Ctx, args struct{ A *string }) *string {
 	return args.A
 }
 
@@ -318,7 +318,7 @@ func TestBytecodeResolveMethodPointerInput(t *testing.T) {
 
 type TestBytecodeResolveMethodListInputData struct{}
 
-func (TestBytecodeResolveMethodListInputData) ResolveBar(c *BytecodeCtx, args struct{ A []string }) []string {
+func (TestBytecodeResolveMethodListInputData) ResolveBar(c *Ctx, args struct{ A []string }) []string {
 	return args.A
 }
 
@@ -335,7 +335,7 @@ func TestBytecodeResolveMethodListInput(t *testing.T) {
 
 type TestResolveStructTypeMethodWithStructArgData struct{}
 
-func (TestResolveStructTypeMethodWithStructArgData) ResolveBar(c *BytecodeCtx, args struct{ A struct{ B string } }) string {
+func (TestResolveStructTypeMethodWithStructArgData) ResolveBar(c *Ctx, args struct{ A struct{ B string } }) string {
 	return args.A.B
 }
 
@@ -1266,7 +1266,7 @@ func TestValueToJson(t *testing.T) {
 		{complex64(1), "null"},
 	}
 	for _, option := range options {
-		c := &BytecodeCtx{Result: []byte{}}
+		c := &Ctx{Result: []byte{}}
 		v := reflect.ValueOf(option.value)
 		c.valueToJson(v, v.Kind())
 		Equal(t, option.expect, string(c.Result))
@@ -1354,18 +1354,18 @@ func TestExecMaxDept(t *testing.T) {
 
 type TestResolveStructTypeMethodWithCtxData struct{}
 
-func (TestResolveStructTypeMethodWithCtxData) ResolveBar(c *BytecodeCtx) TestResolveStructTypeMethodWithCtxDataInner {
+func (TestResolveStructTypeMethodWithCtxData) ResolveBar(c *Ctx) TestResolveStructTypeMethodWithCtxDataInner {
 	c.SetValue("baz", "bar")
 	return TestResolveStructTypeMethodWithCtxDataInner{}
 }
 
 type TestResolveStructTypeMethodWithCtxDataInner struct{}
 
-func (TestResolveStructTypeMethodWithCtxDataInner) ResolveFoo(c *BytecodeCtx) string {
+func (TestResolveStructTypeMethodWithCtxDataInner) ResolveFoo(c *Ctx) string {
 	return c.GetValue("baz").(string)
 }
 
-func (TestResolveStructTypeMethodWithCtxData) ResolveBaz(c *BytecodeCtx) (string, error) {
+func (TestResolveStructTypeMethodWithCtxData) ResolveBaz(c *Ctx) (string, error) {
 	value, ok := c.GetValueOk("baz")
 	if !ok {
 		return "", errors.New("baz not set by bar resolver")
@@ -1393,7 +1393,7 @@ type TestPathStaysCorrectData struct {
 	FooBar []TestPathStaysCorrectDataBar
 }
 
-func (TestPathStaysCorrectData) ResolvePath(c *BytecodeCtx) string {
+func (TestPathStaysCorrectData) ResolvePath(c *Ctx) string {
 	return string(c.GetPath())
 }
 
@@ -1401,7 +1401,7 @@ type TestPathStaysCorrectDataFoo struct {
 	Bar TestPathStaysCorrectDataBar
 }
 
-func (TestPathStaysCorrectDataFoo) ResolvePath(c *BytecodeCtx) string {
+func (TestPathStaysCorrectDataFoo) ResolvePath(c *Ctx) string {
 	return string(c.GetPath())
 }
 
@@ -1409,7 +1409,7 @@ type TestPathStaysCorrectDataBar struct {
 	Foo []TestPathStaysCorrectDataFoo
 }
 
-func (TestPathStaysCorrectDataBar) ResolvePath(c *BytecodeCtx) string {
+func (TestPathStaysCorrectDataBar) ResolvePath(c *Ctx) string {
 	return string(c.GetPath())
 }
 

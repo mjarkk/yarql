@@ -22,7 +22,7 @@ func (s *Schema) injectQLTypes(ctx *parseCtx) {
 	s.rootQuery.objContents[getObjKey(ref.qlFieldName)] = ref
 
 	// Inject __type(name: String!): __Type
-	typeResolver := func(ctx *BytecodeCtx, args struct{ Name string }) *qlType {
+	typeResolver := func(ctx *Ctx, args struct{ Name string }) *qlType {
 		return ctx.schema.getTypeByName(args.Name)
 	}
 	typeResolverReflection := reflect.ValueOf(typeResolver)

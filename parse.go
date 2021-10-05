@@ -494,7 +494,7 @@ func (c *parseCtx) checkStructFieldFunc(fieldName string, type_ reflect.Type, ha
 	}, nil
 }
 
-var ctxType = reflect.TypeOf(BytecodeCtx{})
+var ctxType = reflect.TypeOf(Ctx{})
 
 func isCtx(t reflect.Type) bool {
 	return t.Kind() == reflect.Struct && ctxType.Name() == t.Name() && ctxType.PkgPath() == t.PkgPath()

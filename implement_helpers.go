@@ -17,7 +17,7 @@ type RequestOptions struct {
 	Tracing     bool                                            // https://github.com/apollographql/apollo-tracing
 }
 
-func (ctx *BytecodeCtx) HandleRequest(
+func (ctx *Ctx) HandleRequest(
 	method string, // GET, POST, etc..
 	getQuery func(key string) string, // URL value (needs to be un-escaped before returning)
 	getFormField func(key string) (string, error), // get form field, only used if content type == form data
@@ -110,7 +110,7 @@ func (ctx *BytecodeCtx) HandleRequest(
 	return ctx.Result, errs
 }
 
-func (ctx *BytecodeCtx) handleSingleRequest(
+func (ctx *Ctx) handleSingleRequest(
 	query,
 	variables,
 	operationName string,

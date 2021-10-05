@@ -18,7 +18,7 @@ import (
 	"github.com/valyala/fastjson"
 )
 
-type BytecodeCtx struct {
+type Ctx struct {
 	// private
 	schema                   *Schema
 	query                    bytecode.ParserCtx
@@ -47,8 +47,8 @@ type BytecodeCtx struct {
 	values *map[string]interface{} // API User values, user can put all their shitty things in here like poems or tax papers
 }
 
-func NewBytecodeCtx(s *Schema) *BytecodeCtx {
-	ctx := &BytecodeCtx{
+func NewCtx(s *Schema) *Ctx {
+	ctx := &Ctx{
 		schema: s,
 		query: bytecode.ParserCtx{
 			Res:               make([]byte, 2048),
@@ -68,16 +68,16 @@ func NewBytecodeCtx(s *Schema) *BytecodeCtx {
 	return ctx
 }
 
-func (ctx *BytecodeCtx) getGoValue() reflect.Value {
+func (ctx *Ctx) getGoValue() reflect.Value {
 	return ctx.reflectValues[ctx.currentReflectValueIdx]
 }
 
-func (ctx *BytecodeCtx) setNextGoValue(value reflect.Value) {
+func (ctx *Ctx) setNextGoValue(value reflect.Value) {
 	ctx.currentReflectValueIdx++
 	ctx.setGoValue(value)
 }
 
-func (ctx *BytecodeCtx) setGoValue(value reflect.Value) {
+func (ctx *Ctx) setGoValue(value reflect.Value) {
 	ctx.reflectValues[ctx.currentReflectValueIdx] = value
 }
 
@@ -91,20 +91,20 @@ type BytecodeParseOptions struct {
 	Tracing        bool                                            // https://github.com/apollographql/apollo-tracing
 }
 
-func (ctx *BytecodeCtx) GetValue(key string) (value interface{}) {
+func (ctx *Ctx) GetValue(key string) (value interface{}) {
 	if ctx.values == nil {
 		return nil
 	}
 	return (*ctx.values)[key]
 }
-func (ctx *BytecodeCtx) GetValueOk(key string) (value interface{}, found bool) {
+func (ctx *Ctx) GetValueOk(key string) (value interface{}, found bool) {
 	if ctx.values == nil {
 		return nil, false
 	}
 	val, ok := (*ctx.values)[key]
 	return val, ok
 }
-func (ctx *BytecodeCtx) SetValue(key string, value interface{}) {
+func (ctx *Ctx) SetValue(key string, value interface{}) {
 	if ctx.values == nil {
 		ctx.values = &map[string]interface{}{
 			key: value,
@@ -115,22 +115,22 @@ func (ctx *BytecodeCtx) SetValue(key string, value interface{}) {
 }
 
 // returns the path json encoded
-func (ctx *BytecodeCtx) GetPath() json.RawMessage {
+func (ctx *Ctx) GetPath() json.RawMessage {
 	if len(ctx.path) == 0 {
 		return []byte("[]")
 	}
 	return append(append([]byte{'['}, ctx.path[1:]...), ']')
 }
 
-func (ctx *BytecodeCtx) write(b []byte) {
+func (ctx *Ctx) write(b []byte) {
 	ctx.Result = append(ctx.Result, b...)
 }
 
-func (ctx *BytecodeCtx) writeByte(b byte) {
+func (ctx *Ctx) writeByte(b byte) {
 	ctx.Result = append(ctx.Result, b)
 }
 
-func (ctx *BytecodeCtx) writeQouted(b []byte) {
+func (ctx *Ctx) writeQouted(b []byte) {
 	ctx.writeByte('"')
 	ctx.write(b)
 	ctx.writeByte('"')
@@ -138,12 +138,12 @@ func (ctx *BytecodeCtx) writeQouted(b []byte) {
 
 var nullBytes = []byte("null")
 
-func (ctx *BytecodeCtx) writeNull() {
+func (ctx *Ctx) writeNull() {
 	ctx.write(nullBytes)
 }
 
-func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions) []error {
-	*ctx = BytecodeCtx{
+func (ctx *Ctx) BytecodeResolve(query []byte, opts BytecodeParseOptions) []error {
+	*ctx = Ctx{
 		schema:                 ctx.schema,
 		query:                  ctx.query,
 		charNr:                 0,
@@ -270,21 +270,21 @@ func (ctx *BytecodeCtx) BytecodeResolve(query []byte, opts BytecodeParseOptions)
 }
 
 // readInst reads the current instruction and increments the charNr
-func (ctx *BytecodeCtx) readInst() byte {
+func (ctx *Ctx) readInst() byte {
 	c := ctx.query.Res[ctx.charNr]
 	ctx.charNr++
 	return c
 }
 
-func (ctx *BytecodeCtx) seekInst() byte {
+func (ctx *Ctx) seekInst() byte {
 	return ctx.query.Res[ctx.charNr]
 }
 
-func (ctx *BytecodeCtx) skipInst(num int) {
+func (ctx *Ctx) skipInst(num int) {
 	ctx.charNr += num
 }
 
-func (ctx *BytecodeCtx) lastInst() byte {
+func (ctx *Ctx) lastInst() byte {
 	return ctx.query.Res[ctx.charNr-1]
 }
 
@@ -297,7 +297,7 @@ func (e ErrorWPath) Error() string {
 	return e.err.Error()
 }
 
-func (ctx *BytecodeCtx) err(msg string) bool {
+func (ctx *Ctx) err(msg string) bool {
 	err := errors.New(msg)
 	if len(ctx.path) == 0 {
 		ctx.query.Errors = append(ctx.query.Errors, err)
@@ -313,11 +313,11 @@ func (ctx *BytecodeCtx) err(msg string) bool {
 	return true
 }
 
-func (ctx *BytecodeCtx) errf(msg string, args ...interface{}) bool {
+func (ctx *Ctx) errf(msg string, args ...interface{}) bool {
 	return ctx.err(fmt.Sprintf(msg, args...))
 }
 
-func (ctx *BytecodeCtx) readUint32(startAt int) uint32 {
+func (ctx *Ctx) readUint32(startAt int) uint32 {
 	data := ctx.query.Res[startAt : startAt+4]
 	return uint32(data[0]) |
 		(uint32(data[1]) << 8) |
@@ -325,7 +325,7 @@ func (ctx *BytecodeCtx) readUint32(startAt int) uint32 {
 		(uint32(data[3]) << 24)
 }
 
-func (ctx *BytecodeCtx) resolveOperation() bool {
+func (ctx *Ctx) resolveOperation() bool {
 	ctx.charNr += 2 // read 0, [ActionOperator], [kind]
 
 	kind := ctx.readInst()
@@ -367,7 +367,7 @@ func (ctx *BytecodeCtx) resolveOperation() bool {
 	return ctx.resolveSelectionSet(ctx.schema.rootQuery, 0, &firstField)
 }
 
-func (ctx *BytecodeCtx) resolveSelectionSet(typeObj *obj, dept uint8, firstField *bool) bool {
+func (ctx *Ctx) resolveSelectionSet(typeObj *obj, dept uint8, firstField *bool) bool {
 	for {
 		switch ctx.readInst() {
 		case bytecode.ActionEnd:
@@ -393,7 +393,7 @@ func (ctx *BytecodeCtx) resolveSelectionSet(typeObj *obj, dept uint8, firstField
 	}
 }
 
-func (ctx *BytecodeCtx) resolveSpread(typeObj *obj, dept uint8, firstField *bool) bool {
+func (ctx *Ctx) resolveSpread(typeObj *obj, dept uint8, firstField *bool) bool {
 	isInline := ctx.readInst() == 't'
 	directivesCount := ctx.readInst()
 
@@ -461,7 +461,7 @@ func (ctx *BytecodeCtx) resolveSpread(typeObj *obj, dept uint8, firstField *bool
 	return ctx.err("fragment " + b2s(name) + " not defined")
 }
 
-func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bool) (skipped bool, criticalErr bool) {
+func (ctx *Ctx) resolveField(typeObj *obj, dept uint8, addCommaBefore bool) (skipped bool, criticalErr bool) {
 	ctx.startTrace()
 
 	directivesCount := ctx.readInst()
@@ -578,7 +578,7 @@ func (ctx *BytecodeCtx) resolveField(typeObj *obj, dept uint8, addCommaBefore bo
 	return false, criticalErr
 }
 
-func (ctx *BytecodeCtx) callQlMethod(method *objMethod, goValue *reflect.Value, parseArguments bool) ([]reflect.Value, bool) {
+func (ctx *Ctx) callQlMethod(method *objMethod, goValue *reflect.Value, parseArguments bool) ([]reflect.Value, bool) {
 	ctx.funcInputs = ctx.funcInputs[:0]
 	for _, in := range method.ins {
 		if in.isCtx {
@@ -609,7 +609,7 @@ func (ctx *BytecodeCtx) callQlMethod(method *objMethod, goValue *reflect.Value, 
 	return outs, false
 }
 
-func (ctx *BytecodeCtx) resolveDirective(location DirectiveLocation) (modifer DirectiveModifier, criticalErr bool) {
+func (ctx *Ctx) resolveDirective(location DirectiveLocation) (modifer DirectiveModifier, criticalErr bool) {
 	ctx.skipInst(1) // read 'd'
 	hasArguments := ctx.readInst() == 't'
 
@@ -650,7 +650,7 @@ func (ctx *BytecodeCtx) resolveDirective(location DirectiveLocation) (modifer Di
 	return modifer, false
 }
 
-func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSelection bool) bool {
+func (ctx *Ctx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSelection bool) bool {
 	goValue := ctx.getGoValue()
 	if ctx.seekInst() == bytecode.ActionValue && typeObj.valueType != valueTypeMethod {
 		// Check there is no method behind a pointer
@@ -831,7 +831,7 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 	return false
 }
 
-func (ctx *BytecodeCtx) findOperatorArgument(nameToFind string) (foundArgument bool) {
+func (ctx *Ctx) findOperatorArgument(nameToFind string) (foundArgument bool) {
 	ctx.charNr = ctx.operatorArgumentsStartAt
 	ctx.skipInst(2)
 	for {
@@ -860,7 +860,7 @@ func (ctx *BytecodeCtx) findOperatorArgument(nameToFind string) (foundArgument b
 	}
 }
 
-func (ctx *BytecodeCtx) bindOperatorArgumentTo(goValue *reflect.Value, valueStructure *input, argumentName string) bool {
+func (ctx *Ctx) bindOperatorArgumentTo(goValue *reflect.Value, valueStructure *input, argumentName string) bool {
 	// TODO Check for the required flag (L & N)
 	// These flags are to identify if the argument is required or not
 
@@ -956,7 +956,7 @@ func (ctx *BytecodeCtx) bindOperatorArgumentTo(goValue *reflect.Value, valueStru
 	return ctx.bindInputToGoValue(goValue, valueStructure, false)
 }
 
-func (ctx *BytecodeCtx) bindExternalVariableValue(goValue *reflect.Value, valueStructure *input, argumentName string) (found bool, criticalErr bool) {
+func (ctx *Ctx) bindExternalVariableValue(goValue *reflect.Value, valueStructure *input, argumentName string) (found bool, criticalErr bool) {
 	if !ctx.variablesParsed {
 		if len(ctx.rawVariables) == 0 {
 			return false, false
@@ -981,7 +981,7 @@ func (ctx *BytecodeCtx) bindExternalVariableValue(goValue *reflect.Value, valueS
 	return true, ctx.bindJSONToValue(goValue, valueStructure, variable)
 }
 
-func (ctx *BytecodeCtx) bindJSONToValue(goValue *reflect.Value, valueStructure *input, jsonData *fastjson.Value) bool {
+func (ctx *Ctx) bindJSONToValue(goValue *reflect.Value, valueStructure *input, jsonData *fastjson.Value) bool {
 	jsonDataType := jsonData.Type()
 	if valueStructure.isEnum || valueStructure.isID || valueStructure.isFile || valueStructure.isTime {
 		if jsonDataType != fastjson.TypeString {
@@ -1201,7 +1201,7 @@ func (ctx *BytecodeCtx) bindJSONToValue(goValue *reflect.Value, valueStructure *
 	return false
 }
 
-func (ctx *BytecodeCtx) assignStringToValue(goValue *reflect.Value, valueStructure *input, stringValue string) bool {
+func (ctx *Ctx) assignStringToValue(goValue *reflect.Value, valueStructure *input, stringValue string) bool {
 	if valueStructure.isEnum {
 		enum := ctx.schema.definedEnums[valueStructure.enumTypeIndex]
 		for _, entry := range enum.entries {
@@ -1268,7 +1268,7 @@ func (ctx *BytecodeCtx) assignStringToValue(goValue *reflect.Value, valueStructu
 	return false
 }
 
-func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input, variablesAllowed bool) bool {
+func (ctx *Ctx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input, variablesAllowed bool) bool {
 	// TODO convert to go value kind to graphql value kind in errors
 
 	if goValue.Kind() == reflect.Ptr && !valueStructure.isFile {
@@ -1502,7 +1502,7 @@ func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructur
 
 // walkInputObject walks over an input object and triggers onValueOfKey after reading a key and reached it value
 // onValueOfKey is expected to parse the value before returning
-func (ctx *BytecodeCtx) walkInputObject(onValueOfKey func(key []byte) bool) bool {
+func (ctx *Ctx) walkInputObject(onValueOfKey func(key []byte) bool) bool {
 	// Read ActionValue and ValueObject and NULL * 5
 	ctx.skipInst(7)
 
@@ -1531,7 +1531,7 @@ func (ctx *BytecodeCtx) walkInputObject(onValueOfKey func(key []byte) bool) bool
 	}
 }
 
-func (ctx *BytecodeCtx) valueToJson(in reflect.Value, kind reflect.Kind) {
+func (ctx *Ctx) valueToJson(in reflect.Value, kind reflect.Kind) {
 	switch kind {
 	case reflect.String:
 		stringToJson(in.String(), &ctx.Result)
@@ -1561,13 +1561,13 @@ func (ctx *BytecodeCtx) valueToJson(in reflect.Value, kind reflect.Kind) {
 	}
 }
 
-func (ctx *BytecodeCtx) startTrace() {
+func (ctx *Ctx) startTrace() {
 	if ctx.tracingEnabled {
 		ctx.prefRecordingStartTime = time.Now()
 	}
 }
 
-func (ctx *BytecodeCtx) finishTrace(report func(offset, duration int64)) {
+func (ctx *Ctx) finishTrace(report func(offset, duration int64)) {
 	f := ctx.prefRecordingStartTime
 	offset := f.Sub(ctx.tracing.GoStartTime).Nanoseconds()
 	duration := time.Since(f).Nanoseconds()
