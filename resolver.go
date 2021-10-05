@@ -142,7 +142,7 @@ func (ctx *Ctx) writeNull() {
 	ctx.write(nullBytes)
 }
 
-func (ctx *Ctx) BytecodeResolve(query []byte, opts BytecodeParseOptions) []error {
+func (ctx *Ctx) Resolve(query []byte, opts BytecodeParseOptions) []error {
 	*ctx = Ctx{
 		schema:                 ctx.schema,
 		query:                  ctx.query,

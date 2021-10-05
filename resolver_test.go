@@ -23,7 +23,7 @@ func bytecodeParse(t *testing.T, s *Schema, query string, queries interface{}, m
 	if len(opts) == 0 {
 		opts = []BytecodeParseOptions{{NoMeta: true}}
 	}
-	errs := ctx.BytecodeResolve([]byte(query), opts[0])
+	errs := ctx.Resolve([]byte(query), opts[0])
 	return string(ctx.Result), errs
 }
 

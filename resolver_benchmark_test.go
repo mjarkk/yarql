@@ -29,7 +29,7 @@ func BenchmarkBytecodeResolve(b *testing.B) {
 
 	var errs []error
 	for i := 0; i < b.N; i++ {
-		errs = ctx.BytecodeResolve(query, opts)
+		errs = ctx.Resolve(query, opts)
 		for _, err := range errs {
 			panic(err)
 		}
@@ -82,7 +82,7 @@ func BenchmarkBytecodeHelloWorldResolve(b *testing.B) {
 
 	var errs []error
 	for i := 0; i < b.N; i++ {
-		errs = ctx.BytecodeResolve(query, opts)
+		errs = ctx.Resolve(query, opts)
 		for _, err := range errs {
 			panic(err)
 		}

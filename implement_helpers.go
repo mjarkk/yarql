@@ -133,7 +133,7 @@ func (ctx *Ctx) handleSingleRequest(
 		resolveOptions.Tracing = options.Tracing
 	}
 
-	return ctx.BytecodeResolve(s2b(query), resolveOptions)
+	return ctx.Resolve(s2b(query), resolveOptions)
 }
 
 func getBodyData(body *fastjson.Value) (query, operationName, variables string, err error) {

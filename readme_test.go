@@ -36,7 +36,7 @@ func TestReadmeExample(t *testing.T) {
 
 	resolver := NewCtx(s)
 
-	errs := resolver.BytecodeResolve([]byte(`
+	errs := resolver.Resolve([]byte(`
 		{
 			posts {
 				id
