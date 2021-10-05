@@ -13,12 +13,10 @@ Because of this the README code might be incorrect, for the correct readme see t
 - Schema based on code
 - Build on top of the graphql spec 2018
 - No code generators
-- Only 1 dependency
+- Only 2 dependencies
 - Easy to implement in many webservers, see the [gin](https://github.com/mjarkk/go-graphql/blob/main/examples/gin/main.go) and [viber](https://github.com/mjarkk/go-graphql/blob/main/examples/viber/main.go) examples
 - File upload support
 - Supports [Apollo tracing](https://github.com/apollographql/apollo-tracing)
-
-_For further plans see the [/projects](https://github.com/mjarkk/go-graphql/projects) tab_
 
 ## Example
 
