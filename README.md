@@ -333,7 +333,7 @@ Take this result with a big grain of salt, i didn't use the last version of the 
 
 ## Alternatives
 
-- [graph-gophers/graphql-go](https://github.com/graph-gophers/graphql-go)
+- [graph-gophers/graphql-go](https://github.com/graph-gophers/graphql-go) :heart: This library inspired me to make this one
 - [ccbrown/api-fu](https://github.com/ccbrown/api-fu)
 - [99designs/gqlgen](https://github.com/99designs/gqlgen)
 - [graphql-go/graphql](https://github.com/graphql-go/graphql)
