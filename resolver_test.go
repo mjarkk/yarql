@@ -1024,7 +1024,6 @@ func TestBytecodeResolveTracing(t *testing.T) {
 
 	parsing := tracer.Parsing
 	NotEqual(t, int64(0), parsing.Duration)
-	NotEqual(t, int64(0), parsing.StartOffset)
 
 	validation := tracer.Validation
 	Equal(t, int64(0), validation.Duration)
