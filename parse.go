@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -40,7 +39,6 @@ type Schema struct {
 	rootQueryValue    reflect.Value
 	rootMethod        *obj
 	rootMethodValue   reflect.Value
-	m                 sync.Mutex
 	MaxDepth          uint8 // Default 255
 	definedEnums      []enum
 	definedDirectives map[DirectiveLocation][]*Directive
@@ -49,7 +47,6 @@ type Schema struct {
 	graphqlTypesMap  map[string]qlType
 	graphqlTypesList []qlType
 	graphqlObjFields map[string][]qlField
-	iter             iterT
 }
 
 type valueType int
@@ -175,39 +172,6 @@ type parseCtx struct {
 	parsedMethods      []*objMethod
 }
 
-func newIter(lite bool) iterT {
-	if lite {
-		return iterT{
-			operators:  []operator{},
-			fragments:  []operator{},
-			resErrors:  []ErrorWLocation{},
-			selections: []selectionSet{},
-			arguments:  []arguments{},
-			nameBuff:   []byte{},
-			stringBuff: []byte{},
-		}
-	}
-
-	res := iterT{
-		operators:  make([]operator, 2),
-		fragments:  make([]operator, 2),
-		resErrors:  []ErrorWLocation{},
-		selections: make([]selectionSet, 100),
-		arguments:  make([]arguments, 5),
-		nameBuff:   []byte{},
-		stringBuff: []byte{},
-	}
-
-	// Preserve the memory for the selections and arguments
-	for i := range res.selections {
-		res.selections[i] = make(selectionSet, 5)
-	}
-	for i := range res.arguments {
-		res.arguments[i] = make(arguments, 5)
-	}
-	return res
-}
-
 func NewSchema() *Schema {
 	s := &Schema{
 		types:             types{},
@@ -216,7 +180,6 @@ func NewSchema() *Schema {
 		graphqlObjFields:  map[string][]qlField{},
 		definedEnums:      []enum{},
 		definedDirectives: map[DirectiveLocation][]*Directive{},
-		iter:              newIter(false),
 	}
 
 	added, err := s.RegisterEnum(directiveLocationMap)

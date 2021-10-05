@@ -237,12 +237,12 @@ func (ctx *Ctx) BytecodeResolve(query []byte, opts BytecodeParseOptions) []error
 						ctx.write(errWPath.path)
 						ctx.writeByte(']')
 					}
-					errWLocation, isErrWLocation := err.(ErrorWLocation)
+					errWLocation, isErrWLocation := err.(bytecode.ErrorWLocation)
 					if isErrWLocation {
 						ctx.write([]byte(`,"locations":[{"line":`))
-						ctx.Result = strconv.AppendUint(ctx.Result, uint64(errWLocation.line), 10)
+						ctx.Result = strconv.AppendUint(ctx.Result, uint64(errWLocation.Line), 10)
 						ctx.write([]byte(`,"column":`))
-						ctx.Result = strconv.AppendUint(ctx.Result, uint64(errWLocation.column), 10)
+						ctx.Result = strconv.AppendUint(ctx.Result, uint64(errWLocation.Column), 10)
 						ctx.write([]byte{'}', ']'})
 					}
 					ctx.writeByte('}')

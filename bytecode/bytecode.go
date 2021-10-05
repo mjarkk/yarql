@@ -1221,13 +1221,13 @@ func (ctx *ParserCtx) matches(oneOf ...string) int {
 }
 
 type ErrorWLocation struct {
-	err    error
-	line   uint
-	column uint
+	Err    error
+	Line   uint
+	Column uint
 }
 
 func (e ErrorWLocation) Error() string {
-	return e.err.Error()
+	return e.Err.Error()
 }
 
 func (ctx *ParserCtx) err(err string) bool {
