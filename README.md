@@ -2,11 +2,6 @@
 
 Just a different approach to making graphql servers in Go
 
-# Work In Progress!
-
-I'm re-writing a lot of core components because i'm not happy with how the library works atm, [big changes coming soon](https://github.com/mjarkk/go-graphql/compare/v0.4.3..main).
-Because of this the README code might be incorrect, for the correct readme see the last release: [v0.4.3](https://github.com/mjarkk/go-graphql/tree/v0.4.3)
-
 ## Features
 
 - Easy to use and not much code required
