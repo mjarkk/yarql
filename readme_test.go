@@ -43,7 +43,7 @@ func TestReadmeExample(t *testing.T) {
 				name
 			}
 		}
-	`), BytecodeParseOptions{})
+	`), ResolveOptions{})
 
 	for _, err := range errs {
 		log.Fatal(err)

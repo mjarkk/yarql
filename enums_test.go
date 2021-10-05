@@ -99,7 +99,7 @@ func TestEnum(t *testing.T) {
 	True(t, added)
 	NoError(t, err)
 
-	res, errs := bytecodeParse(t, s, `{bar(e: BAZ)}`, TestEnumFunctionInput{}, M{}, BytecodeParseOptions{NoMeta: true})
+	res, errs := bytecodeParse(t, s, `{bar(e: BAZ)}`, TestEnumFunctionInput{}, M{}, ResolveOptions{NoMeta: true})
 	for _, err := range errs {
 		panic(err)
 	}

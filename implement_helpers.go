@@ -116,7 +116,7 @@ func (ctx *Ctx) handleSingleRequest(
 	operationName string,
 	options *RequestOptions,
 ) []error {
-	resolveOptions := BytecodeParseOptions{
+	resolveOptions := ResolveOptions{
 		OperatorTarget: operationName,
 		Variables:      variables,
 	}

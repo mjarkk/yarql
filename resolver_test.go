@@ -15,19 +15,19 @@ import (
 	. "github.com/stretchr/testify/assert"
 )
 
-func bytecodeParse(t *testing.T, s *Schema, query string, queries interface{}, methods interface{}, opts ...BytecodeParseOptions) (string, []error) {
+func bytecodeParse(t *testing.T, s *Schema, query string, queries interface{}, methods interface{}, opts ...ResolveOptions) (string, []error) {
 	err := s.Parse(queries, methods, nil)
 	NoError(t, err, query)
 
 	ctx := NewCtx(s)
 	if len(opts) == 0 {
-		opts = []BytecodeParseOptions{{NoMeta: true}}
+		opts = []ResolveOptions{{NoMeta: true}}
 	}
 	errs := ctx.Resolve([]byte(query), opts[0])
 	return string(ctx.Result), errs
 }
 
-func bytecodeParseAndExpectNoErrs(t *testing.T, query string, queries interface{}, methods interface{}, opts ...BytecodeParseOptions) string {
+func bytecodeParseAndExpectNoErrs(t *testing.T, query string, queries interface{}, methods interface{}, opts ...ResolveOptions) string {
 	res, errs := bytecodeParse(t, NewSchema(), query, queries, methods, opts...)
 	for _, err := range errs {
 		panic(err.Error())
@@ -35,7 +35,7 @@ func bytecodeParseAndExpectNoErrs(t *testing.T, query string, queries interface{
 	return res
 }
 
-func bytecodeParseAndExpectErrs(t *testing.T, query string, queries interface{}, methods interface{}, opts ...BytecodeParseOptions) (string, []error) {
+func bytecodeParseAndExpectErrs(t *testing.T, query string, queries interface{}, methods interface{}, opts ...ResolveOptions) (string, []error) {
 	res, errs := bytecodeParse(t, NewSchema(), query, queries, methods, opts...)
 	NotEqual(t, 0, len(res), query)
 	return res, errs
@@ -114,7 +114,7 @@ func TestBytecodeResolveOperatorWithName(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run("target "+testCase.target, func(t *testing.T) {
-			res, errs := bytecodeParse(t, NewSchema(), `query a {a} query b {b}`, schema, M{}, BytecodeParseOptions{
+			res, errs := bytecodeParse(t, NewSchema(), `query a {a} query b {b}`, schema, M{}, ResolveOptions{
 				NoMeta:         true,
 				OperatorTarget: testCase.target,
 			})
@@ -377,7 +377,7 @@ func TestBytecodeResolveCorrectMeta(t *testing.T) {
 		}
 	}`
 	schema := TestResolveSchemaRequestWithFieldsData{}
-	res, _ := bytecodeParse(t, NewSchema(), query, schema, M{}, BytecodeParseOptions{})
+	res, _ := bytecodeParse(t, NewSchema(), query, schema, M{}, ResolveOptions{})
 	if !json.Valid([]byte(res)) {
 		panic("invalid json: " + res)
 	}
@@ -391,7 +391,7 @@ func TestBytecodeResolveCorrectMetaWithError(t *testing.T) {
 		}
 	}`
 	schema := TestResolveSchemaRequestWithFieldsData{}
-	res, _ := bytecodeParse(t, NewSchema(), query, schema, M{}, BytecodeParseOptions{})
+	res, _ := bytecodeParse(t, NewSchema(), query, schema, M{}, ResolveOptions{})
 	if !json.Valid([]byte(res)) {
 		panic("invalid json: " + res)
 	}
@@ -413,7 +413,7 @@ func TestBytecodeResolveVariableInputWithDefault(t *testing.T) {
 
 func TestBytecodeResolveVariable(t *testing.T) {
 	query := `query A($baz: String) {bar(a: $baz)}`
-	res := bytecodeParseAndExpectNoErrs(t, query, TestResolveStructTypeMethodWithPtrArgData{}, M{}, BytecodeParseOptions{
+	res := bytecodeParseAndExpectNoErrs(t, query, TestResolveStructTypeMethodWithPtrArgData{}, M{}, ResolveOptions{
 		NoMeta:    true,
 		Variables: `{"baz": "foo"}`,
 	})
@@ -609,7 +609,7 @@ func TestBytecodeResolveMultipleArgumentsUsingVariables(t *testing.T) {
 		}
 	}`
 	schema := TestBytecodeResolveMultipleArgumentsData{}
-	opts := BytecodeParseOptions{
+	opts := ResolveOptions{
 		NoMeta: true,
 		Variables: `{
 			"string": "abc",
@@ -645,7 +645,7 @@ func TestBytecodeResolveJSONArrayVariable(t *testing.T) {
 		foo(data: $data)
 	}`
 	schema := TestBytecodeResolveJSONArrayVariableData{}
-	opts := BytecodeParseOptions{
+	opts := ResolveOptions{
 		NoMeta: true,
 		Variables: `{
 			"data": ["a", "b", "c"]
@@ -674,7 +674,7 @@ func TestBytecodeResolveJSONObjectVariable(t *testing.T) {
 		}
 	}`
 	schema := TestBytecodeResolveJSONObjectVariableData{}
-	opts := BytecodeParseOptions{
+	opts := ResolveOptions{
 		NoMeta: true,
 		Variables: `{
 			"data": {"a": "b", "c": "d"}
@@ -1004,7 +1004,7 @@ func TestBytecodeResolveTracing(t *testing.T) {
 	query := `{foo{a b}}`
 	schema := TestResolveStructInStructInlineData{}
 	json.Unmarshal([]byte(`{"foo": {"a": "foo", "b": "bar", "c": "baz"}}`), &schema)
-	opts := BytecodeParseOptions{
+	opts := ResolveOptions{
 		Tracing: true,
 	}
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{}, opts)
@@ -1124,7 +1124,7 @@ func TestBytecodeResolveDirective(t *testing.T) {
 			},
 		})
 
-		res, errs := bytecodeParse(t, s, query, schema, M{}, BytecodeParseOptions{
+		res, errs := bytecodeParse(t, s, query, schema, M{}, ResolveOptions{
 			NoMeta: true,
 		})
 		for _, err := range errs {
@@ -1312,7 +1312,7 @@ func TestResolveBytecodeWithFile(t *testing.T) {
 		panic(err)
 	}
 
-	opts := BytecodeParseOptions{
+	opts := ResolveOptions{
 		NoMeta: true,
 		GetFormFile: func(key string) (*multipart.FileHeader, error) {
 			f, ok := form.File[key]
@@ -1347,7 +1347,7 @@ type TestResolveMaxDeptData struct {
 func TestExecMaxDept(t *testing.T) {
 	s := NewSchema()
 	s.MaxDepth = 3
-	out, errs := bytecodeParse(t, s, `{foo{bar{baz{fooBar{barBaz{bazFoo}}}}}}`, TestResolveMaxDeptData{}, M{}, BytecodeParseOptions{})
+	out, errs := bytecodeParse(t, s, `{foo{bar{baz{fooBar{barBaz{bazFoo}}}}}}`, TestResolveMaxDeptData{}, M{}, ResolveOptions{})
 	Greater(t, len(errs), 0)
 	Equal(t, `{"data":{"foo":{"bar":{"baz":null}}},"errors":[{"message":"reached max dept","path":["foo","bar","baz"]}],"extensions":{}}`, out)
 }

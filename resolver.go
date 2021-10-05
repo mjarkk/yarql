@@ -81,16 +81,6 @@ func (ctx *Ctx) setGoValue(value reflect.Value) {
 	ctx.reflectValues[ctx.currentReflectValueIdx] = value
 }
 
-type BytecodeParseOptions struct {
-	NoMeta         bool            // Returns only the data
-	Context        context.Context // Request context
-	OperatorTarget string
-	Values         *map[string]interface{}                         // Passed directly to the request context
-	GetFormFile    func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
-	Variables      string                                          // Expects valid JSON or empty string
-	Tracing        bool                                            // https://github.com/apollographql/apollo-tracing
-}
-
 func (ctx *Ctx) GetValue(key string) (value interface{}) {
 	if ctx.values == nil {
 		return nil
@@ -142,7 +132,17 @@ func (ctx *Ctx) writeNull() {
 	ctx.write(nullBytes)
 }
 
-func (ctx *Ctx) Resolve(query []byte, opts BytecodeParseOptions) []error {
+type ResolveOptions struct {
+	NoMeta         bool            // Returns only the data
+	Context        context.Context // Request context
+	OperatorTarget string
+	Values         *map[string]interface{}                         // Passed directly to the request context
+	GetFormFile    func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
+	Variables      string                                          // Expects valid JSON or empty string
+	Tracing        bool                                            // https://github.com/apollographql/apollo-tracing
+}
+
+func (ctx *Ctx) Resolve(query []byte, opts ResolveOptions) []error {
 	*ctx = Ctx{
 		schema:                 ctx.schema,
 		query:                  ctx.query,

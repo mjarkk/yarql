@@ -14,7 +14,7 @@ func BenchmarkBytecodeResolve(b *testing.B) {
 
 	query := []byte(schemaQuery)
 
-	opts := BytecodeParseOptions{}
+	opts := ResolveOptions{}
 
 	f, err := os.Create("memprofile")
 	if err != nil {
@@ -67,7 +67,7 @@ func BenchmarkBytecodeHelloWorldResolve(b *testing.B) {
 
 	query := []byte(`{hello}`)
 
-	opts := BytecodeParseOptions{}
+	opts := ResolveOptions{}
 
 	// f, err := os.Create("memprofile")
 	// if err != nil {
