@@ -1030,7 +1030,6 @@ func TestBytecodeResolveTracing(t *testing.T) {
 	validation := tracer.Validation
 	Equal(t, int64(0), validation.Duration)
 	NotEqual(t, int64(0), validation.StartOffset)
-	LessOrEqual(t, parsing.StartOffset+parsing.Duration, validation.StartOffset)
 
 	for _, resolver := range tracer.Execution.Resolvers {
 		NotNil(t, []byte(resolver.Path))
