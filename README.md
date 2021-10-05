@@ -281,7 +281,7 @@ func main() {
 
 ### File upload
 
-_NOTE: This is NOT [graphql-multipart-request-spec](https://github.com/jaydenseric/graphql-multipart-request-spec)_
+_NOTE: This is NOT [graphql-multipart-request-spec](https://github.com/jaydenseric/graphql-multipart-request-spec) tough this is based on [graphql-multipart-request-spec #55](https://github.com/jaydenseric/graphql-multipart-request-spec/issues/55)_
 
 In your go code add `*multipart.FileHeader` to a methods inputs
 
@@ -298,8 +298,6 @@ In your graphql query you can now do:
 ```
 
 In your request add a form file with the field name: `form_file_field_name`
-
-_Based on [graphql-multipart-request-spec #55](https://github.com/jaydenseric/graphql-multipart-request-spec/issues/55)_
 
 ## Performance
 
