@@ -31,7 +31,7 @@ func TestHandleRequestRequestInURL(t *testing.T) {
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"data":{"a":{"bar":"baz"}}}`, string(res))
+	Equal(t, `{"data":{"a":{"bar":"baz"}},"errors":[],"extensions":{}}`, string(res))
 }
 
 func TestHandleRequestRequestJsonBody(t *testing.T) {
@@ -71,7 +71,7 @@ func TestHandleRequestRequestJsonBody(t *testing.T) {
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"data":{"a":{"bar":"baz"}}}`, string(res))
+	Equal(t, `{"data":{"a":{"bar":"baz"}},"errors":[],"extensions":{}}`, string(res))
 }
 
 func TestHandleRequestRequestForm(t *testing.T) {
@@ -115,7 +115,7 @@ func TestHandleRequestRequestForm(t *testing.T) {
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"data":{"a":{"bar":"baz"}}}`, string(res))
+	Equal(t, `{"data":{"a":{"bar":"baz"}},"errors":[],"extensions":{}}`, string(res))
 }
 
 func TestHandleRequestRequestBatch(t *testing.T) {
@@ -162,5 +162,5 @@ func TestHandleRequestRequestBatch(t *testing.T) {
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `[{"data":{"a":{"bar":"baz"}}},{"data":{"a":{"foo":null}}}]`, string(res))
+	Equal(t, `[{"data":{"a":{"bar":"baz"}},"errors":[],"extensions":{}},{"data":{"a":{"foo":null}},"errors":[],"extensions":{}}]`, string(res))
 }

@@ -1328,7 +1328,7 @@ func TestResolveBytecodeWithFile(t *testing.T) {
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"data":{"foo":"hello world"}}`, out)
+	Equal(t, `{"foo":"hello world"}`, out)
 }
 
 type TestResolveMaxDeptData struct {
@@ -1350,7 +1350,7 @@ func TestExecMaxDept(t *testing.T) {
 	s.MaxDepth = 3
 	out, errs := bytecodeParse(t, s, `{foo{bar{baz{fooBar{barBaz{bazFoo}}}}}}`, TestResolveMaxDeptData{}, M{}, BytecodeParseOptions{})
 	Greater(t, len(errs), 0)
-	Equal(t, `{"data":{"foo":{"bar":{"baz":null}}},"errors":[{"message":"reached max dept","path":["foo","bar","baz"]}]}`, out)
+	Equal(t, `{"data":{"foo":{"bar":{"baz":null}}},"errors":[{"message":"reached max dept","path":["foo","bar","baz"]}],"extensions":{}}`, out)
 }
 
 type TestResolveStructTypeMethodWithCtxData struct{}

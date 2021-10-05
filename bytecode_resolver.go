@@ -368,11 +368,6 @@ func (ctx *BytecodeCtx) resolveOperation() bool {
 }
 
 func (ctx *BytecodeCtx) resolveSelectionSet(typeObj *obj, dept uint8, firstField *bool) bool {
-	dept++
-	if dept == ctx.schema.MaxDepth {
-		return ctx.err("max deph reached")
-	}
-
 	for {
 		switch ctx.readInst() {
 		case bytecode.ActionEnd:
@@ -719,6 +714,12 @@ func (ctx *BytecodeCtx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSe
 				ctx.writeNull()
 				return false
 			}
+		}
+
+		dept++
+		if dept == ctx.schema.MaxDepth {
+			ctx.writeNull()
+			return ctx.err("reached max dept")
 		}
 
 		ctx.writeByte('{')
@@ -1270,7 +1271,7 @@ func (ctx *BytecodeCtx) assignStringToValue(goValue *reflect.Value, valueStructu
 func (ctx *BytecodeCtx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input, variablesAllowed bool) bool {
 	// TODO convert to go value kind to graphql value kind in errors
 
-	if goValue.Kind() == reflect.Ptr {
+	if goValue.Kind() == reflect.Ptr && !valueStructure.isFile {
 		if ctx.query.Res[ctx.charNr+1] == bytecode.ValueNull {
 			// keep goValue at it's default
 			ctx.skipInst(6)
