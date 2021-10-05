@@ -1,6 +1,6 @@
 # Graphql library for GoLang
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/mjarkk/go-graphql.svg)](https://pkg.go.dev/github.com/mjarkk/go-graphql) [![Go Report Card](https://goreportcard.com/badge/github.com/mjarkk/go-graphql)](https://goreportcard.com/report/github.com/mjarkk/go-graphql)
+[![Go Reference](https://pkg.go.dev/badge/github.com/mjarkk/go-graphql.svg)](https://pkg.go.dev/github.com/mjarkk/go-graphql) [![Go Report Card](https://goreportcard.com/badge/github.com/mjarkk/go-graphql)](https://goreportcard.com/report/github.com/mjarkk/go-graphql) [![Coverage Status](https://coveralls.io/repos/github/mjarkk/go-graphql/badge.svg?branch=main)](https://coveralls.io/github/mjarkk/go-graphql?branch=main)
 
 Just a different approach to making graphql servers in Go
 
