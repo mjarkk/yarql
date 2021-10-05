@@ -327,6 +327,8 @@ BenchmarkThunderGraphQLMaster-12     	  708327	      1707 ns/op	    1288 B/op	  
 BenchmarkMjarkkGraphQLGoMaster-12    	 2560764	       466.5 ns/op	      80 B/op	       1 allocs/op
 ```
 
+Take this result with a big grain of salt, i didn't use the last version of the libraries thus my result might be garbage compared to others by now!
+
 </details>
 
 ## Alternatives
