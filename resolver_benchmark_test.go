@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func BenchmarkBytecodeResolve(b *testing.B) {
+func BenchmarkResolve(b *testing.B) {
 	s := NewSchema()
 	s.Parse(TestResolveSchemaRequestWithFieldsData{}, M{}, nil)
 	ctx := NewCtx(s)
@@ -60,7 +60,7 @@ type HelloWorldSchema struct {
 	Hello string
 }
 
-func BenchmarkBytecodeHelloWorldResolve(b *testing.B) {
+func BenchmarkHelloWorldResolve(b *testing.B) {
 	s := NewSchema()
 	s.Parse(HelloWorldSchema{Hello: "World"}, M{}, nil)
 	ctx := NewCtx(s)
