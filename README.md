@@ -123,7 +123,8 @@ These go data kinds should be globally accepted:
 
 There are also special values:
 
-- `time.Time` > converted from/to ISO 8601
+- `time.Time` _converted from/to ISO 8601_
+- `*multipart.FileHeader` _get file from multipart form_
 
 ### Ignore fields
 
