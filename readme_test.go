@@ -1,8 +1,10 @@
 package graphql
 
 import (
+	"log"
 	"testing"
-	// . "github.com/stretchr/testify/assert"
+
+	. "github.com/stretchr/testify/assert"
 )
 
 // Making sure the code in the readme actually works :)
@@ -25,22 +27,27 @@ func (QueryRoot) ResolvePosts() []Post {
 type MethodRoot struct{}
 
 func TestReadmeExample(t *testing.T) {
-	panic("TODO")
+	s := NewSchema()
 
-	// s := NewSchema()
-	// err := s.Parse(QueryRoot{}, MethodRoot{}, nil)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	err := s.Parse(QueryRoot{}, MethodRoot{}, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// out, _ := s.Resolve(`
-	// 	{
-	// 		posts {
-	// 			id
-	// 			name
-	// 		}
-	// 	}
-	// `, ResolveOptions{})
+	resolver := NewBytecodeCtx(s)
 
-	// Equal(t, `{"data":{"posts":[{"id":"1","name":"post 1"},{"id":"2","name":"post 2"},{"id":"3","name":"post 3"}]}}`, string(out))
+	errs := resolver.BytecodeResolve([]byte(`
+		{
+			posts {
+				id
+				name
+			}
+		}
+	`), BytecodeParseOptions{})
+
+	for _, err := range errs {
+		log.Fatal(err)
+	}
+
+	Equal(t, `{"data":{"posts":[{"id":"1","name":"post 1"},{"id":"2","name":"post 2"},{"id":"3","name":"post 3"}]},"errors":[],"extensions":{}}`, string(resolver.Result))
 }
