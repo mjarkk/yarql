@@ -242,3 +242,34 @@ func TestReferenceLoop3(t *testing.T) {
 	_, err := newParseCtx().check(reflect.TypeOf(ReferToSelf3{}), false)
 	Nil(t, err)
 }
+
+type InterfaceSchema struct {
+	Bar     BarWImpl
+	Baz     BazWImpl
+	Generic InterfaceType
+}
+
+type InterfaceType interface {
+	ResolveFoo() string
+	ResolveBar() string
+
+	// Required by graphql-go to know what could be returned
+	GqIs(BarWImpl, BazWImpl)
+}
+
+type BarWImpl struct{}
+
+func (BarWImpl) ResolveFoo() string      { return "this is bar" }
+func (BarWImpl) ResolveBar() string      { return "This is bar" }
+func (BarWImpl) GqIs(BarWImpl, BazWImpl) {}
+
+type BazWImpl struct{}
+
+func (BazWImpl) ResolveFoo() string      { return "this is baz" }
+func (BazWImpl) ResolveBar() string      { return "This is baz" }
+func (BazWImpl) GqIs(BarWImpl, BazWImpl) {}
+
+func TestInterfaceType(t *testing.T) {
+	_, err := newParseCtx().check(reflect.TypeOf(InterfaceSchema{}), false)
+	Nil(t, err)
+}

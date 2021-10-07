@@ -15,7 +15,7 @@ import (
 type types map[string]*obj
 
 func (t *types) Add(obj obj) obj {
-	if obj.valueType != valueTypeObj {
+	if obj.valueType != valueTypeObj && obj.valueType != valueTypeInterface {
 		panic("Can only add struct types to list")
 	}
 
@@ -35,8 +35,10 @@ func (t *types) Get(key string) (*obj, bool) {
 type Schema struct {
 	parsed bool
 
-	types             types
-	inTypes           inputMap
+	types      types
+	inTypes    inputMap
+	interfaces types
+
 	rootQuery         *obj
 	rootQueryValue    reflect.Value
 	rootMethod        *obj
@@ -65,6 +67,8 @@ const (
 	valueTypeMethod
 	valueTypeEnum
 	valueTypeTime
+	valueTypeInterfaceRef
+	valueTypeInterface
 )
 
 type obj struct {
@@ -74,8 +78,10 @@ type obj struct {
 	pkgPath       string
 	qlFieldName   []byte
 
+	// Value type == valueTypeObj || valueTypeInterface
+	objContents map[uint32]*obj
+
 	// Value type == valueTypeObj
-	objContents    map[uint32]*obj
 	customObjValue *reflect.Value // Mainly Graphql internal values like __schema
 
 	// Value is inside struct
@@ -93,6 +99,9 @@ type obj struct {
 
 	// Value type == valueTypeEnum
 	enumTypeIndex int
+
+	// Value type == valueTypeInterface
+	implementations []*obj
 }
 
 func getObjKey(key []byte) uint32 {
@@ -102,14 +111,21 @@ func getObjKey(key []byte) uint32 {
 }
 
 func (o *obj) getRef() obj {
-	if o.valueType != valueTypeObj {
+	switch o.valueType {
+	case valueTypeObj:
+		return obj{
+			valueType:     valueTypeObjRef,
+			typeName:      o.typeName,
+			typeNameBytes: []byte(o.typeName),
+		}
+	case valueTypeInterface:
+		return obj{
+			valueType:     valueTypeInterfaceRef,
+			typeName:      o.typeName,
+			typeNameBytes: []byte(o.typeName),
+		}
+	default:
 		panic("getRef can only be used on objects")
-	}
-
-	return obj{
-		valueType:     valueTypeObjRef,
-		typeName:      o.typeName,
-		typeNameBytes: []byte(o.typeName),
 	}
 }
 
@@ -173,10 +189,11 @@ type SchemaOptions struct {
 }
 
 type parseCtx struct {
-	schema             *Schema
-	unknownTypesCount  int
-	unknownInputsCount int
-	parsedMethods      []*objMethod
+	schema                 *Schema
+	unknownTypesCount      int
+	unknownInputsCount     int
+	unknownInterfacesCount int
+	parsedMethods          []*objMethod
 }
 
 // NewSchema creates a new schema wherevia you can define the graphql types and make queries
@@ -326,8 +343,6 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 
 	switch t.Kind() {
 	case reflect.Struct:
-		res.valueType = valueTypeObj
-
 		if res.typeName != "" {
 			newName, ok := renamedTypes[res.typeName]
 			if ok {
@@ -338,7 +353,7 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 			v, ok := c.schema.types.Get(res.typeName)
 			if ok {
 				if v.pkgPath != res.pkgPath {
-					return nil, fmt.Errorf("cannot have 2 structs with same type in structure: %s(%s) != %s(%s)", v.pkgPath, res.typeName, res.pkgPath, res.typeName)
+					return nil, fmt.Errorf("cannot have 2 structs with same type name: %s(%s) != %s(%s)", v.pkgPath, res.typeName, res.pkgPath, res.typeName)
 				}
 
 				res = v.getRef()
@@ -350,6 +365,7 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 			res.typeNameBytes = []byte(res.typeName)
 		}
 
+		res.valueType = valueTypeObj
 		res.objContents = map[uint32]*obj{}
 
 		typesInner := c.schema.types
@@ -385,7 +401,71 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 			return nil, err
 		}
 		res.innerContent = obj
-	case reflect.Func, reflect.Map, reflect.Chan, reflect.Invalid, reflect.Uintptr, reflect.Complex64, reflect.Complex128, reflect.Interface, reflect.UnsafePointer:
+	case reflect.Interface:
+		if res.typeName != "" {
+			newName, ok := renamedTypes[res.typeName]
+			if ok {
+				res.typeName = newName
+				res.typeNameBytes = []byte(newName)
+			}
+
+			v, ok := c.schema.interfaces.Get(res.typeName)
+			if ok {
+				if v.pkgPath != res.pkgPath {
+					return nil, fmt.Errorf("cannot have 2 interfaces with same type name: %s(%s) != %s(%s)", v.pkgPath, res.typeName, res.pkgPath, res.typeName)
+				}
+
+				res = v.getRef()
+				return &res, nil
+			}
+		} else {
+			c.unknownInterfacesCount++
+			res.typeName = "__UnknownInterface" + strconv.Itoa(c.unknownInterfacesCount)
+			res.typeNameBytes = []byte(res.typeName)
+		}
+
+		res.valueType = valueTypeInterface
+		res.implementations = []*obj{}
+		res.objContents = map[uint32]*obj{}
+
+		foundIsMethod := false
+		methodPkgName := t.PkgPath() + "." + t.Name()
+		if t.Name() == "" {
+			methodPkgName = "inline interface"
+		}
+
+		for nr := 0; nr < t.NumMethod(); nr++ {
+			method := t.Method(nr)
+			methodType := method.Type
+
+			if method.Name == "GqIs" {
+				foundIsMethod = true
+				for nrIn := 0; nrIn < methodType.NumIn(); nrIn++ {
+					in := methodType.In(nrIn)
+					if in.Kind() != reflect.Struct {
+						return nil, fmt.Errorf("only struct types are allowed as (%s).Is(types...) arguments", methodPkgName)
+					}
+					if in.Name() == "" {
+						return nil, fmt.Errorf("inline struct not allowed in (%s).Is(types...)", methodPkgName)
+					}
+					if !in.Implements(t) {
+						return nil, fmt.Errorf("(%s).Is(types...): %s.%s does not implement %s", methodPkgName, in.PkgPath(), in.Name(), methodPkgName)
+					}
+
+					obj, err := c.check(in, false)
+					if err != nil {
+						return nil, err
+					}
+
+					res.implementations = append(res.implementations, obj)
+				}
+				continue
+			}
+		}
+		if !foundIsMethod {
+			return nil, errors.New("interfaces without Is(types...) are not allowed")
+		}
+	case reflect.Func, reflect.Map, reflect.Chan, reflect.Invalid, reflect.Uintptr, reflect.Complex64, reflect.Complex128, reflect.UnsafePointer:
 		return nil, fmt.Errorf("unsupported value type %s", t.Kind().String())
 	default:
 		enumIndex, enum := c.schema.getEnum(t)
@@ -406,7 +486,7 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 		}
 	}
 
-	if res.valueType == valueTypeObj {
+	if res.valueType == valueTypeObj || res.valueType == valueTypeInterface {
 		for i := 0; i < t.NumMethod(); i++ {
 			method := t.Method(i)
 			methodObj, name, err := c.checkFunction(method.Name, method.Type, true, false)
@@ -427,7 +507,7 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 		}
 
 		res = c.schema.types.Add(res)
-		// res is now a objptr pointing to the obj
+		// res is now a objPtr pointing to an obj or a interfacePtr pointing to an interface
 	}
 
 	return &res, nil

@@ -103,6 +103,8 @@ func (s *Schema) getDirectives() []qlDirective {
 
 func (s *Schema) getAllQLTypes() []qlType {
 	if s.graphqlTypesList == nil {
+		// Only generate s.graphqlTypesList once as the content won't change on runtime
+
 		s.graphqlTypesList = make([]qlType, len(s.types)+len(s.inTypes)+len(s.definedEnums)+len(scalars))
 
 		idx := 0
