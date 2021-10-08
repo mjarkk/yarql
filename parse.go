@@ -71,6 +71,9 @@ const (
 	valueTypeInterface
 )
 
+// TODO Maybe add a pointer to the opj if valueType == valueTypeObjRef || valueType == valueTypeInterfaceRef
+//   Now we have to do a map lookup and that's quite slow
+
 type obj struct {
 	valueType     valueType
 	typeName      string
@@ -189,11 +192,10 @@ type SchemaOptions struct {
 }
 
 type parseCtx struct {
-	schema                 *Schema
-	unknownTypesCount      int
-	unknownInputsCount     int
-	unknownInterfacesCount int
-	parsedMethods          []*objMethod
+	schema             *Schema
+	unknownTypesCount  int
+	unknownInputsCount int
+	parsedMethods      []*objMethod
 }
 
 // NewSchema creates a new schema wherevia you can define the graphql types and make queries
@@ -201,6 +203,7 @@ func NewSchema() *Schema {
 	s := &Schema{
 		types:             types{},
 		inTypes:           inputMap{},
+		interfaces:        types{},
 		MaxDepth:          255,
 		graphqlObjFields:  map[string][]qlField{},
 		definedEnums:      []enum{},
@@ -359,6 +362,14 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 				res = v.getRef()
 				return &res, nil
 			}
+
+			implementations := structImplementsMap[t.Name()]
+			for _, implementation := range implementations {
+				_, err := c.check(implementation, false)
+				if err != nil {
+					return nil, err
+				}
+			}
 		} else {
 			c.unknownTypesCount++
 			res.typeName = "__UnknownType" + strconv.Itoa(c.unknownTypesCount)
@@ -402,68 +413,61 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 		}
 		res.innerContent = obj
 	case reflect.Interface:
-		if res.typeName != "" {
-			newName, ok := renamedTypes[res.typeName]
-			if ok {
-				res.typeName = newName
-				res.typeNameBytes = []byte(newName)
+		if res.typeName == "" {
+			return nil, errors.New("inline interfaces not allowed")
+		}
+
+		newName, ok := renamedTypes[res.typeName]
+		if ok {
+			res.typeName = newName
+			res.typeNameBytes = []byte(newName)
+		}
+
+		v, ok := c.schema.interfaces.Get(res.typeName)
+		if ok {
+			if v.pkgPath != res.pkgPath {
+				return nil, fmt.Errorf("cannot have 2 interfaces with same type name: %s(%s) != %s(%s)", v.pkgPath, res.typeName, res.pkgPath, res.typeName)
 			}
 
-			v, ok := c.schema.interfaces.Get(res.typeName)
-			if ok {
-				if v.pkgPath != res.pkgPath {
-					return nil, fmt.Errorf("cannot have 2 interfaces with same type name: %s(%s) != %s(%s)", v.pkgPath, res.typeName, res.pkgPath, res.typeName)
-				}
-
-				res = v.getRef()
-				return &res, nil
-			}
-		} else {
-			c.unknownInterfacesCount++
-			res.typeName = "__UnknownInterface" + strconv.Itoa(c.unknownInterfacesCount)
-			res.typeNameBytes = []byte(res.typeName)
+			res = v.getRef()
+			return &res, nil
 		}
 
 		res.valueType = valueTypeInterface
 		res.implementations = []*obj{}
 		res.objContents = map[uint32]*obj{}
 
-		foundIsMethod := false
+		// Store the interface so we don't get an infinite loop and can reference this one
+		interfaces := c.schema.interfaces
+		interfaces[res.typeName] = &res
+		c.schema.interfaces = interfaces
+
 		methodPkgName := t.PkgPath() + "." + t.Name()
 		if t.Name() == "" {
 			methodPkgName = "inline interface"
 		}
 
-		for nr := 0; nr < t.NumMethod(); nr++ {
-			method := t.Method(nr)
-			methodType := method.Type
-
-			if method.Name == "GqIs" {
-				foundIsMethod = true
-				for nrIn := 0; nrIn < methodType.NumIn(); nrIn++ {
-					in := methodType.In(nrIn)
-					if in.Kind() != reflect.Struct {
-						return nil, fmt.Errorf("only struct types are allowed as (%s).Is(types...) arguments", methodPkgName)
-					}
-					if in.Name() == "" {
-						return nil, fmt.Errorf("inline struct not allowed in (%s).Is(types...)", methodPkgName)
-					}
-					if !in.Implements(t) {
-						return nil, fmt.Errorf("(%s).Is(types...): %s.%s does not implement %s", methodPkgName, in.PkgPath(), in.Name(), methodPkgName)
-					}
-
-					obj, err := c.check(in, false)
-					if err != nil {
-						return nil, err
-					}
-
-					res.implementations = append(res.implementations, obj)
-				}
-				continue
-			}
+		typesThatImplementInterface, ok := implementationMap[t.Name()]
+		if !ok {
+			return nil, errors.New("cannot register a interface without explicit implementations")
 		}
-		if !foundIsMethod {
-			return nil, errors.New("interfaces without Is(types...) are not allowed")
+		for _, type_ := range typesThatImplementInterface {
+			if type_.Kind() != reflect.Struct {
+				return nil, fmt.Errorf("only struct types are allowed as (%s).Is(types...) arguments", methodPkgName)
+			}
+			if type_.Name() == "" {
+				return nil, fmt.Errorf("inline struct not allowed in (%s).Is(types...)", methodPkgName)
+			}
+			if !type_.Implements(t) {
+				return nil, fmt.Errorf("(%s).Is(types...): %s.%s does not implement %s", methodPkgName, type_.PkgPath(), type_.Name(), methodPkgName)
+			}
+
+			obj, err := c.check(type_, false)
+			if err != nil {
+				return nil, err
+			}
+
+			res.implementations = append(res.implementations, obj)
 		}
 	case reflect.Func, reflect.Map, reflect.Chan, reflect.Invalid, reflect.Uintptr, reflect.Complex64, reflect.Complex128, reflect.UnsafePointer:
 		return nil, fmt.Errorf("unsupported value type %s", t.Kind().String())
@@ -506,7 +510,11 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 			}
 		}
 
-		res = c.schema.types.Add(res)
+		if res.valueType == valueTypeInterface {
+			res = c.schema.interfaces.Add(res)
+		} else {
+			res = c.schema.types.Add(res)
+		}
 		// res is now a objPtr pointing to an obj or a interfacePtr pointing to an interface
 	}
 

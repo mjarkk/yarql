@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	. "github.com/stretchr/testify/assert"
+	a "github.com/stretchr/testify/assert"
 )
 
 func parseQuery(query string) ([]byte, []error) {
@@ -26,9 +26,9 @@ func parseQuery(query string) ([]byte, []error) {
 func parseQueryAndExpectErr(t *testing.T, query, expectedErr string) {
 	_, errs := parseQuery(query)
 	if len(errs) == 0 {
-		Fail(t, "exected query to fail with error: "+expectedErr, query)
+		a.Fail(t, "exected query to fail with error: "+expectedErr, query)
 	}
-	Equal(t, errs[0].Error(), expectedErr)
+	a.Equal(t, errs[0].Error(), expectedErr)
 }
 
 func newParseQueryAndExpectResult(t *testing.T, query string, expectedResult []byte, debug ...bool) {
@@ -48,7 +48,7 @@ func newParseQueryAndExpectResult(t *testing.T, query string, expectedResult []b
 		fmt.Println(expectedResultHex)
 	}
 
-	Equal(t, expectedResultHex, resHex, query)
+	a.Equal(t, expectedResultHex, resHex, query)
 }
 
 func TestParseSimpleQuery(t *testing.T) {
