@@ -1704,3 +1704,19 @@ func TestBytecodeResolveInterfaceArray(t *testing.T) {
 	out := bytecodeParseAndExpectNoErrs(t, query, querySchema, M{})
 	a.Equal(t, `{"theList":[{"foo":"this is bar","bar":"This is bar"},{"foo":"this is baz","bar":"This is baz"},null]}`, out)
 }
+
+func TestBytecodeResolveInterfaceType(t *testing.T) {
+	Implements((*InterfaceType)(nil), BarWImpl{})
+	Implements((*InterfaceType)(nil), BazWImpl{})
+
+	query := `{
+		__type(name: "InterfaceType") {
+			name
+			fields(includeDeprecated: true) {name}
+			possibleTypes {kind name}
+		}
+	}`
+
+	out := bytecodeParseAndExpectNoErrs(t, query, InterfaceSchema{}, M{})
+	a.Equal(t, `{"__type":{"name":"InterfaceType","fields":[{"name":"bar"},{"name":"foo"}],"possibleTypes":[{"kind":"OBJECT","name":"BarWImpl"},{"kind":"OBJECT","name":"BazWImpl"}]}}`, out)
+}
