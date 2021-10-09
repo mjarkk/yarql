@@ -412,7 +412,7 @@ func (ctx *Ctx) resolveSpread(typeObj *obj, dept uint8, firstField *bool) bool {
 	lenOfDirective := ctx.readUint32(ctx.charNr)
 	ctx.skipInst(4)
 
-	// Read name
+	// Read name or on inline fragment the type name
 	nameStart := ctx.charNr
 	var endName int
 	for {
@@ -421,6 +421,8 @@ func (ctx *Ctx) resolveSpread(typeObj *obj, dept uint8, firstField *bool) bool {
 			break
 		}
 	}
+	nameLen := endName - nameStart
+	name := ctx.query.Res[nameStart:endName]
 
 	if directivesCount != 0 {
 		location := DirectiveLocationFragment
@@ -438,13 +440,16 @@ func (ctx *Ctx) resolveSpread(typeObj *obj, dept uint8, firstField *bool) bool {
 	}
 
 	if isInline {
+		if !bytes.Equal(typeObj.typeNameBytes, name) {
+			ctx.charNr = nameStart + int(lenOfDirective) + 1
+			return false
+		}
+
 		criticalErr := ctx.resolveSelectionSet(typeObj, dept, firstField)
 		ctx.charNr++
 		return criticalErr
 	}
 
-	nameLen := endName - nameStart
-	name := ctx.query.Res[nameStart:endName]
 	ctxQueryResLen := len(ctx.query.Res)
 
 	for _, location := range ctx.query.FragmentLocations {
@@ -455,13 +460,21 @@ func (ctx *Ctx) resolveSpread(typeObj *obj, dept uint8, firstField *bool) bool {
 		}
 		if bytes.Equal(ctx.query.Res[fragmentNameStart:fragmentNameEnd], name) {
 			originalCharNr := ctx.charNr
-			ctx.charNr = fragmentNameEnd + 2
+			ctx.charNr = fragmentNameEnd + 1
 
 			// Read the type
+			typeNameStart := ctx.charNr
+			var typeNameEnd int
 			for {
 				if ctx.readInst() == 0 {
+					typeNameEnd = ctx.charNr - 1
 					break
 				}
+			}
+
+			if !bytes.Equal(typeObj.typeNameBytes, ctx.query.Res[typeNameStart:typeNameEnd]) {
+				ctx.charNr = nameStart + int(lenOfDirective) + 1
+				return false
 			}
 
 			criticalErr := ctx.resolveSelectionSet(typeObj, dept, firstField)
@@ -860,6 +873,7 @@ func (ctx *Ctx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSelection 
 
 		if goValue.Kind() == reflect.Interface {
 			goValue = goValue.Elem()
+			ctx.setNextGoValue(goValue)
 		}
 
 		goValueType := goValue.Type()
@@ -869,9 +883,13 @@ func (ctx *Ctx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSelection 
 		// TODO improve performance of the below
 		for _, implementation := range typeObj.implementations {
 			if implementation.goTypeName == goValueName && implementation.goPkgPath == goValuePkgPath {
-				return ctx.resolveFieldDataValue(implementation, dept, hasSubSelection)
+				criticalErr := ctx.resolveFieldDataValue(implementation, dept+1, hasSubSelection)
+				ctx.currentReflectValueIdx--
+				return criticalErr
 			}
 		}
+
+		ctx.currentReflectValueIdx--
 		ctx.writeNull()
 	}
 

@@ -698,7 +698,7 @@ func TestBytecodeResolveInlineSpread(t *testing.T) {
 	query := `{
 		inner {
 			fieldA
-			... on baz {
+			... on TestBytecodeResolveInlineSpreadDataInner {
 				fieldB
 				fieldC
 			}
@@ -726,7 +726,7 @@ func TestBytecodeResolveSpread(t *testing.T) {
 		}
 	}
 
-	fragment baz on Bar {
+	fragment baz on TestBytecodeResolveInlineSpreadDataInner {
 		fieldB
 		fieldC
 	}`
@@ -1142,7 +1142,7 @@ func TestBytecodeResolveDirective(t *testing.T) {
 				"skip inline fragment",
 				`{
 					a
-					... on Root @skip(if: true) {
+					... on TestResolveSimpleQueryData @skip(if: true) {
 						b
 					}
 					c
@@ -1153,7 +1153,7 @@ func TestBytecodeResolveDirective(t *testing.T) {
 				"do not skip inline fragment",
 				`{
 					a
-					... on Root @skip(if: false) {
+					... on TestResolveSimpleQueryData @skip(if: false) {
 						b
 					}
 					c
@@ -1719,4 +1719,28 @@ func TestBytecodeResolveInterfaceType(t *testing.T) {
 
 	out := bytecodeParseAndExpectNoErrs(t, query, InterfaceSchema{}, M{})
 	a.Equal(t, `{"__type":{"name":"InterfaceType","fields":[{"name":"bar"},{"name":"foo"}],"possibleTypes":[{"kind":"OBJECT","name":"BarWImpl"},{"kind":"OBJECT","name":"BazWImpl"}]}}`, out)
+}
+
+func TestBytecodeResolveInterfaceArrayWithFragment(t *testing.T) {
+	Implements((*InterfaceType)(nil), BarWImpl{})
+	Implements((*InterfaceType)(nil), BazWImpl{})
+
+	querySchema := TestBytecodeResolveInterfaceArrayData{
+		TheList: []InterfaceType{
+			BarWImpl{ExtraBarField: "bar"},
+			BazWImpl{ExtraBazField: "baz"},
+			nil,
+		},
+	}
+	query := `{
+		theList{
+			foo
+			bar
+			... on BarWImpl { extraBarField }
+			... on BazWImpl { extraBazField }
+		}
+	}`
+
+	out := bytecodeParseAndExpectNoErrs(t, query, querySchema, M{})
+	a.Equal(t, `{"theList":[{"foo":"this is bar","bar":"This is bar","extraBarField":"bar"},{"foo":"this is baz","bar":"This is baz","extraBazField":"baz"},null]}`, out)
 }

@@ -18,12 +18,16 @@ type InterfaceType interface {
 	ResolveBar() string
 }
 
-type BarWImpl struct{}
+type BarWImpl struct {
+	ExtraBarField string
+}
 
 func (BarWImpl) ResolveFoo() string { return "this is bar" }
 func (BarWImpl) ResolveBar() string { return "This is bar" }
 
-type BazWImpl struct{}
+type BazWImpl struct {
+	ExtraBazField string
+}
 
 func (BazWImpl) ResolveFoo() string { return "this is baz" }
 func (BazWImpl) ResolveBar() string { return "This is baz" }
