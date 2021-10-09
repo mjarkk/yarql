@@ -104,7 +104,7 @@ type obj struct {
 	// Value type == valueTypeEnum
 	enumTypeIndex int
 
-	// Value type == valueTypeInterface
+	// Value type == valueTypeInterface || valueTypeObj
 	implementations []*obj
 }
 
@@ -371,10 +371,11 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 
 			implementations := structImplementsMap[t.Name()]
 			for _, implementation := range implementations {
-				_, err := c.check(implementation, false)
+				impl, err := c.check(implementation, false)
 				if err != nil {
 					return nil, err
 				}
+				res.implementations = append(res.implementations, impl)
 			}
 		} else {
 			c.unknownTypesCount++

@@ -105,7 +105,10 @@ func (s *Schema) getAllQLTypes() []qlType {
 	if s.graphqlTypesList == nil {
 		// Only generate s.graphqlTypesList once as the content won't change on runtime
 
-		s.graphqlTypesList = make([]qlType, len(s.types)+len(s.inTypes)+len(s.definedEnums)+len(scalars))
+		s.graphqlTypesList = make(
+			[]qlType,
+			len(s.types)+len(s.inTypes)+len(s.definedEnums)+len(scalars)+len(s.interfaces),
+		)
 
 		idx := 0
 		for _, type_ := range s.types {
@@ -124,6 +127,11 @@ func (s *Schema) getAllQLTypes() []qlType {
 		}
 		for _, scalar := range scalars {
 			s.graphqlTypesList[idx] = scalar
+			idx++
+		}
+		for _, interface_ := range s.interfaces {
+			obj, _ := s.objToQLType(interface_)
+			s.graphqlTypesList[idx] = *obj
 			idx++
 		}
 
@@ -269,6 +277,14 @@ func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 		return s.objToQLType(s.types[item.typeName])
 	case valueTypeObj:
 		isNonNull = true
+		interfaces := []qlType{}
+		if len(item.implementations) != 0 {
+			for _, implementation := range item.implementations {
+				interface_, _ := s.objToQLType(implementation)
+				interfaces = append(interfaces, *interface_)
+			}
+		}
+
 		res = &qlType{
 			Kind:        typeKindObject,
 			Name:        &item.typeName,
@@ -292,7 +308,7 @@ func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 				s.graphqlObjFields[item.typeName] = res
 				return res
 			},
-			Interfaces: []qlType{},
+			Interfaces: interfaces,
 		}
 		return
 	case valueTypeEnum:
@@ -307,6 +323,46 @@ func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 		res, isNonNull = s.objToQLType(&item.method.outType)
 		if !item.method.isTypeMethod {
 			isNonNull = false
+		}
+		return
+	case valueTypeInterfaceRef:
+		return s.objToQLType(s.interfaces[item.typeName])
+	case valueTypeInterface:
+		// A interface should be non null BUT as a interface in go can be nil we set it to false
+		isNonNull = false
+
+		res = &qlType{
+			Kind:        typeKindInterface,
+			Name:        &item.typeName,
+			Description: h.PtrToEmptyStr,
+			Interfaces:  []qlType{},
+			PossibleTypes: func() []qlType {
+				possibleTypes := make([]qlType, len(item.implementations))
+				for idx, implementation := range item.implementations {
+					item, _ := s.objToQLType(implementation)
+					possibleTypes[idx] = *item
+				}
+				return possibleTypes
+			},
+			Fields: func(args isDeprecatedArgs) []qlField {
+				fields, ok := s.graphqlObjFields[item.typeName]
+				if ok {
+					return fields
+				}
+
+				res := []qlField{}
+				for _, innerItem := range item.objContents {
+					res = append(res, qlField{
+						Name: string(innerItem.qlFieldName),
+						Args: s.getObjectArgs(innerItem),
+						Type: *wrapQLTypeInNonNull(s.objToQLType(innerItem)),
+					})
+				}
+				sort.Slice(res, func(a int, b int) bool { return res[a].Name < res[b].Name })
+
+				s.graphqlObjFields[item.typeName] = res
+				return res
+			},
 		}
 		return
 	default:
