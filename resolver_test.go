@@ -1628,3 +1628,58 @@ func TestPathStaysCorrect(t *testing.T) {
 	expectedOut = strings.ReplaceAll(expectedOut, "\t", "")
 	a.Equal(t, expectedOut, out)
 }
+
+type NotRegisteredInterfaceType struct{}
+
+func (NotRegisteredInterfaceType) ResolveFoo() string { return "THIS SHOULD NOT APPEAR IN RESULTS" }
+func (NotRegisteredInterfaceType) ResolveBar() string { return "THIS SHOULD NOT APPEAR IN RESULTS" }
+
+func TestBytecodeResolveInterface(t *testing.T) {
+	Implements((*InterfaceType)(nil), BarWImpl{})
+	Implements((*InterfaceType)(nil), BazWImpl{})
+
+	testCases := []struct {
+		name           string
+		interfaceValue InterfaceType
+		expect         string
+	}{
+		{
+			"nil interface value",
+			nil,
+			"null",
+		},
+		{
+			"struct 1 implementing interface",
+			BarWImpl{},
+			`{"foo":"this is bar","bar":"This is bar"}`,
+		},
+		{
+			"struct 2 implementing interface",
+			BazWImpl{},
+			`{"foo":"this is baz","bar":"This is baz"}`,
+		},
+		{
+			"struct that implmenets interface but is not registered",
+			NotRegisteredInterfaceType{},
+			`null`,
+		},
+	}
+
+	query := `{
+		generic {foo bar}
+	}`
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			querySchema := InterfaceSchema{
+				Bar:     BarWImpl{},
+				Baz:     BazWImpl{},
+				Generic: testCase.interfaceValue,
+			}
+
+			out := bytecodeParseAndExpectNoErrs(t, query, querySchema, M{})
+			a.Equal(t, `{"generic":`+testCase.expect+`}`, out)
+		})
+	}
+
+}

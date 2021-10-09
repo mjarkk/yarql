@@ -78,7 +78,8 @@ type obj struct {
 	valueType     valueType
 	typeName      string
 	typeNameBytes []byte
-	pkgPath       string
+	goTypeName    string
+	goPkgPath     string
 	qlFieldName   []byte
 
 	// Value type == valueTypeObj || valueTypeInterface
@@ -119,12 +120,16 @@ func (o *obj) getRef() obj {
 		return obj{
 			valueType:     valueTypeObjRef,
 			typeName:      o.typeName,
+			goTypeName:    o.goTypeName,
+			goPkgPath:     o.goPkgPath,
 			typeNameBytes: []byte(o.typeName),
 		}
 	case valueTypeInterface:
 		return obj{
 			valueType:     valueTypeInterfaceRef,
 			typeName:      o.typeName,
+			goTypeName:    o.goTypeName,
+			goPkgPath:     o.goPkgPath,
 			typeNameBytes: []byte(o.typeName),
 		}
 	default:
@@ -295,8 +300,8 @@ func (s *Schema) Parse(queries interface{}, methods interface{}, options *Schema
 	s.rootMethod = s.types[obj.typeName]
 
 	if options == nil || !options.noMethodEqualToQueryChecks {
-		queryPkg := s.rootQuery.pkgPath + s.rootQuery.typeName
-		methodPkg := s.rootMethod.pkgPath + s.rootMethod.typeName
+		queryPkg := s.rootQuery.goPkgPath + s.rootQuery.goTypeName
+		methodPkg := s.rootMethod.goPkgPath + s.rootMethod.goTypeName
 		if queryPkg == methodPkg {
 			return errors.New("method and query cannot be the same struct")
 		}
@@ -336,10 +341,11 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 	res := obj{
 		typeNameBytes: []byte(t.Name()),
 		typeName:      t.Name(),
-		pkgPath:       t.PkgPath(),
+		goPkgPath:     t.PkgPath(),
+		goTypeName:    t.Name(),
 	}
 
-	if res.pkgPath == "time" && res.typeName == "Time" {
+	if res.goPkgPath == "time" && res.goTypeName == "Time" {
 		res.valueType = valueTypeTime
 		return &res, nil
 	}
@@ -355,8 +361,8 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 
 			v, ok := c.schema.types.Get(res.typeName)
 			if ok {
-				if v.pkgPath != res.pkgPath {
-					return nil, fmt.Errorf("cannot have 2 structs with same type name: %s(%s) != %s(%s)", v.pkgPath, res.typeName, res.pkgPath, res.typeName)
+				if v.goPkgPath != res.goPkgPath {
+					return nil, fmt.Errorf("cannot have 2 structs with same type name: %s(%s) != %s(%s)", v.goPkgPath, res.goTypeName, res.goPkgPath, res.goTypeName)
 				}
 
 				res = v.getRef()
@@ -425,8 +431,8 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 
 		v, ok := c.schema.interfaces.Get(res.typeName)
 		if ok {
-			if v.pkgPath != res.pkgPath {
-				return nil, fmt.Errorf("cannot have 2 interfaces with same type name: %s(%s) != %s(%s)", v.pkgPath, res.typeName, res.pkgPath, res.typeName)
+			if v.goPkgPath != res.goPkgPath {
+				return nil, fmt.Errorf("cannot have 2 interfaces with same type name: %s(%s) != %s(%s)", v.goPkgPath, res.goTypeName, res.goPkgPath, res.goTypeName)
 			}
 
 			res = v.getRef()
@@ -442,8 +448,8 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 		interfaces[res.typeName] = &res
 		c.schema.interfaces = interfaces
 
-		methodPkgName := t.PkgPath() + "." + t.Name()
-		if t.Name() == "" {
+		methodPkgName := res.goPkgPath + "." + res.goTypeName
+		if res.goTypeName == "" {
 			methodPkgName = "inline interface"
 		}
 
@@ -504,7 +510,8 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 			res.objContents[getObjKey(qlFieldName)] = &obj{
 				qlFieldName:    qlFieldName,
 				valueType:      valueTypeMethod,
-				pkgPath:        method.PkgPath,
+				goPkgPath:      method.PkgPath,
+				goTypeName:     method.Name,
 				structFieldIdx: i,
 				method:         methodObj,
 			}

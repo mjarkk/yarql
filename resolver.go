@@ -838,6 +838,41 @@ func (ctx *Ctx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSelection 
 		} else {
 			ctx.writeNull()
 		}
+	case valueTypeInterface, valueTypeInterfaceRef:
+		if !hasSubSelection {
+			ctx.writeNull()
+			return ctx.err("must have a selection")
+		}
+
+		var ok bool
+		if typeObj.valueType == valueTypeInterfaceRef {
+			typeObj, ok = ctx.schema.interfaces[typeObj.typeName]
+			if !ok {
+				ctx.writeNull()
+				return false
+			}
+		}
+
+		if goValue.IsNil() {
+			ctx.writeNull()
+			return false
+		}
+
+		if goValue.Kind() == reflect.Interface {
+			goValue = goValue.Elem()
+		}
+
+		goValueType := goValue.Type()
+		goValueName := goValueType.Name()
+		goValuePkgPath := goValueType.PkgPath()
+
+		// TODO improve performance of the below
+		for _, implementation := range typeObj.implementations {
+			if implementation.goTypeName == goValueName && implementation.goPkgPath == goValuePkgPath {
+				return ctx.resolveFieldDataValue(implementation, dept, hasSubSelection)
+			}
+		}
+		ctx.writeNull()
 	}
 
 	return false
