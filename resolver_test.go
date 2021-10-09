@@ -2,6 +2,7 @@ package graphql
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io/ioutil"
@@ -236,6 +237,21 @@ func TestBytecodeResolveMethod(t *testing.T) {
 	schema := TestResolveStructTypeMethodData{}
 	res := bytecodeParseAndExpectNoErrs(t, `{foo, bar, baz}`, schema, M{})
 	a.Equal(t, `{"foo":null,"bar":"foo","baz":"bar"}`, res)
+}
+
+type TestBytecodeResolveMethodWithErrorResData struct{}
+
+func (TestBytecodeResolveMethodWithErrorResData) ResolveFoo() (*string, error) {
+	return nil, errors.New("this is an error")
+}
+
+func TestBytecodeResolveMethodWithErrorRes(t *testing.T) {
+	schema := TestBytecodeResolveMethodWithErrorResData{}
+	query := `{foo}`
+	res, errs := bytecodeParseAndExpectErrs(t, query, schema, M{})
+	a.Len(t, errs, 1)
+	a.Equal(t, `this is an error`, errs[0].Error())
+	a.Equal(t, `{"foo":null}`, res)
 }
 
 type TestResolveStructTypeMethodWithArgsData struct{}
@@ -1743,4 +1759,21 @@ func TestBytecodeResolveInterfaceArrayWithFragment(t *testing.T) {
 
 	out := bytecodeParseAndExpectNoErrs(t, query, querySchema, M{})
 	a.Equal(t, `{"theList":[{"foo":"this is bar","bar":"This is bar","extraBarField":"bar"},{"foo":"this is baz","bar":"This is baz","extraBazField":"baz"},null]}`, out)
+}
+
+type TestBytecodeResolveContextData struct{}
+
+func (TestBytecodeResolveContextData) ResolveFoo(ctx *Ctx) bool {
+	<-ctx.context.Done()
+	return true
+}
+
+func TestBytecodeResolveContext(t *testing.T) {
+	context, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+
+	opts := ResolveOptions{NoMeta: true, Context: context}
+	out, errs := bytecodeParseAndExpectErrs(t, `{foo}`, TestBytecodeResolveContextData{}, M{}, opts)
+	a.Len(t, errs, 1)
+	a.Equal(t, `{"foo":null}`, out)
 }

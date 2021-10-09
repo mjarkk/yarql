@@ -21,7 +21,7 @@ func TestRegisterEnum(t *testing.T) {
 	a.NoError(t, err)
 	a.NotNil(t, res)
 
-	type TestEnumInt uint
+	type TestEnumInt int
 	res, err = registerEnumCheck(map[string]TestEnumInt{
 		"A": 1,
 	})

@@ -47,3 +47,34 @@ func TestInterfaceType(t *testing.T) {
 	_, err := newParseCtx().check(reflect.TypeOf(InterfaceSchema{}), false)
 	a.Nil(t, err)
 }
+
+func TestInterfaceInvalidInput(t *testing.T) {
+	a.Panics(t, func() {
+		Implements(nil, BarWImpl{})
+	}, "cannot use nil as interface value")
+
+	a.Panics(t, func() {
+		Implements((*InterfaceType)(nil), nil)
+	}, "cannot use nil as type value")
+
+	a.Panics(t, func() {
+		Implements(struct{}{}, BarWImpl{})
+	}, "cannot use non interface type as interface value")
+
+	a.Panics(t, func() {
+		Implements((*InterfaceType)(nil), "this is not a valid type")
+	}, "cannot use non struct type as type value")
+
+	a.Panics(t, func() {
+		Implements((*interface{})(nil), BarWImpl{})
+	}, "cannot use inline interface type as interface value")
+
+	a.Panics(t, func() {
+		Implements((*InterfaceType)(nil), struct{}{})
+	}, "cannot use inline struct type as type value")
+
+	type InvalidStruct struct{}
+	a.Panics(t, func() {
+		Implements((*InterfaceType)(nil), InvalidStruct{})
+	}, "cannot use struct that doesn't implement the interface")
+}
