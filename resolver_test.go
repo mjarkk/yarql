@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/mjarkk/go-graphql/helpers"
-	. "github.com/stretchr/testify/assert"
+	a "github.com/stretchr/testify/assert"
 )
 
 func bytecodeParse(t *testing.T, s *Schema, query string, queries interface{}, methods interface{}, opts ...ResolveOptions) (string, []error) {
 	err := s.Parse(queries, methods, nil)
-	NoError(t, err, query)
+	a.NoError(t, err, query)
 
 	if len(opts) == 0 {
 		opts = []ResolveOptions{{NoMeta: true}}
@@ -36,7 +36,7 @@ func bytecodeParseAndExpectNoErrs(t *testing.T, query string, queries interface{
 
 func bytecodeParseAndExpectErrs(t *testing.T, query string, queries interface{}, methods interface{}, opts ...ResolveOptions) (string, []error) {
 	res, errs := bytecodeParse(t, NewSchema(), query, queries, methods, opts...)
-	NotEqual(t, 0, len(res), query)
+	a.NotEqual(t, 0, len(res), query)
 	return res, errs
 }
 
@@ -45,7 +45,7 @@ type M struct{}
 
 func TestBytecodeResolveOnlyOperation(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, `{}`, TestResolveEmptyQueryDataQ{}, M{})
-	Equal(t, `{}`, res)
+	a.Equal(t, `{}`, res)
 }
 
 type TestResolveSimpleQueryData struct {
@@ -60,7 +60,7 @@ func TestBytecodeResolveSingleField(t *testing.T) {
 		A: "foo",
 		B: "bar",
 	}, M{})
-	Equal(t, `{"a":"foo"}`, res)
+	a.Equal(t, `{"a":"foo"}`, res)
 }
 
 func TestBytecodeResolveMutation(t *testing.T) {
@@ -69,10 +69,10 @@ func TestBytecodeResolveMutation(t *testing.T) {
 		B: "bar",
 	}
 	res := bytecodeParseAndExpectNoErrs(t, `mutation test {a}`, M{}, schema)
-	Equal(t, `{"a":"foo"}`, res)
+	a.Equal(t, `{"a":"foo"}`, res)
 
 	_, errs := bytecodeParseAndExpectErrs(t, `mutation test {a}`, schema, M{})
-	Len(t, errs, 1)
+	a.Len(t, errs, 1)
 }
 
 func TestBytecodeResolveMultipleFields(t *testing.T) {
@@ -84,7 +84,7 @@ func TestBytecodeResolveMultipleFields(t *testing.T) {
 		a,
 		b,
 	}`, schema, M{})
-	Equal(t, `{"a":"foo","b":"bar"}`, res)
+	a.Equal(t, `{"a":"foo","b":"bar"}`, res)
 }
 
 func TestBytecodeResolveAlias(t *testing.T) {
@@ -93,7 +93,7 @@ func TestBytecodeResolveAlias(t *testing.T) {
 		B: "bar",
 	}
 	res := bytecodeParseAndExpectNoErrs(t, `{b:a}`, schema, M{})
-	Equal(t, `{"b":"foo"}`, res)
+	a.Equal(t, `{"b":"foo"}`, res)
 }
 
 func TestBytecodeResolveOperatorWithName(t *testing.T) {
@@ -120,7 +120,7 @@ func TestBytecodeResolveOperatorWithName(t *testing.T) {
 			for _, err := range errs {
 				panic(err)
 			}
-			Equal(t, testCase.expectedResult, res)
+			a.Equal(t, testCase.expectedResult, res)
 		})
 	}
 }
@@ -141,9 +141,9 @@ func TestBytecodeResolveNestedFields(t *testing.T) {
 
 	res := TestResolveStructInStructInlineData{}
 	err := json.Unmarshal([]byte(out), &res)
-	NoError(t, err)
-	Equal(t, "foo", res.Foo.A)
-	Equal(t, "bar", res.Foo.B)
+	a.NoError(t, err)
+	a.Equal(t, "foo", res.Foo.A)
+	a.Equal(t, "bar", res.Foo.B)
 }
 
 func TestBytecodeResolveMultipleNestedFields(t *testing.T) {
@@ -157,7 +157,7 @@ func TestBytecodeResolveMultipleNestedFields(t *testing.T) {
 			baz
 		}
 	}`, schema, M{})
-	Equal(t, `{"a":{"foo":null,"bar":""},"b":{"baz":""}}`, res)
+	a.Equal(t, `{"a":{"foo":null,"bar":""},"b":{"baz":""}}`, res)
 }
 
 type TestResolveArrayData struct {
@@ -169,7 +169,7 @@ func TestBytecodeResolveArray(t *testing.T) {
 		Foo: []string{"foo", "bar"},
 	}
 	res := bytecodeParseAndExpectNoErrs(t, `{foo}`, schema, M{})
-	Equal(t, `{"foo":["foo","bar"]}`, res)
+	a.Equal(t, `{"foo":["foo","bar"]}`, res)
 }
 
 type TestBytecodeResolveStructsArrayData struct {
@@ -184,7 +184,7 @@ func TestBytecodeResolveStructsArray(t *testing.T) {
 		},
 	}
 	res := bytecodeParseAndExpectNoErrs(t, `{foo{a b}}`, schema, M{})
-	Equal(t, `{"foo":[{"a":"foo","b":"bar"},{"a":"baz","b":"boz"}]}`, res)
+	a.Equal(t, `{"foo":[{"a":"foo","b":"bar"},{"a":"baz","b":"boz"}]}`, res)
 }
 
 type TestBytecodeResolveTimeData struct {
@@ -198,7 +198,7 @@ func TestBytecodeResolveTime(t *testing.T) {
 
 	schema := TestBytecodeResolveTimeData{now}
 	res := bytecodeParseAndExpectNoErrs(t, `{t}`, schema, M{})
-	Equal(t, `{"t":"`+string(expect)+`"}`, res)
+	a.Equal(t, `{"t":"`+string(expect)+`"}`, res)
 }
 
 type TestResolveTimeIOData struct{}
@@ -217,7 +217,7 @@ func TestBytecodeResolveTimeIO(t *testing.T) {
 
 	exectedOutTime := []byte{}
 	helpers.TimeToIso8601String(&exectedOutTime, now.AddDate(3, 2, 1).Add(time.Hour+time.Second))
-	Equal(t, `{"foo":"`+string(exectedOutTime)+`"}`, out)
+	a.Equal(t, `{"foo":"`+string(exectedOutTime)+`"}`, out)
 }
 
 type TestResolveStructTypeMethodData struct {
@@ -235,7 +235,7 @@ func (TestResolveStructTypeMethodData) ResolveBaz() (string, error) {
 func TestBytecodeResolveMethod(t *testing.T) {
 	schema := TestResolveStructTypeMethodData{}
 	res := bytecodeParseAndExpectNoErrs(t, `{foo, bar, baz}`, schema, M{})
-	Equal(t, `{"foo":null,"bar":"foo","baz":"bar"}`, res)
+	a.Equal(t, `{"foo":null,"bar":"foo","baz":"bar"}`, res)
 }
 
 type TestResolveStructTypeMethodWithArgsData struct{}
@@ -246,7 +246,7 @@ func (TestResolveStructTypeMethodWithArgsData) ResolveBar(c *Ctx, args struct{ A
 
 func TestBytecodeResolveMethodWithArg(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, `{bar(a: "foo")}`, TestResolveStructTypeMethodWithArgsData{}, M{})
-	Equal(t, `{"bar":"foo"}`, res)
+	a.Equal(t, `{"bar":"foo"}`, res)
 }
 
 type TestResolveInputAllKindsOfNumbersData struct{}
@@ -264,13 +264,13 @@ type TestResolveInputAllKindsOfNumbersDataIO struct {
 
 func TestBytecodeResolveMethodWithIntArgs(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, `{foo(a: 1, b: 2, c: 3, d: 1.1) {a b c d}}`, TestResolveInputAllKindsOfNumbersData{}, M{})
-	Equal(t, `{"foo":{"a":1,"b":2,"c":3,"d":1.1}}`, res)
+	a.Equal(t, `{"foo":{"a":1,"b":2,"c":3,"d":1.1}}`, res)
 }
 
 func TestBytecodeResolveTypename(t *testing.T) {
 	schema := TestResolveStructTypeMethodData{}
 	res := bytecodeParseAndExpectNoErrs(t, `{__typename}`, schema, M{})
-	Equal(t, `{"__typename":"TestResolveStructTypeMethodData"}`, res)
+	a.Equal(t, `{"__typename":"TestResolveStructTypeMethodData"}`, res)
 }
 
 type TestResolvePtrData struct {
@@ -283,19 +283,19 @@ type TestResolvePtrInPtrData struct {
 
 func TestBytecodeResolveOutputPointer(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, `{foo}`, TestResolvePtrData{}, M{})
-	Equal(t, `{"foo":null}`, res)
+	a.Equal(t, `{"foo":null}`, res)
 
 	data := "bar"
 	res = bytecodeParseAndExpectNoErrs(t, `{foo}`, TestResolvePtrData{&data}, M{})
-	Equal(t, `{"foo":"bar"}`, res)
+	a.Equal(t, `{"foo":"bar"}`, res)
 
 	// Nested pointers
 	res = bytecodeParseAndExpectNoErrs(t, `{foo}`, TestResolvePtrInPtrData{}, M{})
-	Equal(t, `{"foo":null}`, res)
+	a.Equal(t, `{"foo":null}`, res)
 
 	ptrToData := &data
 	res = bytecodeParseAndExpectNoErrs(t, `{foo}`, TestResolvePtrInPtrData{&ptrToData}, M{})
-	Equal(t, `{"foo":"bar"}`, res)
+	a.Equal(t, `{"foo":"bar"}`, res)
 }
 
 type TestResolveStructTypeMethodWithPtrArgData struct{}
@@ -306,13 +306,13 @@ func (TestResolveStructTypeMethodWithPtrArgData) ResolveBar(c *Ctx, args struct{
 
 func TestBytecodeResolveMethodPointerInput(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, `{bar()}`, TestResolveStructTypeMethodWithPtrArgData{}, M{})
-	Equal(t, `{"bar":null}`, res)
+	a.Equal(t, `{"bar":null}`, res)
 
 	res = bytecodeParseAndExpectNoErrs(t, `{bar(a: null)}`, TestResolveStructTypeMethodWithPtrArgData{}, M{})
-	Equal(t, `{"bar":null}`, res)
+	a.Equal(t, `{"bar":null}`, res)
 
 	res = bytecodeParseAndExpectNoErrs(t, `{bar(a: "foo")}`, TestResolveStructTypeMethodWithPtrArgData{}, M{})
-	Equal(t, `{"bar":"foo"}`, res)
+	a.Equal(t, `{"bar":"foo"}`, res)
 }
 
 type TestBytecodeResolveMethodListInputData struct{}
@@ -323,13 +323,13 @@ func (TestBytecodeResolveMethodListInputData) ResolveBar(c *Ctx, args struct{ A 
 
 func TestBytecodeResolveMethodListInput(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, `{bar()}`, TestBytecodeResolveMethodListInputData{}, M{})
-	Equal(t, `{"bar":null}`, res)
+	a.Equal(t, `{"bar":null}`, res)
 
 	res = bytecodeParseAndExpectNoErrs(t, `{bar(a: null)}`, TestBytecodeResolveMethodListInputData{}, M{})
-	Equal(t, `{"bar":null}`, res)
+	a.Equal(t, `{"bar":null}`, res)
 
 	res = bytecodeParseAndExpectNoErrs(t, `{bar(a: ["foo", "baz"])}`, TestBytecodeResolveMethodListInputData{}, M{})
-	Equal(t, `{"bar":["foo","baz"]}`, res)
+	a.Equal(t, `{"bar":["foo","baz"]}`, res)
 }
 
 type TestResolveStructTypeMethodWithStructArgData struct{}
@@ -340,7 +340,7 @@ func (TestResolveStructTypeMethodWithStructArgData) ResolveBar(c *Ctx, args stru
 
 func TestBytecodeResolveMethodNestedInputs(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, `{bar(a: {b: "foo"})}`, TestResolveStructTypeMethodWithStructArgData{}, M{})
-	Equal(t, `{"bar":"foo"}`, res)
+	a.Equal(t, `{"bar":"foo"}`, res)
 }
 
 type TestBytecodeResolveEnumData struct {
@@ -351,7 +351,7 @@ func TestBytecodeResolveEnum(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, `{foo}`, TestBytecodeResolveEnumData{
 		foo: typeKindObject,
 	}, M{})
-	Equal(t, `{"foo":"OBJECT"}`, res)
+	a.Equal(t, `{"foo":"OBJECT"}`, res)
 }
 
 type TestBytecodeResolveEnumInputData struct{}
@@ -362,7 +362,7 @@ func (TestBytecodeResolveEnumInputData) ResolveFoo(args struct{ A __TypeKind }) 
 
 func TestBytecodeResolveEnumInput(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, `{foo(a: OBJECT)}`, TestBytecodeResolveEnumInputData{}, M{})
-	Equal(t, `{"foo":"OBJECT"}`, res)
+	a.Equal(t, `{"foo":"OBJECT"}`, res)
 }
 
 func TestBytecodeResolveCorrectMeta(t *testing.T) {
@@ -380,7 +380,7 @@ func TestBytecodeResolveCorrectMeta(t *testing.T) {
 	if !json.Valid([]byte(res)) {
 		panic("invalid json: " + res)
 	}
-	Equal(t, `{"data":{"a":{"foo":null,"bar":""},"b":{"baz":""}},"errors":[],"extensions":{}}`, res)
+	a.Equal(t, `{"data":{"a":{"foo":null,"bar":""},"b":{"baz":""}},"errors":[],"extensions":{}}`, res)
 }
 
 func TestBytecodeResolveCorrectMetaWithError(t *testing.T) {
@@ -394,20 +394,20 @@ func TestBytecodeResolveCorrectMetaWithError(t *testing.T) {
 	if !json.Valid([]byte(res)) {
 		panic("invalid json: " + res)
 	}
-	Equal(t, `{"data":{"a":{"foo":null}},"errors":[{"message":"field arguments not allowed","path":["a","foo"]}],"extensions":{}}`, res)
+	a.Equal(t, `{"data":{"a":{"foo":null}},"errors":[{"message":"field arguments not allowed","path":["a","foo"]}],"extensions":{}}`, res)
 }
 
 func TestBytecodeResolveWithArgs(t *testing.T) {
 	query := `query A($a: Int) {}`
 	schema := TestResolveEmptyQueryDataQ{}
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
-	Equal(t, `{}`, res)
+	a.Equal(t, `{}`, res)
 }
 
 func TestBytecodeResolveVariableInputWithDefault(t *testing.T) {
 	query := `query A($baz: String = "foo") {bar(a: $baz)}`
 	res := bytecodeParseAndExpectNoErrs(t, query, TestResolveStructTypeMethodWithPtrArgData{}, M{})
-	Equal(t, `{"bar":"foo"}`, res)
+	a.Equal(t, `{"bar":"foo"}`, res)
 }
 
 func TestBytecodeResolveVariable(t *testing.T) {
@@ -416,7 +416,7 @@ func TestBytecodeResolveVariable(t *testing.T) {
 		NoMeta:    true,
 		Variables: `{"baz": "foo"}`,
 	})
-	Equal(t, `{"bar":"foo"}`, res)
+	a.Equal(t, `{"bar":"foo"}`, res)
 }
 
 type TestBytecodeResolveMultipleArgumentsData struct{}
@@ -489,7 +489,7 @@ func TestBytecodeResolveMultipleArguments(t *testing.T) {
 	}`
 	schema := TestBytecodeResolveMultipleArgumentsData{}
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
-	Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","uintId":"123","stringId":"abc","enum":"ENUM"}}`, res)
+	a.Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","uintId":"123","stringId":"abc","enum":"ENUM"}}`, res)
 }
 
 func TestBytecodeResolveMultipleArgumentsUsingDefaultVariables(t *testing.T) {
@@ -549,7 +549,7 @@ func TestBytecodeResolveMultipleArgumentsUsingDefaultVariables(t *testing.T) {
 	}`
 	schema := TestBytecodeResolveMultipleArgumentsData{}
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
-	Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","uintId":"123","stringId":"abc","enum":"ENUM"}}`, res)
+	a.Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","uintId":"123","stringId":"abc","enum":"ENUM"}}`, res)
 }
 
 func TestBytecodeResolveMultipleArgumentsUsingVariables(t *testing.T) {
@@ -630,7 +630,7 @@ func TestBytecodeResolveMultipleArgumentsUsingVariables(t *testing.T) {
 		}`,
 	}
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{}, opts)
-	Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","uintId":"123","stringId":"abc","enum":"ENUM"}}`, res)
+	a.Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","uintId":"123","stringId":"abc","enum":"ENUM"}}`, res)
 }
 
 type TestBytecodeResolveJSONArrayVariableData struct{}
@@ -651,7 +651,7 @@ func TestBytecodeResolveJSONArrayVariable(t *testing.T) {
 		}`,
 	}
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{}, opts)
-	Equal(t, `{"foo":["a","b","c"]}`, res)
+	a.Equal(t, `{"foo":["a","b","c"]}`, res)
 }
 
 type TestBytecodeResolveJSONObjectVariableData struct{}
@@ -680,7 +680,7 @@ func TestBytecodeResolveJSONObjectVariable(t *testing.T) {
 		}`,
 	}
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{}, opts)
-	Equal(t, `{"foo":{"a":"b","c":"d"}}`, res)
+	a.Equal(t, `{"foo":{"a":"b","c":"d"}}`, res)
 }
 
 type TestBytecodeResolveInlineSpreadData struct {
@@ -698,7 +698,7 @@ func TestBytecodeResolveInlineSpread(t *testing.T) {
 	query := `{
 		inner {
 			fieldA
-			... on baz {
+			... on TestBytecodeResolveInlineSpreadDataInner {
 				fieldB
 				fieldC
 			}
@@ -714,7 +714,7 @@ func TestBytecodeResolveInlineSpread(t *testing.T) {
 		},
 	}
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
-	Equal(t, `{"inner":{"fieldA":"a","fieldB":"b","fieldC":"c","fieldD":"d"}}`, res)
+	a.Equal(t, `{"inner":{"fieldA":"a","fieldB":"b","fieldC":"c","fieldD":"d"}}`, res)
 }
 
 func TestBytecodeResolveSpread(t *testing.T) {
@@ -726,7 +726,7 @@ func TestBytecodeResolveSpread(t *testing.T) {
 		}
 	}
 
-	fragment baz on Bar {
+	fragment baz on TestBytecodeResolveInlineSpreadDataInner {
 		fieldB
 		fieldC
 	}`
@@ -740,7 +740,7 @@ func TestBytecodeResolveSpread(t *testing.T) {
 		},
 	}
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
-	Equal(t, `{"inner":{"fieldA":"a","fieldB":"b","fieldC":"c","fieldD":"d"}}`, res)
+	a.Equal(t, `{"inner":{"fieldA":"a","fieldB":"b","fieldC":"c","fieldD":"d"}}`, res)
 }
 
 // This is the request graphql playground makes to get the schema
@@ -855,19 +855,19 @@ func TestBytecodeResolveSchemaRequestSimple(t *testing.T) {
 		Schema qlSchema `json:"__schema"`
 	}{}
 	err := json.Unmarshal([]byte(resString), &res)
-	NoError(t, err)
+	a.NoError(t, err)
 
 	schema := res.Schema
 	types := schema.JSONTypes
 
-	Equal(t, 17, len(types))
+	a.Equal(t, 17, len(types))
 
 	idx := 0
 	is := func(kind, name string) {
 		item := types[idx]
-		Equalf(t, kind, item.JSONKind, "(KIND) Index: %d", idx)
-		NotNilf(t, item.Name, "(NAME) Index: %d", idx)
-		Equalf(t, name, *item.Name, "(NAME) Index: %d", idx)
+		a.Equalf(t, kind, item.JSONKind, "(KIND) Index: %d", idx)
+		a.NotNilf(t, item.Name, "(NAME) Index: %d", idx)
+		a.Equalf(t, name, *item.Name, "(NAME) Index: %d", idx)
 		idx++
 	}
 
@@ -916,19 +916,19 @@ func TestBytecodeResolveSchemaRequestWithFields(t *testing.T) {
 		Schema qlSchema `json:"__schema"`
 	}{}
 	err := json.Unmarshal([]byte(resString), &res)
-	NoError(t, err)
+	a.NoError(t, err)
 
 	schema := res.Schema
 	types := schema.JSONTypes
 
-	Equal(t, 21, len(types))
+	a.Equal(t, 21, len(types))
 
 	idx := 0
 	is := func(kind, name string) int {
 		item := types[idx]
-		Equalf(t, kind, item.JSONKind, "(KIND) Index: %d", idx)
-		NotNilf(t, item.Name, "(NAME) Index: %d", idx)
-		Equalf(t, name, *item.Name, "(NAME) Index: %d", idx)
+		a.Equalf(t, kind, item.JSONKind, "(KIND) Index: %d", idx)
+		a.NotNilf(t, item.Name, "(NAME) Index: %d", idx)
+		a.Equalf(t, name, *item.Name, "(NAME) Index: %d", idx)
 		idx++
 		return idx - 1
 	}
@@ -956,17 +956,17 @@ func TestBytecodeResolveSchemaRequestWithFields(t *testing.T) {
 	is("OBJECT", "__UnknownType2")
 
 	fields := types[queryIdx].JSONFields
-	Equal(t, 6, len(fields))
+	a.Equal(t, 6, len(fields))
 
 	idx = 0
 	isField := func(name string) {
 		field := fields[idx]
-		Equalf(t, name, field.Name, "(NAME) Index: %d", idx)
+		a.Equalf(t, name, field.Name, "(NAME) Index: %d", idx)
 		if field.Name == "__type" {
-			Equalf(t, "OBJECT", field.Type.JSONKind, "(KIND) Index: %d", idx)
+			a.Equalf(t, "OBJECT", field.Type.JSONKind, "(KIND) Index: %d", idx)
 		} else {
-			Equalf(t, "NON_NULL", field.Type.JSONKind, "(KIND) Index: %d", idx)
-			Equalf(t, "OBJECT", field.Type.OfType.JSONKind, "(OFTYPE KIND) Index: %d", idx)
+			a.Equalf(t, "NON_NULL", field.Type.JSONKind, "(KIND) Index: %d", idx)
+			a.Equalf(t, "OBJECT", field.Type.OfType.JSONKind, "(OFTYPE KIND) Index: %d", idx)
 		}
 		idx++
 	}
@@ -979,7 +979,7 @@ func TestBytecodeResolveSchemaRequestWithFields(t *testing.T) {
 	isField("d")
 
 	inFields := types[inputIdx].JSONInputFields
-	Equal(t, 1, len(inFields))
+	a.Equal(t, 1, len(inFields))
 }
 
 func TestBytecodeResolveGraphqlTypenameByName(t *testing.T) {
@@ -991,12 +991,12 @@ func TestBytecodeResolveGraphqlTypenameByName(t *testing.T) {
 	}`
 
 	res := bytecodeParseAndExpectNoErrs(t, query, TestResolveSchemaRequestWithFieldsData{}, M{})
-	Equal(t, `{"__type":{"kind":"OBJECT","name":"TestResolveSchemaRequestWithFieldsDataInnerStruct"}}`, res)
+	a.Equal(t, `{"__type":{"kind":"OBJECT","name":"TestResolveSchemaRequestWithFieldsDataInnerStruct"}}`, res)
 }
 
 func TestBytecodeResolveGraphqlTypename(t *testing.T) {
 	res := bytecodeParseAndExpectNoErrs(t, `{a {__typename}}`, TestResolveSchemaRequestWithFieldsData{}, M{})
-	Equal(t, `{"a":{"__typename":"TestResolveSchemaRequestWithFieldsDataInnerStruct"}}`, res)
+	a.Equal(t, `{"a":{"__typename":"TestResolveSchemaRequestWithFieldsDataInnerStruct"}}`, res)
 }
 
 func TestBytecodeResolveTracing(t *testing.T) {
@@ -1014,29 +1014,29 @@ func TestBytecodeResolveTracing(t *testing.T) {
 		} `json:"extensions"`
 	}{}
 	err := json.Unmarshal([]byte(res), &parsedRes)
-	NoError(t, err)
+	a.NoError(t, err)
 
 	tracer := parsedRes.Extensions.Tracing
-	Equal(t, uint8(1), tracer.Version)
-	NotEqual(t, "", tracer.StartTime)
-	NotEqual(t, "", tracer.EndTime)
-	NotEqual(t, int64(0), tracer.Duration)
+	a.Equal(t, uint8(1), tracer.Version)
+	a.NotEqual(t, "", tracer.StartTime)
+	a.NotEqual(t, "", tracer.EndTime)
+	a.NotEqual(t, int64(0), tracer.Duration)
 
 	parsing := tracer.Parsing
-	NotEqual(t, int64(0), parsing.Duration)
+	a.NotEqual(t, int64(0), parsing.Duration)
 
 	validation := tracer.Validation
-	Equal(t, int64(0), validation.Duration)
-	NotEqual(t, int64(0), validation.StartOffset)
+	a.Equal(t, int64(0), validation.Duration)
+	a.NotEqual(t, int64(0), validation.StartOffset)
 
 	for _, resolver := range tracer.Execution.Resolvers {
-		NotNil(t, []byte(resolver.Path))
-		NotEmpty(t, []byte(resolver.Path))
-		NotEqual(t, "", resolver.ParentType)
-		NotEqual(t, "", resolver.FieldName)
-		NotEqual(t, "", resolver.ReturnType)
-		NotEqual(t, int64(0), resolver.StartOffset)
-		NotEqual(t, int64(0), resolver.Duration)
+		a.NotNil(t, []byte(resolver.Path))
+		a.NotEmpty(t, []byte(resolver.Path))
+		a.NotEqual(t, "", resolver.ParentType)
+		a.NotEqual(t, "", resolver.FieldName)
+		a.NotEqual(t, "", resolver.ReturnType)
+		a.NotEqual(t, int64(0), resolver.StartOffset)
+		a.NotEqual(t, int64(0), resolver.Duration)
 	}
 }
 
@@ -1090,7 +1090,7 @@ func TestBytecodeResolveDirective(t *testing.T) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
 				res := bytecodeParseAndExpectNoErrs(t, test.query, schema, M{})
-				Equal(t, test.expects, res, test.query)
+				a.Equal(t, test.expects, res, test.query)
 			})
 		}
 	})
@@ -1128,8 +1128,8 @@ func TestBytecodeResolveDirective(t *testing.T) {
 		for _, err := range errs {
 			panic(err.Error())
 		}
-		Equal(t, `{"a":"foo","b":"bar","c":"baz"}`, res, query)
-		Equal(t, 3, value)
+		a.Equal(t, `{"a":"foo","b":"bar","c":"baz"}`, res, query)
+		a.Equal(t, 3, value)
 	})
 
 	t.Run("inside fragment", func(t *testing.T) {
@@ -1142,7 +1142,7 @@ func TestBytecodeResolveDirective(t *testing.T) {
 				"skip inline fragment",
 				`{
 					a
-					... on Root @skip(if: true) {
+					... on TestResolveSimpleQueryData @skip(if: true) {
 						b
 					}
 					c
@@ -1153,7 +1153,7 @@ func TestBytecodeResolveDirective(t *testing.T) {
 				"do not skip inline fragment",
 				`{
 					a
-					... on Root @skip(if: false) {
+					... on TestResolveSimpleQueryData @skip(if: false) {
 						b
 					}
 					c
@@ -1165,7 +1165,7 @@ func TestBytecodeResolveDirective(t *testing.T) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
 				res := bytecodeParseAndExpectNoErrs(t, test.query, schema, M{})
-				Equal(t, test.expects, res, test.query)
+				a.Equal(t, test.expects, res, test.query)
 			})
 		}
 	})
@@ -1267,7 +1267,7 @@ func TestValueToJson(t *testing.T) {
 		c := &Ctx{schema: &Schema{Result: []byte{}}}
 		v := reflect.ValueOf(option.value)
 		c.valueToJson(v, v.Kind())
-		Equal(t, option.expect, string(c.schema.Result))
+		a.Equal(t, option.expect, string(c.schema.Result))
 	}
 }
 
@@ -1325,7 +1325,7 @@ func TestResolveBytecodeWithFile(t *testing.T) {
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"foo":"hello world"}`, out)
+	a.Equal(t, `{"foo":"hello world"}`, out)
 }
 
 type TestResolveMaxDeptData struct {
@@ -1346,8 +1346,8 @@ func TestExecMaxDept(t *testing.T) {
 	s := NewSchema()
 	s.MaxDepth = 3
 	out, errs := bytecodeParse(t, s, `{foo{bar{baz{fooBar{barBaz{bazFoo}}}}}}`, TestResolveMaxDeptData{}, M{}, ResolveOptions{})
-	Greater(t, len(errs), 0)
-	Equal(t, `{"data":{"foo":{"bar":{"baz":null}}},"errors":[{"message":"reached max dept","path":["foo","bar","baz"]}],"extensions":{}}`, out)
+	a.Greater(t, len(errs), 0)
+	a.Equal(t, `{"data":{"foo":{"bar":{"baz":null}}},"errors":[{"message":"reached max dept","path":["foo","bar","baz"]}],"extensions":{}}`, out)
 }
 
 type TestResolveStructTypeMethodWithCtxData struct{}
@@ -1381,7 +1381,7 @@ func TestBytecodeResolveCtxValues(t *testing.T) {
 		}
 	`
 	res := bytecodeParseAndExpectNoErrs(t, query, TestResolveStructTypeMethodWithCtxData{}, M{})
-	Equal(t, `{"bar":{"foo":"bar"},"baz":"bar"}`, res)
+	a.Equal(t, `{"bar":{"foo":"bar"},"baz":"bar"}`, res)
 }
 
 type TestPathStaysCorrectData struct {
@@ -1626,5 +1626,121 @@ func TestPathStaysCorrect(t *testing.T) {
 	expectedOut = strings.ReplaceAll(expectedOut, " ", "")
 	expectedOut = strings.ReplaceAll(expectedOut, "\n", "")
 	expectedOut = strings.ReplaceAll(expectedOut, "\t", "")
-	Equal(t, expectedOut, out)
+	a.Equal(t, expectedOut, out)
+}
+
+type NotRegisteredInterfaceType struct{}
+
+func (NotRegisteredInterfaceType) ResolveFoo() string { return "THIS SHOULD NOT APPEAR IN RESULTS" }
+func (NotRegisteredInterfaceType) ResolveBar() string { return "THIS SHOULD NOT APPEAR IN RESULTS" }
+
+func TestBytecodeResolveInterface(t *testing.T) {
+	Implements((*InterfaceType)(nil), BarWImpl{})
+	Implements((*InterfaceType)(nil), BazWImpl{})
+
+	testCases := []struct {
+		name           string
+		interfaceValue InterfaceType
+		expect         string
+	}{
+		{
+			"nil interface value",
+			nil,
+			"null",
+		},
+		{
+			"struct 1 implementing interface",
+			BarWImpl{},
+			`{"foo":"this is bar","bar":"This is bar"}`,
+		},
+		{
+			"struct 2 implementing interface",
+			BazWImpl{},
+			`{"foo":"this is baz","bar":"This is baz"}`,
+		},
+		{
+			"struct that implmenets interface but is not registered",
+			NotRegisteredInterfaceType{},
+			`null`,
+		},
+	}
+
+	query := `{
+		generic {foo bar}
+	}`
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			querySchema := InterfaceSchema{
+				Bar:     BarWImpl{},
+				Baz:     BazWImpl{},
+				Generic: testCase.interfaceValue,
+			}
+
+			out := bytecodeParseAndExpectNoErrs(t, query, querySchema, M{})
+			a.Equal(t, `{"generic":`+testCase.expect+`}`, out)
+		})
+	}
+
+}
+
+type TestBytecodeResolveInterfaceArrayData struct {
+	TheList []InterfaceType
+}
+
+func TestBytecodeResolveInterfaceArray(t *testing.T) {
+	Implements((*InterfaceType)(nil), BarWImpl{})
+	Implements((*InterfaceType)(nil), BazWImpl{})
+
+	querySchema := TestBytecodeResolveInterfaceArrayData{
+		TheList: []InterfaceType{
+			BarWImpl{},
+			BazWImpl{},
+			nil,
+		},
+	}
+	query := `{theList{foo bar}}`
+
+	out := bytecodeParseAndExpectNoErrs(t, query, querySchema, M{})
+	a.Equal(t, `{"theList":[{"foo":"this is bar","bar":"This is bar"},{"foo":"this is baz","bar":"This is baz"},null]}`, out)
+}
+
+func TestBytecodeResolveInterfaceType(t *testing.T) {
+	Implements((*InterfaceType)(nil), BarWImpl{})
+	Implements((*InterfaceType)(nil), BazWImpl{})
+
+	query := `{
+		__type(name: "InterfaceType") {
+			name
+			fields(includeDeprecated: true) {name}
+			possibleTypes {kind name}
+		}
+	}`
+
+	out := bytecodeParseAndExpectNoErrs(t, query, InterfaceSchema{}, M{})
+	a.Equal(t, `{"__type":{"name":"InterfaceType","fields":[{"name":"bar"},{"name":"foo"}],"possibleTypes":[{"kind":"OBJECT","name":"BarWImpl"},{"kind":"OBJECT","name":"BazWImpl"}]}}`, out)
+}
+
+func TestBytecodeResolveInterfaceArrayWithFragment(t *testing.T) {
+	Implements((*InterfaceType)(nil), BarWImpl{})
+	Implements((*InterfaceType)(nil), BazWImpl{})
+
+	querySchema := TestBytecodeResolveInterfaceArrayData{
+		TheList: []InterfaceType{
+			BarWImpl{ExtraBarField: "bar"},
+			BazWImpl{ExtraBazField: "baz"},
+			nil,
+		},
+	}
+	query := `{
+		theList{
+			foo
+			bar
+			... on BarWImpl { extraBarField }
+			... on BazWImpl { extraBazField }
+		}
+	}`
+
+	out := bytecodeParseAndExpectNoErrs(t, query, querySchema, M{})
+	a.Equal(t, `{"theList":[{"foo":"this is bar","bar":"This is bar","extraBarField":"bar"},{"foo":"this is baz","bar":"This is baz","extraBazField":"baz"},null]}`, out)
 }

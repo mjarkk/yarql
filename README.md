@@ -45,7 +45,7 @@ func (QueryRoot) ResolvePosts() []Post {
 type MethodRoot struct{}
 
 func main() {
-	s := NewSchema()
+	s := graphql.NewSchema()
 
     err := s.Parse(QueryRoot{}, MethodRoot{}, nil)
 	if err != nil {
@@ -217,9 +217,8 @@ const (
 	Grapefruit
 )
 
-
 func main() {
-	s := NewSchema()
+	s := graphql.NewSchema()
 
 	// The map key is the enum it's key in graphql
 	// The map value is the go value the enum key is mapped to or the other way around
@@ -234,6 +233,41 @@ func main() {
 }
 ```
 
+### Interfaces
+
+Graphql interfaces can be created using go interfaces
+
+This library needs to anylize all types before you can make a query and as we cannot query all types that implmenet a interface you'll need to help the library with this by calling `Implements` for every implementation.
+If `Implements` is not called for a type the response value for that type when inside a interface will always be `null`
+
+```go
+type QuerySchema struct {
+	Bar      BarWImpl
+	Baz      BazWImpl
+	BarOrBaz InterfaceType
+}
+
+type InterfaceType interface {
+	// Interface fields
+	ResolveFoo() string
+	ResolveBar() string
+}
+
+type BarWImpl struct{}
+
+// Implements hints this library to register BarWImpl
+// THIS MUST BE CALLED FOR EVERY TYPE THAT IMPLMENTS InterfaceType
+var _ = graphql.Implements((*InterfaceType)(nil), BarWImpl{})
+
+func (BarWImpl) ResolveFoo() string { return "this is bar" }
+func (BarWImpl) ResolveBar() string { return "This is bar" }
+
+type BazWImpl struct{}
+var _ = graphql.Implements((*InterfaceType)(nil), BazWImpl{})
+func (BazWImpl) ResolveFoo() string { return "this is baz" }
+func (BazWImpl) ResolveBar() string { return "This is baz" }
+```
+
 ### Directives
 
 These directives are added by default:
@@ -245,7 +279,7 @@ To add custom directives:
 
 ```go
 func main() {
-	s := NewSchema()
+	s := graphql.NewSchema()
 
 	// Also the .RegisterEnum(..) method must be called before .Parse(..)
 	s.RegisterDirective(Directive{

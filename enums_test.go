@@ -3,7 +3,7 @@ package graphql
 import (
 	"testing"
 
-	. "github.com/stretchr/testify/assert"
+	a "github.com/stretchr/testify/assert"
 )
 
 func TestRegisterEnum(t *testing.T) {
@@ -11,51 +11,51 @@ func TestRegisterEnum(t *testing.T) {
 	res, err := registerEnumCheck(map[string]TestEnumString{
 		"A": "B",
 	})
-	NoError(t, err)
-	NotNil(t, res)
+	a.NoError(t, err)
+	a.NotNil(t, res)
 
 	type TestEnumUint uint
 	res, err = registerEnumCheck(map[string]TestEnumUint{
 		"A": 1,
 	})
-	NoError(t, err)
-	NotNil(t, res)
+	a.NoError(t, err)
+	a.NotNil(t, res)
 
 	type TestEnumInt uint
 	res, err = registerEnumCheck(map[string]TestEnumInt{
 		"A": 1,
 	})
-	NoError(t, err)
-	NotNil(t, res)
+	a.NoError(t, err)
+	a.NotNil(t, res)
 }
 
 func TestEmptyEnumShouldNotBeRegistered(t *testing.T) {
 	type TestEnum string
 	res, err := registerEnumCheck(map[string]TestEnum{})
-	NoError(t, err)
-	Nil(t, res)
+	a.NoError(t, err)
+	a.Nil(t, res)
 }
 
 func TestRegisterEnumFails(t *testing.T) {
 	type TestEnum string
 
 	_, err := registerEnumCheck(0)
-	Error(t, err, "Cannot generate an enum of non map types")
+	a.Error(t, err, "Cannot generate an enum of non map types")
 
 	_, err = registerEnumCheck(nil)
-	Error(t, err, "Cannot generate an enum of non map types 2")
+	a.Error(t, err, "Cannot generate an enum of non map types 2")
 
 	_, err = registerEnumCheck(map[int]TestEnum{1: "a"})
-	Error(t, err, "Enum must have a string key type")
+	a.Error(t, err, "Enum must have a string key type")
 
 	_, err = registerEnumCheck(map[string]struct{}{"a": {}})
-	Error(t, err, "Enum value cannot be complex")
+	a.Error(t, err, "Enum value cannot be complex")
 
 	_, err = registerEnumCheck(map[string]string{"foo": "bar"})
-	Error(t, err, "Enum value must be a custom type")
+	a.Error(t, err, "Enum value must be a custom type")
 
 	_, err = registerEnumCheck(map[string]TestEnum{"": ""})
-	Error(t, err, "Enum keys cannot be empty")
+	a.Error(t, err, "Enum keys cannot be empty")
 
 	// Maybe fix this??
 	// _, err = registerEnumCheck(map[string]TestEnum{
@@ -65,13 +65,13 @@ func TestRegisterEnumFails(t *testing.T) {
 	// Error(t, err, "Enum cannot have duplicated values")
 
 	_, err = registerEnumCheck(map[string]TestEnum{"1": ""})
-	Error(t, err, "Enum cannot have an invalid graphql name, where first letter is number")
+	a.Error(t, err, "Enum cannot have an invalid graphql name, where first letter is number")
 
 	_, err = registerEnumCheck(map[string]TestEnum{"_": ""})
-	Error(t, err, "Enum cannot have an invalid graphql name, where first letter is underscore")
+	a.Error(t, err, "Enum cannot have an invalid graphql name, where first letter is underscore")
 
 	_, err = registerEnumCheck(map[string]TestEnum{"A!!!!": ""})
-	Error(t, err, "Enum cannot have an invalid graphql name, where remainder of name is invalid")
+	a.Error(t, err, "Enum cannot have an invalid graphql name, where remainder of name is invalid")
 }
 
 type TestEnum2 uint8
@@ -96,12 +96,12 @@ func TestEnum(t *testing.T) {
 		"BAR": TestEnum2Bar,
 		"BAZ": TestEnum2Baz,
 	})
-	True(t, added)
-	NoError(t, err)
+	a.True(t, added)
+	a.NoError(t, err)
 
 	res, errs := bytecodeParse(t, s, `{bar(e: BAZ)}`, TestEnumFunctionInput{}, M{}, ResolveOptions{NoMeta: true})
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"bar":"BAZ"}`, res)
+	a.Equal(t, `{"bar":"BAZ"}`, res)
 }

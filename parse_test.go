@@ -4,14 +4,14 @@ import (
 	"reflect"
 	"testing"
 
-	. "github.com/stretchr/testify/assert"
+	a "github.com/stretchr/testify/assert"
 )
 
 func TestFormatGoNameToQL(t *testing.T) {
-	Equal(t, "input", formatGoNameToQL("input"))
-	Equal(t, "input", formatGoNameToQL("Input"))
-	Equal(t, "INPUT", formatGoNameToQL("INPUT"))
-	Equal(t, "", formatGoNameToQL(""))
+	a.Equal(t, "input", formatGoNameToQL("input"))
+	a.Equal(t, "input", formatGoNameToQL("Input"))
+	a.Equal(t, "INPUT", formatGoNameToQL("INPUT"))
+	a.Equal(t, "", formatGoNameToQL(""))
 }
 
 type TestCheckEmptyStructData struct{}
@@ -25,9 +25,9 @@ func newParseCtx() *parseCtx {
 
 func TestCheckEmptyStruct(t *testing.T) {
 	obj, err := newParseCtx().check(reflect.TypeOf(TestCheckEmptyStructData{}), false)
-	NoError(t, err)
+	a.NoError(t, err)
 
-	Equal(t, valueTypeObjRef, obj.valueType)
+	a.Equal(t, valueTypeObjRef, obj.valueType)
 }
 
 type TestCheckStructSimpleDemo struct {
@@ -39,12 +39,12 @@ type TestCheckStructSimpleDemo struct {
 func TestCheckStructSimple(t *testing.T) {
 	ctx := newParseCtx()
 	obj, err := ctx.check(reflect.TypeOf(TestCheckStructSimpleDemo{}), false)
-	NoError(t, err)
+	a.NoError(t, err)
 
-	Equal(t, obj.valueType, valueTypeObjRef)
+	a.Equal(t, obj.valueType, valueTypeObjRef)
 	typeObj, ok := ctx.schema.types[obj.typeName]
-	True(t, ok)
-	NotNil(t, typeObj.objContents)
+	a.True(t, ok)
+	a.NotNil(t, typeObj.objContents)
 
 	exists := map[string]reflect.Kind{
 		"a": reflect.String,
@@ -53,9 +53,9 @@ func TestCheckStructSimple(t *testing.T) {
 	}
 	for name, expectedType := range exists {
 		val, ok := typeObj.objContents[getObjKey([]byte(name))]
-		True(t, ok)
-		Equal(t, valueTypeData, val.valueType)
-		Equal(t, expectedType, val.dataValueType)
+		a.True(t, ok)
+		a.Equal(t, valueTypeData, val.valueType)
+		a.Equal(t, expectedType, val.dataValueType)
 	}
 }
 
@@ -70,19 +70,19 @@ type TestCheckStructWArrayData struct {
 func TestCheckStructWArray(t *testing.T) {
 	ctx := newParseCtx()
 	ref, err := ctx.check(reflect.TypeOf(TestCheckStructWArrayData{}), false)
-	NoError(t, err)
+	a.NoError(t, err)
 	obj := ctx.schema.types[ref.typeName]
 
 	// Foo is an array
 	val, ok := obj.objContents[getObjKey([]byte("foo"))]
-	True(t, ok)
-	Equal(t, valueTypeArray, val.valueType)
+	a.True(t, ok)
+	a.Equal(t, valueTypeArray, val.valueType)
 
 	// Foo array content is correct
 	val = val.innerContent
-	NotNil(t, val)
-	Equal(t, valueTypeData, val.valueType)
-	Equal(t, reflect.String, val.dataValueType)
+	a.NotNil(t, val)
+	a.Equal(t, valueTypeData, val.valueType)
+	a.Equal(t, reflect.String, val.dataValueType)
 }
 
 type TestCheckStructWPtrData struct {
@@ -92,19 +92,19 @@ type TestCheckStructWPtrData struct {
 func TestCheckStructWPtr(t *testing.T) {
 	ctx := newParseCtx()
 	ref, err := ctx.check(reflect.TypeOf(TestCheckStructWPtrData{}), false)
-	NoError(t, err)
+	a.NoError(t, err)
 	obj := ctx.schema.types[ref.typeName]
 
 	// Foo is a ptr
 	val, ok := obj.objContents[getObjKey([]byte("foo"))]
-	True(t, ok)
-	Equal(t, valueTypePtr, val.valueType)
+	a.True(t, ok)
+	a.Equal(t, valueTypePtr, val.valueType)
 
 	// Foo array content is correct
 	val = val.innerContent
-	NotNil(t, val)
-	Equal(t, valueTypeData, val.valueType)
-	Equal(t, reflect.String, val.dataValueType)
+	a.NotNil(t, val)
+	a.Equal(t, valueTypeData, val.valueType)
+	a.Equal(t, reflect.String, val.dataValueType)
 }
 
 type TestCheckStructTagsData struct {
@@ -115,36 +115,36 @@ type TestCheckStructTagsData struct {
 func TestCheckStructTags(t *testing.T) {
 	ctx := newParseCtx()
 	ref, err := ctx.check(reflect.TypeOf(TestCheckStructTagsData{}), false)
-	NoError(t, err)
+	a.NoError(t, err)
 	obj := ctx.schema.types[ref.typeName]
 
 	_, ok := obj.objContents[getObjKey([]byte("otherName"))]
-	True(t, ok, "name should now be called otherName")
+	a.True(t, ok, "name should now be called otherName")
 
 	_, ok = obj.objContents[getObjKey([]byte("name"))]
-	False(t, ok, "name should now be called otherName and thus also not appear in the checkres")
+	a.False(t, ok, "name should now be called otherName and thus also not appear in the checkres")
 
 	_, ok = obj.objContents[getObjKey([]byte("hiddenField"))]
-	False(t, ok, "hiddenField should be ignored")
+	a.False(t, ok, "hiddenField should be ignored")
 }
 
 func TestCheckInvalidStruct(t *testing.T) {
 	_, err := newParseCtx().check(reflect.TypeOf(struct {
 		Foo interface{}
 	}{}), false)
-	Error(t, err)
+	a.Error(t, err)
 
 	_, err = newParseCtx().check(reflect.TypeOf(struct {
 		Foo complex64
 	}{}), false)
-	Error(t, err)
+	a.Error(t, err)
 
 	_, err = newParseCtx().check(reflect.TypeOf(struct {
 		Foo struct {
 			Bar complex64
 		}
 	}{}), false)
-	Error(t, err)
+	a.Error(t, err)
 }
 
 type TestCheckMethodsData struct{}
@@ -162,15 +162,15 @@ func (TestCheckMethodsData) ResolvePeer(in struct{}) string {
 func TestCheckMethods(t *testing.T) {
 	ctx := newParseCtx()
 	ref, err := ctx.check(reflect.TypeOf(TestCheckMethodsData{}), false)
-	Nil(t, err)
+	a.Nil(t, err)
 	obj := ctx.schema.types[ref.typeName]
 
 	_, ok := obj.objContents[getObjKey([]byte("name"))]
-	True(t, ok)
+	a.True(t, ok)
 	_, ok = obj.objContents[getObjKey([]byte("banana"))]
-	True(t, ok)
+	a.True(t, ok)
 	_, ok = obj.objContents[getObjKey([]byte("peer"))]
-	True(t, ok)
+	a.True(t, ok)
 }
 
 type TestCheckMethodsFailData1 struct{}
@@ -193,13 +193,13 @@ func (TestCheckMethodsFailData3) ResolveName(in int) func(string) string {
 
 func TestCheckMethodsFail(t *testing.T) {
 	_, err := newParseCtx().check(reflect.TypeOf(TestCheckMethodsFailData1{}), false)
-	Error(t, err)
+	a.Error(t, err)
 
 	_, err = newParseCtx().check(reflect.TypeOf(TestCheckMethodsFailData2{}), false)
-	Error(t, err)
+	a.Error(t, err)
 
 	_, err = newParseCtx().check(reflect.TypeOf(TestCheckMethodsFailData3{}), false)
-	Error(t, err)
+	a.Error(t, err)
 }
 
 type TestCheckStructFuncsData struct {
@@ -209,11 +209,11 @@ type TestCheckStructFuncsData struct {
 func TestCheckStructFuncs(t *testing.T) {
 	ctx := newParseCtx()
 	ref, err := ctx.check(reflect.TypeOf(TestCheckStructFuncsData{}), false)
-	Nil(t, err)
+	a.Nil(t, err)
 	obj := ctx.schema.types[ref.typeName]
 
 	_, ok := obj.objContents[getObjKey([]byte("name"))]
-	True(t, ok)
+	a.True(t, ok)
 }
 
 type ReferToSelf1 struct {
@@ -222,7 +222,7 @@ type ReferToSelf1 struct {
 
 func TestReferenceLoop1(t *testing.T) {
 	_, err := newParseCtx().check(reflect.TypeOf(ReferToSelf1{}), false)
-	Nil(t, err)
+	a.Nil(t, err)
 }
 
 type ReferToSelf2 struct {
@@ -231,7 +231,7 @@ type ReferToSelf2 struct {
 
 func TestReferenceLoop2(t *testing.T) {
 	_, err := newParseCtx().check(reflect.TypeOf(ReferToSelf2{}), false)
-	Nil(t, err)
+	a.Nil(t, err)
 }
 
 type ReferToSelf3 struct {
@@ -240,5 +240,5 @@ type ReferToSelf3 struct {
 
 func TestReferenceLoop3(t *testing.T) {
 	_, err := newParseCtx().check(reflect.TypeOf(ReferToSelf3{}), false)
-	Nil(t, err)
+	a.Nil(t, err)
 }

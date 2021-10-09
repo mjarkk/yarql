@@ -4,7 +4,7 @@ import (
 	"log"
 	"testing"
 
-	. "github.com/stretchr/testify/assert"
+	a "github.com/stretchr/testify/assert"
 )
 
 // Making sure the code in the readme actually works :)
@@ -46,5 +46,5 @@ func TestReadmeExample(t *testing.T) {
 		log.Fatal(err)
 	}
 
-	Equal(t, `{"data":{"posts":[{"id":"1","name":"post 1"},{"id":"2","name":"post 2"},{"id":"3","name":"post 3"}]},"errors":[],"extensions":{}}`, string(s.Result))
+	a.Equal(t, `{"data":{"posts":[{"id":"1","name":"post 1"},{"id":"2","name":"post 2"},{"id":"3","name":"post 3"}]},"errors":[],"extensions":{}}`, string(s.Result))
 }

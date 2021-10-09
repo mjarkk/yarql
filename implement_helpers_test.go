@@ -5,13 +5,13 @@ import (
 	"strings"
 	"testing"
 
-	. "github.com/stretchr/testify/assert"
+	a "github.com/stretchr/testify/assert"
 )
 
 func TestHandleRequestRequestInURL(t *testing.T) {
 	s := NewSchema()
 	err := s.Parse(TestResolveSchemaRequestWithFieldsData{A: TestResolveSchemaRequestWithFieldsDataInnerStruct{Bar: "baz"}}, M{}, nil)
-	NoError(t, err)
+	a.NoError(t, err)
 
 	res, errs := s.HandleRequest(
 		"GET",
@@ -31,13 +31,13 @@ func TestHandleRequestRequestInURL(t *testing.T) {
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"data":{"a":{"bar":"baz"}},"errors":[],"extensions":{}}`, string(res))
+	a.Equal(t, `{"data":{"a":{"bar":"baz"}},"errors":[],"extensions":{}}`, string(res))
 }
 
 func TestHandleRequestRequestJsonBody(t *testing.T) {
 	s := NewSchema()
 	err := s.Parse(TestResolveSchemaRequestWithFieldsData{A: TestResolveSchemaRequestWithFieldsDataInnerStruct{Bar: "baz"}}, M{}, nil)
-	NoError(t, err)
+	a.NoError(t, err)
 
 	query := `
 	query Foo {
@@ -71,13 +71,13 @@ func TestHandleRequestRequestJsonBody(t *testing.T) {
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"data":{"a":{"bar":"baz"}},"errors":[],"extensions":{}}`, string(res))
+	a.Equal(t, `{"data":{"a":{"bar":"baz"}},"errors":[],"extensions":{}}`, string(res))
 }
 
 func TestHandleRequestRequestForm(t *testing.T) {
 	s := NewSchema()
 	err := s.Parse(TestResolveSchemaRequestWithFieldsData{A: TestResolveSchemaRequestWithFieldsDataInnerStruct{Bar: "baz"}}, M{}, nil)
-	NoError(t, err)
+	a.NoError(t, err)
 
 	query := `
 	query Foo {
@@ -115,13 +115,13 @@ func TestHandleRequestRequestForm(t *testing.T) {
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `{"data":{"a":{"bar":"baz"}},"errors":[],"extensions":{}}`, string(res))
+	a.Equal(t, `{"data":{"a":{"bar":"baz"}},"errors":[],"extensions":{}}`, string(res))
 }
 
 func TestHandleRequestRequestBatch(t *testing.T) {
 	s := NewSchema()
 	err := s.Parse(TestResolveSchemaRequestWithFieldsData{A: TestResolveSchemaRequestWithFieldsDataInnerStruct{Bar: "baz"}}, M{}, nil)
-	NoError(t, err)
+	a.NoError(t, err)
 
 	query := `
 	query Foo {
@@ -162,5 +162,5 @@ func TestHandleRequestRequestBatch(t *testing.T) {
 	for _, err := range errs {
 		panic(err)
 	}
-	Equal(t, `[{"data":{"a":{"bar":"baz"}},"errors":[],"extensions":{}},{"data":{"a":{"foo":null}},"errors":[],"extensions":{}}]`, string(res))
+	a.Equal(t, `[{"data":{"a":{"bar":"baz"}},"errors":[],"extensions":{}},{"data":{"a":{"foo":null}},"errors":[],"extensions":{}}]`, string(res))
 }

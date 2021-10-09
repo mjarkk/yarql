@@ -86,7 +86,7 @@ type qlType struct {
 	Interfaces []qlType `json:"interfaces"`
 
 	// INTERFACE and UNION only
-	PossibleTypes []qlType `json:"possibleTypes"`
+	PossibleTypes func() []qlType `json:"possibleTypes"`
 
 	// ENUM only
 	EnumValues func(isDeprecatedArgs) []qlEnumValue `json:"-"`
