@@ -1683,3 +1683,24 @@ func TestBytecodeResolveInterface(t *testing.T) {
 	}
 
 }
+
+type TestBytecodeResolveInterfaceArrayData struct {
+	TheList []InterfaceType
+}
+
+func TestBytecodeResolveInterfaceArray(t *testing.T) {
+	Implements((*InterfaceType)(nil), BarWImpl{})
+	Implements((*InterfaceType)(nil), BazWImpl{})
+
+	querySchema := TestBytecodeResolveInterfaceArrayData{
+		TheList: []InterfaceType{
+			BarWImpl{},
+			BazWImpl{},
+			nil,
+		},
+	}
+	query := `{theList{foo bar}}`
+
+	out := bytecodeParseAndExpectNoErrs(t, query, querySchema, M{})
+	a.Equal(t, `{"theList":[{"foo":"this is bar","bar":"This is bar"},{"foo":"this is baz","bar":"This is baz"},null]}`, out)
+}
