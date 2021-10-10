@@ -27,6 +27,7 @@ type Ctx struct {
 	context                  context.Context
 	path                     []byte
 	getFormFile              func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
+	operatorHasArguments     bool
 	operatorArgumentsStartAt int
 	tracingEnabled           bool
 	tracing                  *tracer
@@ -350,7 +351,7 @@ func (ctx *Ctx) resolveOperation() bool {
 		return ctx.err("subscriptions are not supported")
 	}
 
-	hasArguments := ctx.readInst() == 't'
+	ctx.operatorHasArguments = ctx.readInst() == 't'
 	directivesCount := ctx.readInst()
 	if directivesCount > 0 {
 		// TODO
@@ -364,7 +365,7 @@ func (ctx *Ctx) resolveOperation() bool {
 		}
 	}
 
-	if hasArguments {
+	if ctx.operatorHasArguments {
 		argumentsLen := ctx.readUint32(ctx.charNr)
 
 		// Skip over arguments end location and null byte
@@ -897,6 +898,10 @@ func (ctx *Ctx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSelection 
 }
 
 func (ctx *Ctx) findOperatorArgument(nameToFind string) (foundArgument bool) {
+	if !ctx.operatorHasArguments {
+		return false
+	}
+
 	ctx.charNr = ctx.operatorArgumentsStartAt
 	ctx.skipInst(2)
 	for {
