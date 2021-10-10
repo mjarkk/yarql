@@ -330,6 +330,10 @@ In your graphql query you can now do:
 
 In your request add a form file with the field name: `form_file_field_name`
 
+## Testing
+
+There is a [pkg.go.dev mjarkk/go-graphql/tester](https://pkg.go.dev/github.com/mjarkk/go-graphql/tester) package available with handy tools for testing the schema
+
 ## Performance
 
 Below shows a benchmark of fetching the graphql schema (query parsing + data fetching)
