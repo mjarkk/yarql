@@ -37,4 +37,40 @@ func TestTester(t *testing.T) {
 		hasType = HasType(s, "NonExistentType")
 		assert.False(t, hasType)
 	})
+
+	t.Run("TypeKind", func(t *testing.T) {
+		typeKind := TypeKind(s, "FooSchemaType")
+		assert.Equal(t, "OBJECT", typeKind)
+
+		typeKind = TypeKind(s, "BarSchemaType")
+		assert.Equal(t, "OBJECT", typeKind)
+
+		typeKind = TypeKind(s, "NonExistentType")
+		assert.Equal(t, "", typeKind)
+	})
+
+	t.Run("HasFields", func(t *testing.T) {
+		err := HasFields(s, "FooSchemaType", []string{"exampleField"})
+		assert.NoError(t, err)
+
+		err = HasFields(s, "FooSchemaType", []string{})
+		assert.NoError(t, err)
+
+		err = HasFields(s, "FooSchemaType", []string{"this_field_does_not_exsist"})
+		assert.Error(t, err)
+
+		err = HasFields(s, "NonExistentType", []string{"exampleField"})
+		assert.Error(t, err)
+	})
+
+	t.Run("OnlyHasFields", func(t *testing.T) {
+		err := OnlyHasFields(s, "FooSchemaType", []string{"exampleField"})
+		assert.NoError(t, err)
+
+		err = OnlyHasFields(s, "FooSchemaType", []string{})
+		assert.Error(t, err)
+
+		err = OnlyHasFields(s, "FooSchemaType", []string{"this_field_does_not_exsist"})
+		assert.Error(t, err)
+	})
 }
