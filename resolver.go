@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"mime/multipart"
 	"reflect"
 	"strconv"
@@ -50,14 +49,8 @@ type Ctx struct {
 
 func newCtx(s *Schema) *Ctx {
 	ctx := &Ctx{
-		schema: s,
-		query: bytecode.ParserCtx{
-			Res:               make([]byte, 2048),
-			FragmentLocations: make([]int, 8),
-			Query:             make([]byte, 2048),
-			Errors:            []error{},
-			Hasher:            fnv.New32(),
-		},
+		schema:                 s,
+		query:                  *bytecode.NewParserCtx(),
 		charNr:                 0,
 		reflectValues:          [256]reflect.Value{},
 		currentReflectValueIdx: 0,

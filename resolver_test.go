@@ -20,6 +20,9 @@ func bytecodeParse(t *testing.T, s *Schema, query string, queries interface{}, m
 	err := s.Parse(queries, methods, nil)
 	a.NoError(t, err, query)
 
+	// Copy so we automatically also test if all fields are copied over correctly
+	s = s.Copy()
+
 	if len(opts) == 0 {
 		opts = []ResolveOptions{{NoMeta: true}}
 	}
@@ -1639,9 +1642,11 @@ func TestPathStaysCorrect(t *testing.T) {
 			}
 		]
 	}`
-	expectedOut = strings.ReplaceAll(expectedOut, " ", "")
-	expectedOut = strings.ReplaceAll(expectedOut, "\n", "")
-	expectedOut = strings.ReplaceAll(expectedOut, "\t", "")
+	expectedOut = strings.NewReplacer(
+		" ", "",
+		"\n", "",
+		"\t", "",
+	).Replace(expectedOut)
 	a.Equal(t, expectedOut, out)
 }
 

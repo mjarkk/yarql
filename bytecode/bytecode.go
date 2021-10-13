@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"hash"
+	"hash/fnv"
 	"unicode/utf16"
 	"unicode/utf8"
 	"unsafe"
@@ -20,6 +21,17 @@ type ParserCtx struct {
 	hasTarget         bool
 	TargetIdx         int // -1 = no matching target was found, >= 0 = res index of target
 	Hasher            hash.Hash32
+}
+
+// NewParserCtx returns a new instance of ParserCtx
+func NewParserCtx() *ParserCtx {
+	return &ParserCtx{
+		Res:               make([]byte, 2048),
+		FragmentLocations: make([]int, 8),
+		Query:             make([]byte, 2048),
+		Errors:            []error{},
+		Hasher:            fnv.New32(),
+	}
 }
 
 // ParseQueryToBytecode parses (*ParserCtx).Query into (*ParserCtx).Res
