@@ -32,15 +32,6 @@ func (s *Schema) Copy() *Schema {
 		directives[key] = directivesToAdd
 	}
 
-	graphqlObjFields := map[string][]qlField{}
-	for key, value := range s.graphqlObjFields {
-		fieldsToAdd := make([]qlField, len(value))
-		for idx, field := range value {
-			fieldsToAdd[idx] = *field.copy()
-		}
-		graphqlObjFields[key] = fieldsToAdd
-	}
-
 	res := &Schema{
 		parsed: true,
 
@@ -59,7 +50,7 @@ func (s *Schema) Copy() *Schema {
 		Result:           make([]byte, len(s.Result)),
 		graphqlTypesMap:  nil,
 		graphqlTypesList: nil,
-		graphqlObjFields: graphqlObjFields,
+		graphqlObjFields: map[string][]qlField{},
 	}
 
 	res.ctx = s.ctx.copy(res)
@@ -98,9 +89,6 @@ func (ctx *Ctx) copy(schema *Schema) *Ctx {
 }
 
 func (m *Directive) copy() *Directive {
-	if m == nil {
-		return nil
-	}
 	var parsedMethod *objMethod
 	if m.parsedMethod != nil {
 		parsedMethod = m.parsedMethod.copy()
@@ -116,9 +104,6 @@ func (m *Directive) copy() *Directive {
 }
 
 func (m *enum) copy() *enum {
-	if m == nil {
-		return nil
-	}
 	res := &enum{
 		contentType: m.contentType,
 		contentKind: m.contentKind,
@@ -132,53 +117,6 @@ func (m *enum) copy() *enum {
 			key:      entry.key,
 			value:    entry.value, // Maybe TODO
 		})
-	}
-
-	return res
-}
-
-func (m *qlInputValue) copy() *qlInputValue {
-	if m == nil {
-		return nil
-	}
-
-	res := &qlInputValue{
-		Name: m.Name,
-		Type: *m.Type.copy(),
-	}
-
-	if m.Description != nil {
-		res.Description = helpers.StrPtr(*m.Description)
-	}
-	if m.DefaultValue != nil {
-		res.DefaultValue = helpers.StrPtr(*m.DefaultValue)
-	}
-
-	return res
-}
-
-func (m *qlField) copy() *qlField {
-	if m == nil {
-		return nil
-	}
-
-	res := &qlField{
-		Name:         m.Name,
-		Type:         *m.Type.copy(),
-		IsDeprecated: m.IsDeprecated,
-	}
-
-	if m.Args != nil {
-		res.Args = make([]qlInputValue, len(m.Args))
-		for idx, arg := range m.Args {
-			res.Args[idx] = *arg.copy()
-		}
-	}
-	if m.Description != nil {
-		res.Description = helpers.StrPtr(*m.Description)
-	}
-	if m.DeprecationReason != nil {
-		res.DeprecationReason = helpers.StrPtr(*m.DeprecationReason)
 	}
 
 	return res
@@ -219,9 +157,6 @@ func (m *qlType) copy() *qlType {
 }
 
 func (m *inputMap) copy() *inputMap {
-	if m == nil {
-		return nil
-	}
 	res := inputMap{}
 	for key, value := range *m {
 		res[key] = value.copy()
@@ -240,10 +175,6 @@ func (t *types) copy() *types {
 }
 
 func (o *obj) copy() *obj {
-	if o == nil {
-		return nil
-	}
-
 	res := obj{
 		valueType:      o.valueType,
 		typeName:       o.typeName,
@@ -283,10 +214,6 @@ func (o *obj) copy() *obj {
 }
 
 func (m *objMethod) copy() *objMethod {
-	if m == nil {
-		return nil
-	}
-
 	res := objMethod{
 		isTypeMethod:   m.isTypeMethod,
 		goFunctionName: m.goFunctionName,
@@ -358,10 +285,6 @@ func (m *input) copy() *input {
 }
 
 func (m *baseInput) copy() *baseInput {
-	if m == nil {
-		return nil
-	}
-
 	res := &baseInput{
 		isCtx: m.isCtx,
 	}
