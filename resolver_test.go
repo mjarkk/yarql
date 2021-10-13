@@ -924,7 +924,15 @@ type TestResolveSchemaRequestWithFieldsDataInnerStruct struct {
 	Bar string
 }
 
-func (TestResolveSchemaRequestWithFieldsData) ResolveD(args struct{ Foo struct{ Bar string } }) TestResolveSchemaRequestWithFieldsDataInnerStruct {
+type DArgs struct {
+	InnerStruct TestBytecodeResolveMultipleArgumentsDataIO
+	Arr         []string
+	Ptr         *string
+	Float       float64
+	File        *multipart.FileHeader
+}
+
+func (TestResolveSchemaRequestWithFieldsData) ResolveD(args DArgs) TestResolveSchemaRequestWithFieldsDataInnerStruct {
 	return TestResolveSchemaRequestWithFieldsDataInnerStruct{}
 }
 
@@ -945,7 +953,7 @@ func TestBytecodeResolveSchemaRequestWithFields(t *testing.T) {
 	idx := 0
 	is := func(kind, name string) int {
 		item := types[idx]
-		a.Equalf(t, kind, item.JSONKind, "(KIND) Index: %d", idx)
+		a.Equalf(t, kind, item.JSONKind, "(KIND) Index: %d, name: %s", idx, name)
 		a.NotNilf(t, item.Name, "(NAME) Index: %d", idx)
 		a.Equalf(t, name, *item.Name, "(NAME) Index: %d", idx)
 		idx++
@@ -959,6 +967,7 @@ func TestBytecodeResolveSchemaRequestWithFields(t *testing.T) {
 	is("SCALAR", "Int")
 	is("OBJECT", "M")
 	is("SCALAR", "String")
+	inputIdx := is("INPUT_OBJECT", "TestBytecodeResolveMultipleArgumentsDataIO")
 	queryIdx := is("OBJECT", "TestResolveSchemaRequestWithFieldsData")
 	is("OBJECT", "TestResolveSchemaRequestWithFieldsDataInnerStruct")
 	is("SCALAR", "Time")
@@ -970,7 +979,6 @@ func TestBytecodeResolveSchemaRequestWithFields(t *testing.T) {
 	is("OBJECT", "__Schema")
 	is("OBJECT", "__Type")
 	is("ENUM", "__TypeKind")
-	inputIdx := is("INPUT_OBJECT", "__UnknownInput1")
 	is("OBJECT", "__UnknownType1")
 	is("OBJECT", "__UnknownType2")
 
@@ -998,7 +1006,7 @@ func TestBytecodeResolveSchemaRequestWithFields(t *testing.T) {
 	isField("d")
 
 	inFields := types[inputIdx].JSONInputFields
-	a.Equal(t, 1, len(inFields))
+	a.Equal(t, 16, len(inFields))
 }
 
 func TestBytecodeResolveGraphqlTypenameByName(t *testing.T) {

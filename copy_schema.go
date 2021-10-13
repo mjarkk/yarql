@@ -59,10 +59,6 @@ func (s *Schema) Copy() *Schema {
 }
 
 func (ctx *Ctx) copy(schema *Schema) *Ctx {
-	if ctx == nil {
-		return nil
-	}
-
 	res := &Ctx{
 		schema:                   schema,
 		query:                    *bytecode.NewParserCtx(),
@@ -123,10 +119,6 @@ func (m *enum) copy() *enum {
 }
 
 func (m *qlType) copy() *qlType {
-	if m == nil {
-		return nil
-	}
-
 	res := &qlType{
 		Kind:          m.Kind,
 		Fields:        m.Fields,
