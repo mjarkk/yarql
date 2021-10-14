@@ -272,7 +272,7 @@ func NewSchema() *Schema {
 }
 
 func (s *Schema) SetCacheRules(
-	cacheQueryFromLen int, // default = 500
+	cacheQueryFromLen int, // default = 300
 ) {
 	s.ctx.query.CacheableQueryLen = cacheQueryFromLen
 }

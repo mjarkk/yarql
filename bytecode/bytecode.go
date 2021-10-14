@@ -24,7 +24,7 @@ type ParserCtx struct {
 	TargetIdx         int // -1 = no matching target was found, >= 0 = res index of target
 	Hasher            hash.Hash32
 	cache             *cache.BytecodeCache
-	CacheableQueryLen int // Deafult = 500
+	CacheableQueryLen int // Deafult = 300
 }
 
 // NewParserCtx returns a new instance of ParserCtx
@@ -36,7 +36,7 @@ func NewParserCtx() *ParserCtx {
 		Errors:            []error{},
 		Hasher:            fnv.New32(),
 		cache:             &cache.BytecodeCache{},
-		CacheableQueryLen: 500,
+		CacheableQueryLen: 300,
 	}
 }
 
