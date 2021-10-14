@@ -82,10 +82,23 @@ func (s *Schema) getDirectives() []qlDirective {
 	res := []qlDirective{}
 
 	for _, directiveLocation := range s.definedDirectives {
+	outerLoop:
 		for _, directive := range directiveLocation {
 			locations := make([]__DirectiveLocation, len(directive.Where))
 			for idx, location := range directive.Where {
 				locations[idx] = location.ToQlDirectiveLocation()
+			}
+
+			for _, entry := range res {
+				if entry.Name == directive.Name {
+					for _, directiveLocation := range locations {
+						for _, entryLocation := range entry.Locations {
+							if directiveLocation == entryLocation {
+								continue outerLoop
+							}
+						}
+					}
+				}
 			}
 			res = append(res, qlDirective{
 				Name:        directive.Name,
