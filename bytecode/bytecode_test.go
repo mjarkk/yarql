@@ -3,7 +3,6 @@ package bytecode
 import (
 	"encoding/hex"
 	"fmt"
-	"hash/fnv"
 	"strings"
 	"sync"
 	"testing"
@@ -12,13 +11,8 @@ import (
 )
 
 func parseQuery(query string) ([]byte, []error) {
-	i := ParserCtx{
-		Res:               []byte{},
-		FragmentLocations: []int{},
-		Query:             []byte(query),
-		Errors:            []error{},
-		Hasher:            fnv.New32(),
-	}
+	i := NewParserCtx()
+	i.Query = []byte(query)
 	i.ParseQueryToBytecode(nil)
 	return i.Res, i.Errors
 }
@@ -764,13 +758,7 @@ func injectCodeSurviveTest(baseQuery string, extraChars ...[][]byte) {
 
 	for _, charsToInject := range toTest {
 		go func(baseQuery []byte, charsToInject [][]byte) {
-			parser := ParserCtx{
-				Res:               []byte{},
-				FragmentLocations: []int{},
-				Query:             []byte{},
-				Errors:            []error{},
-				Hasher:            fnv.New32(),
-			}
+			parser := NewParserCtx()
 
 			for i := range baseQuery {
 				tilIndex := baseQuery[:i]
