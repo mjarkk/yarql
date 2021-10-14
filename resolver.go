@@ -223,11 +223,9 @@ func (s *Schema) Resolve(query []byte, opts ResolveOptions) []error {
 		// Add errors to output
 		errsLen := len(ctx.query.Errors)
 		if errsLen == 0 && !ctx.tracingEnabled {
-			ctx.write([]byte(`,"errors":[],"extensions":{}}`))
+			ctx.write([]byte(`}`))
 		} else {
-			if errsLen == 0 {
-				ctx.write([]byte(`,"errors":[]`))
-			} else {
+			if errsLen != 0 {
 				ctx.write([]byte(`,"errors":[`))
 				for i, err := range ctx.query.Errors {
 					if i > 0 {

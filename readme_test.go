@@ -46,5 +46,5 @@ func TestReadmeExample(t *testing.T) {
 		log.Fatal(err)
 	}
 
-	a.Equal(t, `{"data":{"posts":[{"id":"1","name":"post 1"},{"id":"2","name":"post 2"},{"id":"3","name":"post 3"}]},"errors":[],"extensions":{}}`, string(s.Result))
+	a.Equal(t, `{"data":{"posts":[{"id":"1","name":"post 1"},{"id":"2","name":"post 2"},{"id":"3","name":"post 3"}]}}`, string(s.Result))
 }

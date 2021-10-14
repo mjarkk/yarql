@@ -399,7 +399,7 @@ func TestBytecodeResolveCorrectMeta(t *testing.T) {
 	if !json.Valid([]byte(res)) {
 		panic("invalid json: " + res)
 	}
-	a.Equal(t, `{"data":{"a":{"foo":null,"bar":""},"b":{"baz":""}},"errors":[],"extensions":{}}`, res)
+	a.Equal(t, `{"data":{"a":{"foo":null,"bar":""},"b":{"baz":""}}}`, res)
 }
 
 func TestBytecodeResolveCorrectMetaWithError(t *testing.T) {
