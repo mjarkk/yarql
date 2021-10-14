@@ -1790,3 +1790,45 @@ func TestBytecodeResolveContext(t *testing.T) {
 	a.Len(t, errs, 1)
 	a.Equal(t, `{"foo":null}`, out)
 }
+
+func TestBytecodeResolveQueryCache(t *testing.T) {
+	testCases := []struct {
+		query  string
+		result string
+	}{
+		{`{a}`, `{"a":"1"}`},
+		{`{b}`, `{"b":"2"}`},
+		{`{c}`, `{"c":"3"}`},
+		{`{d}`, `{"d":"4"}`},
+		{`{a,b}`, `{"a":"1","b":"2"}`},
+		{`{b,c}`, `{"b":"2","c":"3"}`},
+		{`{c,d}`, `{"c":"3","d":"4"}`},
+		{`{a,b,c}`, `{"a":"1","b":"2","c":"3"}`},
+		{`{b,c,d}`, `{"b":"2","c":"3","d":"4"}`},
+	}
+
+	s := NewSchema()
+
+	err := s.Parse(TestResolveSimpleQueryData{
+		A: "1",
+		B: "2",
+		C: "3",
+		D: "4",
+	}, M{}, nil)
+	a.NoError(t, err)
+
+	s.SetCacheRules(0)
+
+	for i := 0; i < 20; i++ {
+		for padding := 0; padding < 100; padding++ {
+			for _, testCase := range testCases {
+				query := testCase.query + strings.Repeat(" ", padding)
+				errs := s.Resolve([]byte(query), ResolveOptions{NoMeta: true})
+				for _, err := range errs {
+					panic(err)
+				}
+				a.Equal(t, testCase.result, string(s.Result), query, i)
+			}
+		}
+	}
+}

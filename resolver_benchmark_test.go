@@ -8,6 +8,8 @@ import (
 )
 
 func BenchmarkResolve(b *testing.B) {
+	// BenchmarkResolve-12    	   10750	    102765 ns/op	    4500 B/op	      49 allocs/op
+
 	s := NewSchema()
 	s.Parse(TestResolveSchemaRequestWithFieldsData{}, M{}, nil)
 

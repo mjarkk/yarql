@@ -271,6 +271,12 @@ func NewSchema() *Schema {
 	return s
 }
 
+func (s *Schema) SetCacheRules(
+	cacheQueryFromLen int, // default = 500
+) {
+	s.ctx.query.CacheableQueryLen = cacheQueryFromLen
+}
+
 // Parse parses your queries and methods
 func (s *Schema) Parse(queries interface{}, methods interface{}, options *SchemaOptions) error {
 	s.rootQueryValue = reflect.ValueOf(queries)

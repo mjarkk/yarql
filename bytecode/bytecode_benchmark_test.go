@@ -1,21 +1,12 @@
 package bytecode
 
 import (
-	"hash/fnv"
 	"testing"
 )
 
 func BenchmarkQueryParser(b *testing.B) {
-	// BenchmarkQueryParser-12    	  267092	      4363 ns/op	       0 B/op	       0 allocs/op
-
-	ctx := ParserCtx{
-		Res:               make([]byte, 2048),
-		FragmentLocations: make([]int, 8),
-		Query:             []byte(schemaQuery),
-		charNr:            0,
-		Errors:            []error{},
-		Hasher:            fnv.New32(),
-	}
+	ctx := NewParserCtx()
+	ctx.Query = []byte(schemaQuery)
 
 	for i := 0; i < b.N; i++ {
 		ctx.ParseQueryToBytecode(nil)
@@ -25,7 +16,7 @@ func BenchmarkQueryParser(b *testing.B) {
 	}
 }
 
-var schemaQuery = `
+var schemaQuery = []byte(`
 query IntrospectionQuery {
 	__schema {
 		queryType {
@@ -125,4 +116,4 @@ fragment TypeRef on __Type {
 		}
 	}
 }
-`
+`)

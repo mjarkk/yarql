@@ -8,6 +8,8 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 	"unsafe"
+
+	"github.com/mjarkk/go-graphql/bytecode/cache"
 )
 
 // ParserCtx has all the information needed to parse a query
@@ -21,6 +23,8 @@ type ParserCtx struct {
 	hasTarget         bool
 	TargetIdx         int // -1 = no matching target was found, >= 0 = res index of target
 	Hasher            hash.Hash32
+	cache             *cache.BytecodeCache
+	CacheableQueryLen int // Deafult = 500
 }
 
 // NewParserCtx returns a new instance of ParserCtx
@@ -31,6 +35,8 @@ func NewParserCtx() *ParserCtx {
 		Query:             make([]byte, 2048),
 		Errors:            []error{},
 		Hasher:            fnv.New32(),
+		cache:             &cache.BytecodeCache{},
+		CacheableQueryLen: 500,
 	}
 }
 
@@ -46,10 +52,26 @@ func (ctx *ParserCtx) ParseQueryToBytecode(target *string) {
 		hasTarget:         target != nil && len(*target) > 0,
 		TargetIdx:         -1,
 		Hasher:            ctx.Hasher,
+		cache:             ctx.cache,
+		CacheableQueryLen: ctx.CacheableQueryLen,
+	}
+
+	cacheableQuery := len(ctx.Query) > ctx.CacheableQueryLen
+	if cacheableQuery {
+		res, fragmentLocations, targetIdx := ctx.cache.GetEntry(ctx.Query, target)
+		if res != nil {
+			ctx.Res = append(ctx.Res, res...)
+			ctx.FragmentLocations = append(ctx.FragmentLocations, fragmentLocations...)
+			ctx.TargetIdx = targetIdx
+			return
+		}
 	}
 
 	for {
 		if ctx.parseOperatorOrFragment() {
+			if cacheableQuery && len(ctx.Errors) == 0 {
+				ctx.cache.SetEntry(ctx.Query, ctx.Res, target, ctx.TargetIdx, ctx.FragmentLocations)
+			}
 			return
 		}
 	}
