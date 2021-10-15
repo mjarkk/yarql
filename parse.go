@@ -81,6 +81,7 @@ type obj struct {
 	goTypeName    string
 	goPkgPath     string
 	qlFieldName   []byte
+	hidden        bool
 
 	// Value type == valueTypeObj || valueTypeInterface
 	objContents map[uint32]*obj

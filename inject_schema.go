@@ -18,6 +18,7 @@ func (s *Schema) injectQLTypes(ctx *parseCtx) {
 	contents := reflect.ValueOf(s.getQLSchema())
 	ref.customObjValue = &contents
 	ref.qlFieldName = []byte("__schema")
+	ref.hidden = true
 
 	s.rootQuery.objContents[getObjKey(ref.qlFieldName)] = ref
 
@@ -33,6 +34,7 @@ func (s *Schema) injectQLTypes(ctx *parseCtx) {
 
 	functionObj.customObjValue = &typeResolverReflection
 	functionObj.qlFieldName = []byte("__type")
+	functionObj.hidden = true
 	s.rootQuery.objContents[getObjKey(functionObj.qlFieldName)] = functionObj
 }
 
@@ -52,6 +54,9 @@ func (s *Schema) getQLSchema() qlSchema {
 
 				res := []qlField{}
 				for _, item := range s.rootQuery.objContents {
+					if item.hidden {
+						continue
+					}
 					res = append(res, qlField{
 						Name: string(item.qlFieldName),
 						Args: s.getObjectArgs(item),
@@ -69,6 +74,29 @@ func (s *Schema) getQLSchema() qlSchema {
 			Kind:        typeKindObject,
 			Name:        h.StrPtr(s.rootMethod.typeName),
 			Description: h.PtrToEmptyStr,
+			Fields: func(isDeprecatedArgs) []qlField {
+				fields, ok := s.graphqlObjFields[s.rootMethod.typeName]
+				if ok {
+					return fields
+				}
+
+				res := []qlField{}
+				for _, item := range s.rootMethod.objContents {
+					if item.hidden {
+						continue
+					}
+					res = append(res, qlField{
+						Name: string(item.qlFieldName),
+						Args: s.getObjectArgs(item),
+						Type: *wrapQLTypeInNonNull(s.objToQLType(item)),
+					})
+				}
+				sort.Slice(res, func(a int, b int) bool { return res[a].Name < res[b].Name })
+
+				s.graphqlObjFields[s.rootQuery.typeName] = res
+				return res
+			},
+			Interfaces: []qlType{},
 		},
 	}
 
@@ -310,6 +338,9 @@ func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 
 				res := []qlField{}
 				for _, innerItem := range item.objContents {
+					if innerItem.hidden {
+						continue
+					}
 					res = append(res, qlField{
 						Name: string(innerItem.qlFieldName),
 						Args: s.getObjectArgs(innerItem),
@@ -365,6 +396,9 @@ func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 
 				res := []qlField{}
 				for _, innerItem := range item.objContents {
+					if item.hidden {
+						continue
+					}
 					res = append(res, qlField{
 						Name: string(innerItem.qlFieldName),
 						Args: s.getObjectArgs(innerItem),

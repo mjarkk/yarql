@@ -983,7 +983,7 @@ func TestBytecodeResolveSchemaRequestWithFields(t *testing.T) {
 	is("OBJECT", "__UnknownType2")
 
 	fields := types[queryIdx].JSONFields
-	a.Equal(t, 6, len(fields))
+	a.Equal(t, 4, len(fields))
 
 	idx = 0
 	isField := func(name string) {
@@ -998,8 +998,6 @@ func TestBytecodeResolveSchemaRequestWithFields(t *testing.T) {
 		idx++
 	}
 
-	isField("__schema")
-	isField("__type")
 	isField("a")
 	isField("b")
 	isField("c")
