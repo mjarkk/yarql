@@ -158,6 +158,9 @@ func (TestCheckMethodsData) ResolveBanana(in struct{}) (string, error) {
 func (TestCheckMethodsData) ResolvePeer(in struct{}) string {
 	return ""
 }
+func (TestCheckMethodsData) ResolveId(in struct{}) (int, AttrIsID) {
+	return 0, 0
+}
 
 func TestCheckMethods(t *testing.T) {
 	ctx := newParseCtx()
@@ -165,12 +168,25 @@ func TestCheckMethods(t *testing.T) {
 	a.Nil(t, err)
 	obj := ctx.schema.types[ref.typeName]
 
-	_, ok := obj.objContents[getObjKey([]byte("name"))]
+	field, ok := obj.objContents[getObjKey([]byte("name"))]
 	a.True(t, ok)
-	_, ok = obj.objContents[getObjKey([]byte("banana"))]
+	a.False(t, field.isID)
+	a.Nil(t, field.method.errorOutNr)
+
+	field, ok = obj.objContents[getObjKey([]byte("banana"))]
 	a.True(t, ok)
-	_, ok = obj.objContents[getObjKey([]byte("peer"))]
+	a.False(t, field.isID)
+	a.NotNil(t, field.method.errorOutNr)
+
+	field, ok = obj.objContents[getObjKey([]byte("peer"))]
 	a.True(t, ok)
+	a.False(t, field.isID)
+	a.Nil(t, field.method.errorOutNr)
+
+	field, ok = obj.objContents[getObjKey([]byte("id"))]
+	a.True(t, ok)
+	a.True(t, field.isID)
+	a.Nil(t, field.method.errorOutNr)
 }
 
 type TestCheckMethodsFailData1 struct{}

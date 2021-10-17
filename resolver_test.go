@@ -1830,3 +1830,20 @@ func TestBytecodeResolveQueryCache(t *testing.T) {
 		}
 	}
 }
+
+type TestBytecodeResolveIDData struct {
+	DirectId int `gq:",id"`
+	MethodId func() (int, AttrIsID)
+}
+
+func TestBytecodeResolveID(t *testing.T) {
+	schema := TestBytecodeResolveIDData{
+		DirectId: 2,
+		MethodId: func() (int, AttrIsID) {
+			return 3, 0
+		},
+	}
+	query := `{directId,methodId}`
+	out := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
+	a.Equal(t, `{"directId":"2","methodId":"3"}`, out)
+}
