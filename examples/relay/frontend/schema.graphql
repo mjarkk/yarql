@@ -1,0 +1,39 @@
+schema {
+  query: QueryRoot
+  mutation: MethodRoot
+}
+
+"""
+The File scalar type references to a multipart file, often used to upload files
+to the server. Expects a string with the form file field name
+"""
+scalar File
+
+type MethodRoot
+
+interface Node {
+  id: ID!
+}
+
+type Post implements Node {
+  id: ID!
+  title: String!
+}
+
+type QueryRoot {
+  users: [User!]
+}
+
+"""
+The Time scalar type references to a ISO 8601 date+time, often used to insert
+and/or view dates. Expects a string with the ISO 8601 format
+"""
+scalar Time
+
+type User implements Node {
+  email: String!
+  id: ID!
+  name: String!
+  posts: [Post!]
+}
+
