@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+type AttrIsID uint8
+
 type types map[string]*obj
 
 func (t *types) Add(obj obj) obj {
@@ -82,6 +84,7 @@ type obj struct {
 	goPkgPath     string
 	qlFieldName   []byte
 	hidden        bool
+	isID          bool
 
 	// Value type == valueTypeObj || valueTypeInterface
 	objContents map[uint32]*obj
@@ -97,7 +100,6 @@ type obj struct {
 
 	// Value type == valueTypeData
 	dataValueType reflect.Kind
-	isID          bool
 
 	// Value type == valueTypeMethod
 	method *objMethod
@@ -359,6 +361,9 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 
 	switch t.Kind() {
 	case reflect.Struct:
+		if hasIDTag {
+			return nil, errors.New("structs cannot have ID attribute")
+		}
 		if res.typeName != "" {
 			newName, ok := renamedTypes[res.typeName]
 			if ok {
@@ -427,6 +432,9 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 		}
 		res.innerContent = obj
 	case reflect.Interface:
+		if hasIDTag {
+			return nil, errors.New("interface cannot have ID attribute")
+		}
 		if res.typeName == "" {
 			return nil, errors.New("inline interfaces not allowed")
 		}
@@ -507,7 +515,7 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 	if res.valueType == valueTypeObj || res.valueType == valueTypeInterface {
 		for i := 0; i < t.NumMethod(); i++ {
 			method := t.Method(i)
-			methodObj, name, err := c.checkFunction(method.Name, method.Type, true, false)
+			methodObj, name, isID, err := c.checkFunction(method.Name, method.Type, true, false)
 			if err != nil {
 				return nil, err
 			} else if methodObj == nil {
@@ -522,6 +530,7 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 				goTypeName:     method.Name,
 				structFieldIdx: i,
 				method:         methodObj,
+				isID:           isID,
 			}
 		}
 
@@ -560,7 +569,7 @@ func (c *parseCtx) checkStructField(field reflect.StructField, idx int) (customN
 }
 
 func (c *parseCtx) checkStructFieldFunc(fieldName string, type_ reflect.Type, hasIDTag bool, idx int) (*obj, error) {
-	methodObj, _, err := c.checkFunction(fieldName, type_, false, hasIDTag)
+	methodObj, _, isID, err := c.checkFunction(fieldName, type_, false, hasIDTag)
 	if err != nil {
 		return nil, err
 	} else if methodObj == nil {
@@ -570,6 +579,7 @@ func (c *parseCtx) checkStructFieldFunc(fieldName string, type_ reflect.Type, ha
 		valueType:      valueTypeMethod,
 		method:         methodObj,
 		structFieldIdx: idx,
+		isID:           isID,
 	}, nil
 }
 
@@ -712,7 +722,9 @@ func (c *parseCtx) checkFunctionInput(t reflect.Type, hasIDTag bool) (input, err
 	return res, nil
 }
 
-func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool, hasIDTag bool) (*objMethod, string, error) {
+func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool, hasIDTag bool) (method *objMethod, qlName string, isID bool, err error) {
+	isID = hasIDTag
+
 	trimmedName := name
 
 	if strings.HasPrefix(name, "Resolve") {
@@ -720,24 +732,24 @@ func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool,
 			trimmedName = strings.TrimPrefix(name, "Resolve")
 			if isTypeMethod && strings.ToUpper(string(trimmedName[0]))[0] != trimmedName[0] {
 				// Resolve name must start with a uppercase letter
-				return nil, "", nil
+				return
 			}
 		} else if isTypeMethod {
-			return nil, "", nil
+			return
 		}
 	} else if isTypeMethod {
-		return nil, "", nil
+		return
 	}
 
 	if t.IsVariadic() {
-		return nil, "", errors.New("function method cannot end with spread operator")
+		err = errors.New("function method cannot end with spread operator (...string)")
+		return
 	}
 
 	numOuts := t.NumOut()
 	if numOuts == 0 {
-		return nil, "", fmt.Errorf("%s no value returned", name)
-	} else if numOuts > 2 {
-		return nil, "", fmt.Errorf("%s cannot return more than 2 response values", name)
+		err = fmt.Errorf("%s no value returned", name)
+		return
 	}
 
 	var outNr *int
@@ -745,40 +757,41 @@ func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool,
 	var hasErrorOut *int
 
 	errInterface := reflect.TypeOf((*error)(nil)).Elem()
+	attrIsIDType := reflect.TypeOf(AttrIsID(0))
 	for i := 0; i < numOuts; i++ {
 		outType := t.Out(i)
 		outKind := outType.Kind()
-		if outKind == reflect.Interface {
-			if outType.Implements(errInterface) {
-				if hasErrorOut != nil {
-					return nil, "", fmt.Errorf("%s cannot return multiple error types", name)
-				} else {
-					hasErrorOut = func(i int) *int {
-						return &i
-					}(i)
-				}
+		if outType.Name() == attrIsIDType.Name() && outType.PkgPath() == attrIsIDType.PkgPath() {
+			isID = true
+		} else if outKind == reflect.Interface && outType.Implements(errInterface) {
+			if hasErrorOut != nil {
+				err = fmt.Errorf("%s cannot return multiple error types", name)
+				return
 			} else {
-				return nil, "", fmt.Errorf("%s cannot return interface type", name)
+				hasErrorOut = func(i int) *int {
+					return &i
+				}(i)
 			}
 		} else {
 			if outNr != nil {
-				return nil, "", fmt.Errorf("%s cannot return multiple types of data", name)
-			}
-
-			outObj, err := c.check(outType, hasIDTag)
-			if err != nil {
-				return nil, "", err
+				err = fmt.Errorf("%s cannot return multiple types of data", name)
+				return
 			}
 
 			outNr = func(i int) *int {
 				return &i
 			}(i)
-			outTypeObj = outObj
 		}
 	}
 
-	if outTypeObj == nil {
-		return nil, "", fmt.Errorf("%s does not return usable data", name)
+	if outNr == nil {
+		err = fmt.Errorf("%s does not return usable data", name)
+		return
+	}
+
+	outTypeObj, err = c.check(t.Out(*outNr), isID)
+	if err != nil {
+		return
 	}
 
 	res := &objMethod{
@@ -792,7 +805,7 @@ func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool,
 		errorOutNr:     hasErrorOut,
 	}
 	c.parsedMethods = append(c.parsedMethods, res)
-	return res, formatGoNameToQL(trimmedName), nil
+	return res, formatGoNameToQL(trimmedName), isID, nil
 }
 
 func (c *parseCtx) checkFunctionIns(method *objMethod) error {
