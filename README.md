@@ -150,13 +150,20 @@ struct {
 ### Label as ID field
 
 ```go
-struct {
+struct Foo {
 	// Notice the "," before the id
 	Id string `gq:",id"`
 
 	// Pointers and numbers are also supported
 	// NOTE NUMBERS WILL BE CONVERTED TO STRINGS IN OUTPUT
 	PostId *int `gq:",id"`
+}
+
+// Label method response as ID using AttrIsID
+// The value returned for AttrIsID is ignored
+// You can also still just fine append an error: (string, AttrIsID, error)
+func (Foo) ResolveExampleMethod() (string, AttrIsID) {
+	return "i'm an ID type", 0
 }
 ```
 
