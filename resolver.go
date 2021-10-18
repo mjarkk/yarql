@@ -567,24 +567,24 @@ func (ctx *Ctx) resolveField(typeObj *obj, dept uint8, addCommaBefore bool) (ski
 
 		criticalErr = ctx.resolveFieldDataValue(typeObjField, dept, fieldHasSelection)
 		ctx.currentReflectValueIdx--
-	}
 
-	if ctx.tracingEnabled {
-		name := b2s(ctx.query.Res[startOfName:endOfName])
+		if ctx.tracingEnabled {
+			name := b2s(ctx.query.Res[startOfName:endOfName])
 
-		ctx.finishTrace(func(offset, duration int64) {
-			returnType := bytes.NewBuffer(nil)
-			ctx.schema.objToQlTypeName(typeObjField, returnType)
+			ctx.finishTrace(func(offset, duration int64) {
+				returnType := bytes.NewBuffer(nil)
+				ctx.schema.objToQlTypeName(typeObjField, returnType)
 
-			ctx.tracing.Execution.Resolvers = append(ctx.tracing.Execution.Resolvers, tracerResolver{
-				Path:        ctx.GetPath(),
-				ParentType:  typeObj.typeName,
-				FieldName:   name,
-				ReturnType:  returnType.String(),
-				StartOffset: offset,
-				Duration:    duration,
+				ctx.tracing.Execution.Resolvers = append(ctx.tracing.Execution.Resolvers, tracerResolver{
+					Path:        ctx.GetPath(),
+					ParentType:  typeObj.typeName,
+					FieldName:   name,
+					ReturnType:  returnType.String(),
+					StartOffset: offset,
+					Duration:    duration,
+				})
 			})
-		})
+		}
 	}
 
 	// Restore the path
