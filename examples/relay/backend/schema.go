@@ -1,6 +1,10 @@
 package main
 
-import "github.com/mjarkk/go-graphql"
+import (
+	"fmt"
+
+	"github.com/mjarkk/go-graphql"
+)
 
 type QueryRoot struct{}
 
@@ -10,44 +14,100 @@ type Node interface {
 	ResolveId() (uint, graphql.AttrIsID)
 }
 
-type User struct {
-	ID    uint `gq:"-"`
-	Name  string
-	Email string
+type Todo struct {
+	ID    uint `gq:"-"` // ignored because of (Todo).ResolveId()
+	Title string
+	Done  bool
 }
 
-var _ = graphql.Implements((*Node)(nil), User{})
+var _ = graphql.Implements((*Node)(nil), Todo{})
 
-func (u User) ResolveId() (uint, graphql.AttrIsID) {
+// ResolveId implements the Node interface
+func (u Todo) ResolveId() (uint, graphql.AttrIsID) {
 	return u.ID, 0
 }
 
-type Post struct {
-	ID    uint `gq:"-"`
+var todoIdx = uint(3)
+
+var todos = []Todo{
+	{ID: 1, Title: "Get groceries", Done: false},
+	{ID: 2, Title: "Make TODO app", Done: true},
+}
+
+func (QueryRoot) ResolveTodos() []Todo {
+	return todos
+}
+
+type GetTodoArgs struct {
+	ID uint `gq:"id,id"` // rename field to id and label field to have ID type
+}
+
+func (q QueryRoot) ResolveTodo(args GetTodoArgs) *Todo {
+	for _, todo := range todos {
+		if todo.ID == args.ID {
+			return &todo
+		}
+	}
+	return nil
+}
+
+type CreateTodoArgs struct {
 	Title string
 }
 
-var _ = graphql.Implements((*Node)(nil), Post{})
-
-func (p Post) ResolveId() (uint, graphql.AttrIsID) {
-	return p.ID, 0
-}
-
-func (QueryRoot) ResolveUsers() []User {
-	return []User{
-		{ID: 1, Name: "Pieter", Email: "pietpaulesma@gmail.com"},
-		{ID: 2, Name: "Peer", Email: "peer@gmail.com"},
-		{ID: 3, Name: "Henk", Email: "henk@gmail.com"},
+func (m MethodRoot) ResolveCreateTodo(args CreateTodoArgs) Todo {
+	todo := Todo{
+		ID:    todoIdx,
+		Title: fmt.Sprint(args.Title), // Copy title
+		Done:  false,
 	}
+	todos = append(todos, todo)
+	todoIdx++
+	return todo
 }
 
-func (u User) ResolvePosts() []Post {
-	if u.ID == 1 {
-		return []Post{
-			{Title: "Very nice"},
-			{Title: "Very cool"},
-			{Title: "Ok"},
+type UpdateTodoArgs struct {
+	ID    uint `gq:"id,id"` // rename field to id and label field to have ID type
+	Title *string
+	Done  *bool
+}
+
+func (m MethodRoot) ResolveUpdateTodo(args UpdateTodoArgs) (Todo, error) {
+	idx := -1
+	for i, todo := range todos {
+		if todo.ID == args.ID {
+			idx = i
+			break
 		}
 	}
-	return []Post{}
+	if idx == -1 {
+		return Todo{}, fmt.Errorf("todo with id %d not found", args.ID)
+	}
+
+	todo := todos[idx]
+	if args.Title != nil {
+		todo.Title = *args.Title
+	}
+	if args.Done != nil {
+		todo.Done = *args.Done
+	}
+	todos[idx] = todo
+
+	return todo, nil
+}
+
+func (m MethodRoot) ResolveDeleteTodo(args GetTodoArgs) ([]Todo, error) {
+	idx := -1
+	for i, todo := range todos {
+		if todo.ID == args.ID {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		return nil, fmt.Errorf("todo with id %d not found", args.ID)
+	}
+
+	todos = append(todos[:idx], todos[idx+1:]...)
+	return todos, nil
 }

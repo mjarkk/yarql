@@ -1,25 +1,41 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import './index.css';
 import { App, AppQuery } from './App';
-import reportWebVitals from './reportWebVitals';
-import { RelayEnvironmentProvider, loadQuery } from 'react-relay/hooks';
+import { RelayEnvironmentProvider, useQueryLoader, loadQuery } from 'react-relay/hooks';
 import RelayEnvironment from "./RelayEnvironment"
 
-const preloadedQuery = loadQuery(RelayEnvironment, AppQuery, {});
+const initialQueryRef = loadQuery(
+  RelayEnvironment,
+  AppQuery,
+  null,
+);
 
 ReactDOM.render(
   <React.StrictMode>
     <RelayEnvironmentProvider environment={RelayEnvironment}>
-      <Suspense fallback={'Loading...'}>
-        <App preloadedQuery={preloadedQuery} />
-      </Suspense>
+      <AppWrapper initialQueryRef={initialQueryRef} />
     </RelayEnvironmentProvider>
-  </React.StrictMode>,
+  </React.StrictMode >,
   document.getElementById('root')
 );
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals();
+function AppWrapper({ initialQueryRef }) {
+  const [queryRef, loadQuery] = useQueryLoader(
+    AppQuery,
+    initialQueryRef,
+  );
+
+  const refresh = useCallback(() => {
+    loadQuery({}, { fetchPolicy: 'network-only' });
+  }, [loadQuery]);
+
+  return (
+    <Suspense fallback={'Loading...'}>
+      <App
+        queryRef={queryRef}
+        refresh={refresh}
+      />
+    </Suspense>
+  )
+}

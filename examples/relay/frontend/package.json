@@ -20,7 +20,8 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "relay": "relay-compiler --src ./src --schema ./schema.graphql",
-    "getschema": "get-graphql-schema http://127.0.0.1:5000/graphql > schema.graphql"
+    "relay:watch": "relay-compiler --src ./src --schema ./schema.graphql --watch",
+    "get-schema": "get-graphql-schema http://127.0.0.1:5000/graphql > schema.graphql"
   },
   "eslintConfig": {
     "extends": [

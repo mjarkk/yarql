@@ -9,22 +9,26 @@
 /*::
 import type { ConcreteRequest } from 'relay-runtime';
 type TodoFragment$ref = any;
-export type AppQueryVariables = {||};
-export type AppQueryResponse = {|
-  +todos: ?$ReadOnlyArray<{|
-    +$fragmentRefs: TodoFragment$ref
-  |}>
+export type AppCreateTodoMutationVariables = {|
+  title: string
 |};
-export type AppQuery = {|
-  variables: AppQueryVariables,
-  response: AppQueryResponse,
+export type AppCreateTodoMutationResponse = {|
+  +createTodo: {|
+    +$fragmentRefs: TodoFragment$ref
+  |}
+|};
+export type AppCreateTodoMutation = {|
+  variables: AppCreateTodoMutationVariables,
+  response: AppCreateTodoMutationResponse,
 |};
 */
 
 
 /*
-query AppQuery {
-  todos {
+mutation AppCreateTodoMutation(
+  $title: String!
+) {
+  createTodo(title: $title) {
     ...TodoFragment
     id
   }
@@ -37,20 +41,35 @@ fragment TodoFragment on Todo {
 }
 */
 
-const node/*: ConcreteRequest*/ = {
+const node/*: ConcreteRequest*/ = (function(){
+var v0 = [
+  {
+    "defaultValue": null,
+    "kind": "LocalArgument",
+    "name": "title"
+  }
+],
+v1 = [
+  {
+    "kind": "Variable",
+    "name": "title",
+    "variableName": "title"
+  }
+];
+return {
   "fragment": {
-    "argumentDefinitions": [],
+    "argumentDefinitions": (v0/*: any*/),
     "kind": "Fragment",
     "metadata": null,
-    "name": "AppQuery",
+    "name": "AppCreateTodoMutation",
     "selections": [
       {
         "alias": null,
-        "args": null,
+        "args": (v1/*: any*/),
         "concreteType": "Todo",
         "kind": "LinkedField",
-        "name": "todos",
-        "plural": true,
+        "name": "createTodo",
+        "plural": false,
         "selections": [
           {
             "args": null,
@@ -61,22 +80,22 @@ const node/*: ConcreteRequest*/ = {
         "storageKey": null
       }
     ],
-    "type": "QueryRoot",
+    "type": "MethodRoot",
     "abstractKey": null
   },
   "kind": "Request",
   "operation": {
-    "argumentDefinitions": [],
+    "argumentDefinitions": (v0/*: any*/),
     "kind": "Operation",
-    "name": "AppQuery",
+    "name": "AppCreateTodoMutation",
     "selections": [
       {
         "alias": null,
-        "args": null,
+        "args": (v1/*: any*/),
         "concreteType": "Todo",
         "kind": "LinkedField",
-        "name": "todos",
-        "plural": true,
+        "name": "createTodo",
+        "plural": false,
         "selections": [
           {
             "alias": null,
@@ -105,15 +124,16 @@ const node/*: ConcreteRequest*/ = {
     ]
   },
   "params": {
-    "cacheID": "3d21021aa5aa129a25e7d1a34ce0b73a",
+    "cacheID": "98f73e54df3110673f78fbab6f8017f1",
     "id": null,
     "metadata": {},
-    "name": "AppQuery",
-    "operationKind": "query",
-    "text": "query AppQuery {\n  todos {\n    ...TodoFragment\n    id\n  }\n}\n\nfragment TodoFragment on Todo {\n  id\n  title\n  done\n}\n"
+    "name": "AppCreateTodoMutation",
+    "operationKind": "mutation",
+    "text": "mutation AppCreateTodoMutation(\n  $title: String!\n) {\n  createTodo(title: $title) {\n    ...TodoFragment\n    id\n  }\n}\n\nfragment TodoFragment on Todo {\n  id\n  title\n  done\n}\n"
   }
 };
+})();
 // prettier-ignore
-(node/*: any*/).hash = 'ed0e6924e32ace481e4559fe8398b805';
+(node/*: any*/).hash = '392c4e637c6c2e4a26107d120a738312';
 
 module.exports = node;

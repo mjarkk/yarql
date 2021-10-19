@@ -9,19 +9,19 @@ to the server. Expects a string with the form file field name
 """
 scalar File
 
-type MethodRoot
+type MethodRoot {
+  createTodo(title: String!): Todo!
+  deleteTodo(id: ID): [Todo!]
+  updateTodo(done: Boolean, id: ID, title: String): Todo!
+}
 
 interface Node {
   id: ID!
 }
 
-type Post implements Node {
-  id: ID!
-  title: String!
-}
-
 type QueryRoot {
-  users: [User!]
+  todo(id: ID): Todo
+  todos: [Todo!]
 }
 
 """
@@ -30,10 +30,9 @@ and/or view dates. Expects a string with the ISO 8601 format
 """
 scalar Time
 
-type User implements Node {
-  email: String!
+type Todo implements Node {
+  done: Boolean!
   id: ID!
-  name: String!
-  posts: [Post!]
+  title: String!
 }
 
