@@ -275,6 +275,32 @@ func (BazWImpl) ResolveFoo() string { return "this is baz" }
 func (BazWImpl) ResolveBar() string { return "This is baz" }
 ```
 
+<details>
+<summary>Relay Node example</summary>
+<br>
+
+For a full relay example see [examples/relay/backend/](./examples/relay/backend/)
+
+```go
+type Node interface {
+	ResolveId() (uint, graphql.AttrIsID)
+}
+
+type User struct {
+	ID    uint `gq:"-"` // ignored because of (User).ResolveId()
+	Name  string
+}
+
+var _ = graphql.Implements((*Node)(nil), User{})
+
+// ResolveId implements the Node interface
+func (u User) ResolveId() (uint, graphql.AttrIsID) {
+	return u.ID, 0
+}
+```
+
+</details>
+
 ### Directives
 
 These directives are added by default:
