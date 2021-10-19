@@ -614,7 +614,8 @@ func (ctx *Ctx) callQlMethod(method *objMethod, goValue *reflect.Value, parseArg
 					return ctx.err("undefined input: " + keyStr)
 				}
 				goField := ctx.funcInputs[inField.inputIdx].Field(inField.input.goFieldIdx)
-				return ctx.bindInputToGoValue(&goField, &inField.input, true)
+				_, criticalErr := ctx.bindInputToGoValue(&goField, &inField.input, true)
+				return criticalErr
 			},
 		)
 		if criticalErr {
@@ -921,7 +922,7 @@ func (ctx *Ctx) findOperatorArgument(nameToFind string) (foundArgument bool) {
 	}
 }
 
-func (ctx *Ctx) bindOperatorArgumentTo(goValue *reflect.Value, valueStructure *input, argumentName string) bool {
+func (ctx *Ctx) bindOperatorArgumentTo(goValue *reflect.Value, valueStructure *input, argumentName string) (valueSet bool, criticalErr bool) {
 	// TODO Check for the required flag (L & N)
 	// These flags are to identify if the argument is required or not
 
@@ -934,7 +935,7 @@ func (ctx *Ctx) bindOperatorArgumentTo(goValue *reflect.Value, valueStructure *i
 			break
 		}
 		if resolvedValueStructure.kind != reflect.Slice {
-			return ctx.err("variable $" + argumentName + " cannot be bind to " + resolvedValueStructure.kind.String())
+			return false, ctx.err("variable $" + argumentName + " cannot be bind to " + resolvedValueStructure.kind.String())
 		}
 		resolvedValueStructure = resolvedValueStructure.elem
 		c = ctx.readInst()
@@ -956,45 +957,45 @@ func (ctx *Ctx) bindOperatorArgumentTo(goValue *reflect.Value, valueStructure *i
 		if resolvedValueStructure.isEnum {
 			enum := ctx.schema.definedEnums[resolvedValueStructure.enumTypeIndex]
 			if typeName != enum.typeName && typeName != "String" {
-				return ctx.err("expected variable type " + enum.typeName + " but got " + typeName)
+				return false, ctx.err("expected variable type " + enum.typeName + " but got " + typeName)
 			}
 		} else if resolvedValueStructure.isID {
 			if typeName != "ID" && typeName != "String" {
-				return ctx.err("expected variable type ID but got " + typeName)
+				return false, ctx.err("expected variable type ID but got " + typeName)
 			}
 		} else if resolvedValueStructure.isFile {
 			if typeName != "File" && typeName != "String" {
-				return ctx.err("expected variable type File but got " + typeName)
+				return false, ctx.err("expected variable type File but got " + typeName)
 			}
 		} else if resolvedValueStructure.isTime {
 			if typeName != "Time" && typeName != "String" {
-				return ctx.err("expected variable type Time but got " + typeName)
+				return false, ctx.err("expected variable type Time but got " + typeName)
 			}
 		} else {
 			switch resolvedValueStructure.kind {
 			case reflect.Bool:
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 				if typeName != "Int" {
-					return ctx.err("expected variable type Int but got " + typeName)
+					return false, ctx.err("expected variable type Int but got " + typeName)
 				}
 			case reflect.Float32, reflect.Float64:
 				if typeName != "Float" {
-					return ctx.err("expected variable type Float but got " + typeName)
+					return false, ctx.err("expected variable type Float but got " + typeName)
 				}
 			case reflect.Array, reflect.Slice:
 				if typeName != "List" {
-					return ctx.err("expected variable type List but got " + typeName)
+					return false, ctx.err("expected variable type List but got " + typeName)
 				}
 			case reflect.String:
 				if typeName != "String" {
-					return ctx.err("expected variable type String but got " + typeName)
+					return false, ctx.err("expected variable type String but got " + typeName)
 				}
 			case reflect.Struct:
 				if typeName != resolvedValueStructure.structName {
-					return ctx.err("expected variable type " + resolvedValueStructure.structName + " but got " + typeName)
+					return false, ctx.err("expected variable type " + resolvedValueStructure.structName + " but got " + typeName)
 				}
 			default:
-				return ctx.err("cannot set field using variable")
+				return false, ctx.err("cannot set field using variable")
 			}
 		}
 	}
@@ -1002,67 +1003,68 @@ func (ctx *Ctx) bindOperatorArgumentTo(goValue *reflect.Value, valueStructure *i
 	hasDefaultValue := ctx.readInst() == 't'
 	ctx.skipInst(1)
 
-	found, criticalErr := ctx.bindExternalVariableValue(goValue, valueStructure, argumentName)
+	valueSet, found, criticalErr := ctx.bindExternalVariableValue(goValue, valueStructure, argumentName)
 	if criticalErr {
-		return criticalErr
+		return valueSet, criticalErr
 	}
 	if found {
-		return false
+		return valueSet, false
 	}
 
 	if !hasDefaultValue {
-		return ctx.err("variable has no value nor default")
+		return false, ctx.err("variable has no value nor default")
 	}
 
 	return ctx.bindInputToGoValue(goValue, valueStructure, false)
 }
 
-func (ctx *Ctx) bindExternalVariableValue(goValue *reflect.Value, valueStructure *input, argumentName string) (found bool, criticalErr bool) {
+func (ctx *Ctx) bindExternalVariableValue(goValue *reflect.Value, valueStructure *input, argumentName string) (valueSet bool, found bool, criticalErr bool) {
 	if !ctx.variablesParsed {
 		if len(ctx.rawVariables) == 0 {
-			return false, false
+			return false, false, false
 		}
 
 		ctx.variablesParsed = true
 		var err error
 		ctx.variables, err = ctx.variablesJSONParser.Parse(ctx.rawVariables)
 		if err != nil {
-			return false, ctx.err(err.Error())
+			return false, false, ctx.err(err.Error())
 		}
 		if ctx.variables.Type() != fastjson.TypeObject {
-			return false, ctx.err("variables provided must be of type object")
+			return false, false, ctx.err("variables provided must be of type object")
 		}
 	}
 
 	variable := ctx.variables.Get(argumentName)
 	if variable == nil {
-		return false, false
+		return false, false, false
 	}
 
-	return true, ctx.bindJSONToValue(goValue, valueStructure, variable)
+	valueSet, criticalErr = ctx.bindJSONToValue(goValue, valueStructure, variable)
+	return valueSet, true, criticalErr
 }
 
-func (ctx *Ctx) bindJSONToValue(goValue *reflect.Value, valueStructure *input, jsonData *fastjson.Value) bool {
+func (ctx *Ctx) bindJSONToValue(goValue *reflect.Value, valueStructure *input, jsonData *fastjson.Value) (valueSet bool, criticalErr bool) {
 	jsonDataType := jsonData.Type()
 	if valueStructure.isEnum || valueStructure.isID || valueStructure.isFile || valueStructure.isTime {
 		if jsonDataType != fastjson.TypeString {
 			if valueStructure.isEnum {
-				return ctx.err("cannot assign " + jsonDataType.String() + " to Enum value")
+				return false, ctx.err("cannot assign " + jsonDataType.String() + " to Enum value")
 			} else if valueStructure.isID {
-				return ctx.err("cannot assign " + jsonDataType.String() + " to ID value")
+				return false, ctx.err("cannot assign " + jsonDataType.String() + " to ID value")
 			} else if valueStructure.isFile {
-				return ctx.err("cannot assign " + jsonDataType.String() + " to File value")
+				return false, ctx.err("cannot assign " + jsonDataType.String() + " to File value")
 			} else if valueStructure.isTime {
-				return ctx.err("cannot assign " + jsonDataType.String() + " to Time value")
+				return false, ctx.err("cannot assign " + jsonDataType.String() + " to Time value")
 			} else {
-				return ctx.err("cannot assign " + jsonDataType.String() + " to this field's value")
+				return false, ctx.err("cannot assign " + jsonDataType.String() + " to this field's value")
 			}
 		}
 		stringValue := b2s(jsonData.GetStringBytes())
 
 		if valueStructure.isEnum {
 			if jsonDataType != fastjson.TypeString {
-				return ctx.err("cannot assign " + jsonDataType.String() + " to ID value")
+				return false, ctx.err("cannot assign " + jsonDataType.String() + " to ID value")
 			}
 
 			enum := ctx.schema.definedEnums[valueStructure.enumTypeIndex]
@@ -1076,63 +1078,68 @@ func (ctx *Ctx) bindJSONToValue(goValue *reflect.Value, valueStructure *input, j
 					case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 						goValue.SetUint(entry.value.Uint())
 					default:
-						return ctx.err("internal error, type missmatch on enum")
+						return false, ctx.err("internal error, type missmatch on enum")
 					}
-					return false
+					return true, false
 				}
 			}
 
-			return ctx.errf("unknown enum value %s for enum %s", stringValue, enum.typeName)
+			return false, ctx.errf("unknown enum value %s for enum %s", stringValue, enum.typeName)
 		} else if valueStructure.isID {
 			if jsonDataType != fastjson.TypeString {
-				return ctx.err("cannot assign " + jsonDataType.String() + " to ID value")
+				return false, ctx.err("cannot assign " + jsonDataType.String() + " to ID value")
 			}
 
 			switch goValue.Kind() {
 			case reflect.String:
+				valueSet = true
 				goValue.SetString(stringValue)
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 				intValue, err := strconv.Atoi(stringValue)
 				if err != nil {
-					return ctx.err("id argument must match a number type")
+					return false, ctx.err("id argument must match a number type")
 				}
 				// TODO check if the int value can be assigned to int8 - int32
 				goValue.SetInt(int64(intValue))
+				valueSet = true
 			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 				intValue, err := strconv.Atoi(stringValue)
 				if err != nil {
-					return ctx.err("id argument must match a number type")
+					return false, ctx.err("id argument must match a number type")
 				}
 				if intValue < 0 {
-					return ctx.err("id argument must match a number above 0")
+					return false, ctx.err("id argument must match a number above 0")
 				}
 				// TODO check if the int value can be assigned to uint8 - uint32
 				goValue.SetUint(uint64(intValue))
+				valueSet = true
 			default:
-				return ctx.err("internal error: cannot assign to this ID field")
+				return false, ctx.err("internal error: cannot assign to this ID field")
 			}
 		} else if valueStructure.isFile {
 			if jsonDataType != fastjson.TypeString {
-				return ctx.err("cannot assign " + jsonDataType.String() + " to Time value")
+				return false, ctx.err("cannot assign " + jsonDataType.String() + " to Time value")
 			}
 
 			file, err := ctx.getFormFile(stringValue)
 			if err != nil {
-				return ctx.err(err.Error())
+				return false, ctx.err(err.Error())
 			}
 			goValue.Set(reflect.ValueOf(file))
+			valueSet = true
 		} else if valueStructure.isTime {
 			if jsonDataType != fastjson.TypeString {
-				return ctx.err("cannot assign " + jsonDataType.String() + " to Time value")
+				return false, ctx.err("cannot assign " + jsonDataType.String() + " to Time value")
 			}
 
 			parsedTime, err := helpers.ParseIso8601String(stringValue)
 			if err != nil {
-				return ctx.err(err.Error())
+				return false, ctx.err(err.Error())
 			}
 			goValue.Set(reflect.ValueOf(parsedTime))
+			valueSet = true
 		}
-		return false
+		return valueSet, false
 	}
 
 	switch jsonDataType {
@@ -1140,13 +1147,14 @@ func (ctx *Ctx) bindJSONToValue(goValue *reflect.Value, valueStructure *input, j
 		// keep goValue at it's default
 	case fastjson.TypeObject:
 		if goValue.Kind() != reflect.Struct {
-			return ctx.err("cannot assign object to non object value")
+			return false, ctx.err("cannot assign object to non object value")
 		}
 
 		if valueStructure.isStructPointers {
 			valueStructure = ctx.schema.inTypes[valueStructure.structName]
 		}
 
+		valueSet = true
 		jsonObj := jsonData.GetObject()
 		criticalErr := false
 		jsonObj.Visit(func(key []byte, v *fastjson.Value) {
@@ -1161,14 +1169,14 @@ func (ctx *Ctx) bindJSONToValue(goValue *reflect.Value, valueStructure *input, j
 			}
 
 			goValueField := goValue.Field(structItemMeta.goFieldIdx)
-			criticalErr = ctx.bindJSONToValue(&goValueField, &structItemMeta, v)
+			_, criticalErr = ctx.bindJSONToValue(&goValueField, &structItemMeta, v)
 		})
 		if criticalErr {
-			return criticalErr
+			return valueSet, criticalErr
 		}
 	case fastjson.TypeArray:
 		if goValue.Kind() != reflect.Slice {
-			return ctx.err("cannot assign slice to " + goValue.String())
+			return valueSet, ctx.err("cannot assign slice to " + goValue.String())
 		}
 
 		variableArray := jsonData.GetArray()
@@ -1177,89 +1185,97 @@ func (ctx *Ctx) bindJSONToValue(goValue *reflect.Value, valueStructure *input, j
 
 		for i, variableArrayItem := range variableArray {
 			arrEntry := arr.Index(i)
-			criticalErr := ctx.bindJSONToValue(&arrEntry, valueStructure.elem, variableArrayItem)
+			_, criticalErr := ctx.bindJSONToValue(&arrEntry, valueStructure.elem, variableArrayItem)
 			if criticalErr {
-				return criticalErr
+				return valueSet, criticalErr
 			}
 		}
 
 		goValue.Set(arr)
+		valueSet = true
 	case fastjson.TypeString:
+		valueSet = true
 		criticalErr := ctx.assignStringToValue(goValue, valueStructure, b2s(jsonData.GetStringBytes()))
 		if criticalErr {
-			return criticalErr
+			return valueSet, criticalErr
 		}
 	case fastjson.TypeNumber:
 		goValueKind := goValue.Kind()
 		if goValueKind == reflect.Float64 || goValueKind == reflect.Float32 {
+			valueSet = true
 			goValue.SetFloat(jsonData.GetFloat64())
 		} else {
 			intVal, err := jsonData.Int64()
 			if err != nil {
-				return ctx.err(err.Error())
+				return false, ctx.err(err.Error())
 			}
 			switch goValueKind {
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 				switch goValue.Kind() {
 				case reflect.Int8:
 					if int64(int8(intVal)) != intVal {
-						return ctx.errf("cannot assign %d to a 8bit integer", intVal)
+						return false, ctx.errf("cannot assign %d to a 8bit integer", intVal)
 					}
 				case reflect.Int16:
 					if int64(int16(intVal)) != intVal {
-						return ctx.errf("cannot assign %d to a 16bit integer", intVal)
+						return false, ctx.errf("cannot assign %d to a 16bit integer", intVal)
 					}
 				case reflect.Int32:
 					if int64(int32(intVal)) != intVal {
-						return ctx.errf("cannot assign %d to a 32bit integer", intVal)
+						return false, ctx.errf("cannot assign %d to a 32bit integer", intVal)
 					}
 				}
 
+				valueSet = true
 				goValue.SetInt(intVal)
 			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 				if intVal < 0 {
-					return ctx.errf("cannot assign %d to a unsigned integer", intVal)
+					return false, ctx.errf("cannot assign %d to a unsigned integer", intVal)
 				}
 				uintVal := uint64(intVal)
 
 				switch goValue.Kind() {
 				case reflect.Int8:
 					if uint64(uint8(uintVal)) != uintVal {
-						return ctx.errf("cannot assign %d to a 8bit unsigned integer", uintVal)
+						return false, ctx.errf("cannot assign %d to a 8bit unsigned integer", uintVal)
 					}
 				case reflect.Int16:
 					if uint64(uint16(uintVal)) != uintVal {
-						return ctx.errf("cannot assign %d to a 16bit unsigned integer", uintVal)
+						return false, ctx.errf("cannot assign %d to a 16bit unsigned integer", uintVal)
 					}
 				case reflect.Int32:
 					if uint64(uint32(uintVal)) != uintVal {
-						return ctx.errf("cannot assign %d to a 32bit unsigned integer", uintVal)
+						return false, ctx.errf("cannot assign %d to a 32bit unsigned integer", uintVal)
 					}
 				}
 
+				valueSet = true
 				goValue.SetUint(uintVal)
 			case reflect.Bool:
 				// TODO
+				valueSet = true
 				goValue.SetBool(intVal > 0)
 			default:
-				return ctx.err("cannot assign boolean to " + goValue.String())
+				return false, ctx.err("cannot assign boolean to " + goValue.String())
 			}
 		}
 	case fastjson.TypeTrue:
 		if goValue.Kind() != reflect.Bool {
-			return ctx.err("cannot assign boolean to " + goValue.String())
+			return false, ctx.err("cannot assign boolean to " + goValue.String())
 		}
 		goValue.SetBool(true)
+		valueSet = true
 	case fastjson.TypeFalse:
 		if goValue.Kind() != reflect.Bool {
-			return ctx.err("cannot assign boolean to " + goValue.String())
+			return false, ctx.err("cannot assign boolean to " + goValue.String())
 		}
 		goValue.SetBool(false)
+		valueSet = true
 	default:
-		return ctx.err("variable value is of an unsupported type")
+		return false, ctx.err("variable value is of an unsupported type")
 	}
 
-	return false
+	return valueSet, false
 }
 
 func (ctx *Ctx) assignStringToValue(goValue *reflect.Value, valueStructure *input, stringValue string) bool {
@@ -1329,27 +1345,29 @@ func (ctx *Ctx) assignStringToValue(goValue *reflect.Value, valueStructure *inpu
 	return false
 }
 
-func (ctx *Ctx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input, variablesAllowed bool) bool {
+func (ctx *Ctx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input, variablesAllowed bool) (valueSet bool, criticalErr bool) {
 	// TODO convert to go value kind to graphql value kind in errors
 
 	if goValue.Kind() == reflect.Ptr && !valueStructure.isFile {
 		if ctx.query.Res[ctx.charNr+1] == bytecode.ValueNull {
 			// keep goValue at it's default
 			ctx.skipInst(6)
-			return false
+			return false, false
 		}
 
 		goValueElem := goValue.Type().Elem()
 		newVal := reflect.New(goValueElem)
 		newValElem := newVal.Elem()
 
-		criticalErr := ctx.bindInputToGoValue(&newValElem, valueStructure.elem, variablesAllowed)
+		valueSet, criticalErr := ctx.bindInputToGoValue(&newValElem, valueStructure.elem, variablesAllowed)
 		if criticalErr {
-			return criticalErr
+			return valueSet, criticalErr
 		}
 
-		goValue.Set(newVal)
-		return false
+		if valueSet {
+			goValue.Set(newVal)
+		}
+		return valueSet, false
 	}
 
 	getValue := func() (start int, end int) {
@@ -1367,10 +1385,11 @@ func (ctx *Ctx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input
 
 	// TODO if field is: isTime, isFile, is.. and the value provided is different than the expected we'll get wired errors
 
+	valueSet = true
 	switch valueKind {
 	case bytecode.ValueVariable:
 		if !variablesAllowed {
-			return ctx.err("variables are not allowed here")
+			return false, ctx.err("variables are not allowed here")
 		}
 
 		varNameStart, varNameEnd := getValue()
@@ -1380,12 +1399,12 @@ func (ctx *Ctx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input
 		foundArgument := ctx.findOperatorArgument(varName)
 		if !foundArgument {
 			ctx.charNr = restorePositionTo
-			return ctx.err("variable " + varName + " not defined")
+			return false, ctx.err("variable " + varName + " not defined")
 		}
-		criticalErr := ctx.bindOperatorArgumentTo(goValue, valueStructure, varName)
+		valueSet, criticalErr = ctx.bindOperatorArgumentTo(goValue, valueStructure, varName)
 		ctx.charNr = restorePositionTo
 		if criticalErr {
-			return criticalErr
+			return valueSet, criticalErr
 		}
 	case bytecode.ValueInt:
 		startInt, endInt := getValue()
@@ -1395,21 +1414,21 @@ func (ctx *Ctx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			value, err := strconv.ParseInt(intValue, 10, 64)
 			if err != nil {
-				return ctx.err(err.Error())
+				return false, ctx.err(err.Error())
 			}
 
 			switch goValue.Kind() {
 			case reflect.Int8:
 				if int64(int8(value)) != value {
-					return ctx.err("cannot assign " + intValue + " to a 8bit integer")
+					return false, ctx.err("cannot assign " + intValue + " to a 8bit integer")
 				}
 			case reflect.Int16:
 				if int64(int16(value)) != value {
-					return ctx.err("cannot assign " + intValue + " to a 16bit integer")
+					return false, ctx.err("cannot assign " + intValue + " to a 16bit integer")
 				}
 			case reflect.Int32:
 				if int64(int32(value)) != value {
-					return ctx.err("cannot assign " + intValue + " to a 32bit integer")
+					return false, ctx.err("cannot assign " + intValue + " to a 32bit integer")
 				}
 			}
 
@@ -1417,21 +1436,21 @@ func (ctx *Ctx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 			value, err := strconv.ParseUint(intValue, 10, 64)
 			if err != nil {
-				return ctx.err(err.Error())
+				return false, ctx.err(err.Error())
 			}
 
 			switch goValue.Kind() {
 			case reflect.Uint8:
 				if uint64(uint8(value)) != value {
-					return ctx.err("cannot assign " + intValue + " to a 8bit unsigned integer")
+					return false, ctx.err("cannot assign " + intValue + " to a 8bit unsigned integer")
 				}
 			case reflect.Uint16:
 				if uint64(uint16(value)) != value {
-					return ctx.err("cannot assign " + intValue + " to a 16bit unsigned integer")
+					return false, ctx.err("cannot assign " + intValue + " to a 16bit unsigned integer")
 				}
 			case reflect.Uint32:
 				if uint64(uint32(value)) != value {
-					return ctx.err("cannot assign " + intValue + " to a 32bit unsigned integer")
+					return false, ctx.err("cannot assign " + intValue + " to a 32bit unsigned integer")
 				}
 			}
 
@@ -1439,19 +1458,19 @@ func (ctx *Ctx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input
 		case reflect.Float32, reflect.Float64:
 			value, err := strconv.ParseInt(intValue, 10, 64)
 			if err != nil {
-				return ctx.err(err.Error())
+				return false, ctx.err(err.Error())
 			}
 
 			goValue.SetFloat(float64(value))
 		case reflect.Bool:
 			value, err := strconv.ParseInt(intValue, 10, 64)
 			if err != nil {
-				return ctx.err(err.Error())
+				return false, ctx.err(err.Error())
 			}
 
 			goValue.SetBool(value > 0)
 		default:
-			return ctx.err("cannot assign int to " + goValue.String())
+			return false, ctx.err("cannot assign int to " + goValue.String())
 		}
 
 	case bytecode.ValueFloat:
@@ -1460,32 +1479,33 @@ func (ctx *Ctx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input
 			startFloat, endFloat := getValue()
 			floatValue, err := strconv.ParseFloat(b2s(ctx.query.Res[startFloat:endFloat]), 64)
 			if err != nil {
-				return ctx.err(err.Error())
+				return false, ctx.err(err.Error())
 			}
 
 			goValue.SetFloat(floatValue)
 		default:
-			return ctx.err("cannot assign float to " + goValue.String())
+			return false, ctx.err("cannot assign float to " + goValue.String())
 		}
 	case bytecode.ValueString:
 		startString, endString := getValue()
 		stringValue := b2s(ctx.query.Res[startString:endString])
 		criticalErr := ctx.assignStringToValue(goValue, valueStructure, stringValue)
 		if criticalErr {
-			return criticalErr
+			return false, criticalErr
 		}
 	case bytecode.ValueBoolean:
 		if goValue.Kind() != reflect.Bool {
-			return ctx.err("cannot assign boolean to " + goValue.String())
+			return false, ctx.err("cannot assign boolean to " + goValue.String())
 		}
 		goValue.SetBool(ctx.readInst() == '1')
 		ctx.skipInst(1)
 	case bytecode.ValueNull:
 		// keep goValue at it's default
 		ctx.skipInst(1)
+		valueSet = false
 	case bytecode.ValueEnum:
 		if !valueStructure.isEnum {
-			return ctx.err("cannot assign enum to non enum value")
+			return false, ctx.err("cannot assign enum to non enum value")
 		}
 
 		nameStart, nameEnd := getValue()
@@ -1502,21 +1522,21 @@ func (ctx *Ctx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input
 				case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 					goValue.SetUint(entry.value.Uint())
 				default:
-					return ctx.err("internal error, type missmatch on enum")
+					return false, ctx.err("internal error, type missmatch on enum")
 				}
-				return false
+				return true, false
 			}
 		}
 
-		return ctx.errf("unknown enum value %s for enum %s", name, enum.typeName)
+		return false, ctx.errf("unknown enum value %s for enum %s", name, enum.typeName)
 	case bytecode.ValueList:
 		goValueKind := goValue.Kind()
 		if goValueKind == reflect.Array {
 			// TODO support this
-			return ctx.err("fixed length arrays not supported")
+			return false, ctx.err("fixed length arrays not supported")
 		}
 		if goValueKind != reflect.Slice {
-			return ctx.err("cannot assign list to " + goValue.String())
+			return false, ctx.err("cannot assign list to " + goValue.String())
 		}
 
 		arr := reflect.MakeSlice(goValue.Type(), 0, 0)
@@ -1525,9 +1545,9 @@ func (ctx *Ctx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input
 		ctx.skipInst(1) // read NULL
 		for ctx.seekInst() != 'e' {
 			arrayEntry := reflect.New(arrItemType).Elem()
-			criticalErr := ctx.bindInputToGoValue(&arrayEntry, valueStructure.elem, variablesAllowed)
+			_, criticalErr := ctx.bindInputToGoValue(&arrayEntry, valueStructure.elem, variablesAllowed)
 			if criticalErr {
-				return criticalErr
+				return false, criticalErr
 			}
 			arr = reflect.Append(arr, arrayEntry)
 		}
@@ -1535,7 +1555,7 @@ func (ctx *Ctx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input
 		goValue.Set(arr)
 	case bytecode.ValueObject:
 		if goValue.Kind() != reflect.Struct {
-			return ctx.err("cannot assign object to " + goValue.String())
+			return false, ctx.err("cannot assign object to " + goValue.String())
 		}
 
 		if valueStructure.isStructPointers {
@@ -1552,13 +1572,14 @@ func (ctx *Ctx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input
 			}
 
 			field := goValue.Field(structFieldValueStructure.goFieldIdx)
-			return ctx.bindInputToGoValue(&field, &structFieldValueStructure, variablesAllowed)
+			valueSet, criticalErr = ctx.bindInputToGoValue(&field, &structFieldValueStructure, variablesAllowed)
+			return criticalErr
 		})
 		if criticalErr {
-			return criticalErr
+			return valueSet, criticalErr
 		}
 	}
-	return false
+	return valueSet, false
 }
 
 // walkInputObject walks over an input object and triggers onValueOfKey after reading a key and reached it value

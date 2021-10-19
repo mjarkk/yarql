@@ -462,6 +462,9 @@ type TestBytecodeResolveMultipleArgumentsDataIO struct {
 	StringID string `gq:"stringId,ID"`
 
 	Enum __TypeKind
+
+	IntPtr      *int
+	IntPtrWData *int
 }
 
 func (TestBytecodeResolveMultipleArgumentsData) ResolveFoo(args TestBytecodeResolveMultipleArgumentsDataIO) TestBytecodeResolveMultipleArgumentsDataIO {
@@ -487,6 +490,8 @@ func TestBytecodeResolveMultipleArguments(t *testing.T) {
 			uintId: 123,
 			stringId: "abc",
 			enum: ENUM,
+			intPtr: null,
+			intPtrWData: 123,
 		) {
 			string
 			int
@@ -504,11 +509,13 @@ func TestBytecodeResolveMultipleArguments(t *testing.T) {
 			uintId
 			stringId
 			enum
+			intPtr
+			intPtrWData
 		}
 	}`
 	schema := TestBytecodeResolveMultipleArgumentsData{}
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
-	a.Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","uintId":"123","stringId":"abc","enum":"ENUM"}}`, res)
+	a.Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","uintId":"123","stringId":"abc","enum":"ENUM","intPtr":null,"intPtrWData":123}}`, res)
 }
 
 func TestBytecodeResolveMultipleArgumentsUsingDefaultVariables(t *testing.T) {
@@ -529,6 +536,8 @@ func TestBytecodeResolveMultipleArgumentsUsingDefaultVariables(t *testing.T) {
 		$uintId: ID = "123",
 		$stringId: ID = "abc",
 		$enum: __TypeKind = ENUM,
+		$intPtr: Int = null,
+		$intPtrWData: Int = 123,
 	) {
 		foo(
 			string: $string,
@@ -547,6 +556,8 @@ func TestBytecodeResolveMultipleArgumentsUsingDefaultVariables(t *testing.T) {
 			uintId: $uintId,
 			stringId: $stringId,
 			enum: $enum,
+			intPtr: $intPtr,
+			intPtrWData: $intPtrWData,
 		) {
 			string
 			int
@@ -564,11 +575,13 @@ func TestBytecodeResolveMultipleArgumentsUsingDefaultVariables(t *testing.T) {
 			uintId
 			stringId
 			enum
+			intPtr
+			intPtrWData
 		}
 	}`
 	schema := TestBytecodeResolveMultipleArgumentsData{}
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
-	a.Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","uintId":"123","stringId":"abc","enum":"ENUM"}}`, res)
+	a.Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","uintId":"123","stringId":"abc","enum":"ENUM","intPtr":null,"intPtrWData":123}}`, res)
 }
 
 func TestBytecodeResolveMultipleArgumentsUsingVariables(t *testing.T) {
@@ -589,6 +602,8 @@ func TestBytecodeResolveMultipleArgumentsUsingVariables(t *testing.T) {
 		$uintId: ID,
 		$stringId: ID,
 		$enum: __TypeKind,
+		$intPtr: Int,
+		$intPtrWData: Int,
 	) {
 		foo(
 			string: $string,
@@ -607,6 +622,8 @@ func TestBytecodeResolveMultipleArgumentsUsingVariables(t *testing.T) {
 			uintId: $uintId,
 			stringId: $stringId,
 			enum: $enum,
+			intPtr: $intPtr,
+			intPtrWData: $intPtrWData,
 		) {
 			string
 			int
@@ -624,6 +641,8 @@ func TestBytecodeResolveMultipleArgumentsUsingVariables(t *testing.T) {
 			uintId
 			stringId
 			enum
+			intPtr
+			intPtrWData
 		}
 	}`
 	schema := TestBytecodeResolveMultipleArgumentsData{}
@@ -645,11 +664,13 @@ func TestBytecodeResolveMultipleArgumentsUsingVariables(t *testing.T) {
 			"time": "2021-09-28T18:44:11.717Z",
 			"uintId": "123",
 			"stringId": "abc",
-			"enum": "ENUM"
+			"enum": "ENUM",
+			"intPtr": null,
+			"intPtrWData": 123
 		}`,
 	}
 	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{}, opts)
-	a.Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","uintId":"123","stringId":"abc","enum":"ENUM"}}`, res)
+	a.Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","uintId":"123","stringId":"abc","enum":"ENUM","intPtr":null,"intPtrWData":123}}`, res)
 }
 
 type TestBytecodeResolveJSONArrayVariableData struct{}
@@ -1004,7 +1025,7 @@ func TestBytecodeResolveSchemaRequestWithFields(t *testing.T) {
 	isField("d")
 
 	inFields := types[inputIdx].JSONInputFields
-	a.Equal(t, 16, len(inFields))
+	a.Equal(t, 18, len(inFields))
 }
 
 func TestBytecodeResolveGraphqlTypenameByName(t *testing.T) {
