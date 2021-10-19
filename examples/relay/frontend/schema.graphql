@@ -1,0 +1,38 @@
+schema {
+  query: QueryRoot
+  mutation: MethodRoot
+}
+
+"""
+The File scalar type references to a multipart file, often used to upload files
+to the server. Expects a string with the form file field name
+"""
+scalar File
+
+type MethodRoot {
+  createTodo(title: String!): Todo!
+  deleteTodo(id: ID): [Todo!]
+  updateTodo(done: Boolean, id: ID, title: String): Todo!
+}
+
+interface Node {
+  id: ID!
+}
+
+type QueryRoot {
+  todo(id: ID): Todo
+  todos: [Todo!]
+}
+
+"""
+The Time scalar type references to a ISO 8601 date+time, often used to insert
+and/or view dates. Expects a string with the ISO 8601 format
+"""
+scalar Time
+
+type Todo implements Node {
+  done: Boolean!
+  id: ID!
+  title: String!
+}
+
