@@ -174,11 +174,13 @@ func getBodyData(body *fastjson.Value) (query, operationName, variables string, 
 	jsonVariables := body.Get("variables")
 	if jsonVariables != nil {
 		t := jsonVariables.Type()
-		if t != fastjson.TypeObject {
-			err = errors.New("expected variables to be a key value object but got: " + t.String())
-			return
+		if t != fastjson.TypeNull {
+			if t != fastjson.TypeObject {
+				err = errors.New("expected variables to be a key value object but got: " + t.String())
+				return
+			}
+			variables = jsonVariables.String()
 		}
-		variables = jsonVariables.String()
 	}
 
 	return
