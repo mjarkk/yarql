@@ -1045,6 +1045,14 @@ func (ctx *Ctx) bindExternalVariableValue(goValue *reflect.Value, valueStructure
 }
 
 func (ctx *Ctx) bindJSONToValue(goValue *reflect.Value, valueStructure *input, jsonData *fastjson.Value) (valueSet bool, criticalErr bool) {
+	var isPtr bool
+	isPtr, valueSet, criticalErr = ctx.checkInputIsPtr(goValue, valueStructure, func(goValue *reflect.Value, input *input) (valueSet bool, crticalErr bool) {
+		return ctx.bindJSONToValue(goValue, input, jsonData)
+	})
+	if isPtr {
+		return
+	}
+
 	jsonDataType := jsonData.Type()
 	if valueStructure.isEnum || valueStructure.isID || valueStructure.isFile || valueStructure.isTime {
 		if jsonDataType != fastjson.TypeString {
@@ -1256,7 +1264,7 @@ func (ctx *Ctx) bindJSONToValue(goValue *reflect.Value, valueStructure *input, j
 				valueSet = true
 				goValue.SetBool(intVal > 0)
 			default:
-				return false, ctx.err("cannot assign boolean to " + goValue.String())
+				return false, ctx.err("cannot assign number to " + goValue.String())
 			}
 		}
 	case fastjson.TypeTrue:
@@ -1345,29 +1353,38 @@ func (ctx *Ctx) assignStringToValue(goValue *reflect.Value, valueStructure *inpu
 	return false
 }
 
+func (ctx *Ctx) checkInputIsPtr(goValue *reflect.Value, input *input, whenPtr func(goValue *reflect.Value, input *input) (valueSet bool, crticalErr bool)) (isPtr bool, valueSet bool, criticalErr bool) {
+	if input.kind != reflect.Ptr || input.isFile {
+		return false, false, false
+	}
+
+	goValueElem := goValue.Type().Elem()
+	newVal := reflect.New(goValueElem)
+	newValElem := newVal.Elem()
+	valueSet, criticalErr = whenPtr(&newValElem, input.elem)
+	if criticalErr {
+		return true, false, criticalErr
+	}
+	if valueSet {
+		goValue.Set(newVal)
+	}
+	return true, valueSet, false
+}
+
 func (ctx *Ctx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input, variablesAllowed bool) (valueSet bool, criticalErr bool) {
 	// TODO convert to go value kind to graphql value kind in errors
 
-	if goValue.Kind() == reflect.Ptr && !valueStructure.isFile {
+	var isPtr bool
+	isPtr, valueSet, criticalErr = ctx.checkInputIsPtr(goValue, valueStructure, func(goValue *reflect.Value, input *input) (valueSet bool, crticalErr bool) {
 		if ctx.query.Res[ctx.charNr+1] == bytecode.ValueNull {
 			// keep goValue at it's default
 			ctx.skipInst(6)
 			return false, false
 		}
-
-		goValueElem := goValue.Type().Elem()
-		newVal := reflect.New(goValueElem)
-		newValElem := newVal.Elem()
-
-		valueSet, criticalErr := ctx.bindInputToGoValue(&newValElem, valueStructure.elem, variablesAllowed)
-		if criticalErr {
-			return valueSet, criticalErr
-		}
-
-		if valueSet {
-			goValue.Set(newVal)
-		}
-		return valueSet, false
+		return ctx.bindInputToGoValue(goValue, input, variablesAllowed)
+	})
+	if isPtr {
+		return valueSet, criticalErr
 	}
 
 	getValue := func() (start int, end int) {

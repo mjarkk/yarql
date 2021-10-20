@@ -441,30 +441,39 @@ func TestBytecodeResolveVariable(t *testing.T) {
 type TestBytecodeResolveMultipleArgumentsData struct{}
 
 type TestBytecodeResolveMultipleArgumentsDataIO struct {
-	String string
+	String string `json:"string"`
 
-	Int   int
-	Int8  int8
-	Int16 int16
-	Int32 int32
-	Int64 int64
+	Int   int   `json:"int"`
+	Int8  int8  `json:"int8"`
+	Int16 int16 `json:"int16"`
+	Int32 int32 `json:"int32"`
+	Int64 int64 `json:"int64"`
 
-	Uint   uint
-	Uint8  uint8
-	Uint16 uint16
-	Uint32 uint32
-	Uint64 uint64
+	Uint   uint   `json:"uint"`
+	Uint8  uint8  `json:"uint8"`
+	Uint16 uint16 `json:"uint16"`
+	Uint32 uint32 `json:"uint32"`
+	Uint64 uint64 `json:"uint64"`
 
 	Bool bool
 
-	Time     time.Time
-	UintID   uint   `gq:"uintId,ID"`
-	StringID string `gq:"stringId,ID"`
+	Time       time.Time `json:"time"`
+	UintID     uint      `json:"-" gq:"uintId,ID"`
+	JSONUingID string    `json:"uintID" gq:"-"` // For test output json format
+	StringID   string    `json:"stringID" gq:"stringId,ID"`
 
-	Enum __TypeKind
+	Enum     __TypeKind `json:"-"`
+	JSONEnum string     `json:"enum" gq:"-"` // For test output json format
 
-	IntPtr      *int
-	IntPtrWData *int
+	IntPtr      *int `json:"intPtr"`
+	IntPtrWData *int `json:"intPtrWData"`
+
+	Struct struct {
+		String      string `json:"string"`
+		Int         int    `json:"int"`
+		IntPtr      *int   `json:"intPtr"`
+		IntPtrWData *int   `json:"intPtrWData"`
+	} `json:"struct"`
 }
 
 func (TestBytecodeResolveMultipleArgumentsData) ResolveFoo(args TestBytecodeResolveMultipleArgumentsDataIO) TestBytecodeResolveMultipleArgumentsDataIO {
@@ -472,205 +481,254 @@ func (TestBytecodeResolveMultipleArgumentsData) ResolveFoo(args TestBytecodeReso
 }
 
 func TestBytecodeResolveMultipleArguments(t *testing.T) {
-	query := `{
-		foo(
-			string: "abc",
-			int: 123,
-			int8: 123,
-			int16: 123,
-			int32: 123,
-			int64: 123,
-			uint: 123,
-			uint8: 123,
-			uint16: 123,
-			uint32: 123,
-			uint64: 123,
-			bool: true,
-			time: "2021-09-28T18:44:11.717Z",
-			uintId: 123,
-			stringId: "abc",
-			enum: ENUM,
-			intPtr: null,
-			intPtrWData: 123,
-		) {
+	outFields := `{
+		string
+		int
+		int8
+		int16
+		int32
+		int64
+		uint
+		uint8
+		uint16
+		uint32
+		uint64
+		bool
+		time
+		uintId
+		stringId
+		enum
+		intPtr
+		intPtrWData
+		struct {
 			string
 			int
-			int8
-			int16
-			int32
-			int64
-			uint
-			uint8
-			uint16
-			uint32
-			uint64
-			bool
-			time
-			uintId
-			stringId
-			enum
 			intPtr
 			intPtrWData
 		}
 	}`
 	schema := TestBytecodeResolveMultipleArgumentsData{}
-	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
-	a.Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","uintId":"123","stringId":"abc","enum":"ENUM","intPtr":null,"intPtrWData":123}}`, res)
-}
 
-func TestBytecodeResolveMultipleArgumentsUsingDefaultVariables(t *testing.T) {
-	query := `query a(
-		$string: String = "abc",
-		$int: Int = 123,
-		$int8: Int = 123,
-		$int16: Int = 123,
-		$int32: Int = 123,
-		$int64: Int = 123,
-		$uint: Int = 123,
-		$uint8: Int = 123,
-		$uint16: Int = 123,
-		$uint32: Int = 123,
-		$uint64: Int = 123,
-		$bool: Boolean = true,
-		$time: Time = "2021-09-28T18:44:11.717Z",
-		$uintId: ID = "123",
-		$stringId: ID = "abc",
-		$enum: __TypeKind = ENUM,
-		$intPtr: Int = null,
-		$intPtrWData: Int = 123,
-	) {
-		foo(
-			string: $string,
-			int: $int,
-			int8: $int8,
-			int16: $int16,
-			int32: $int32,
-			int64: $int64,
-			uint: $uint,
-			uint8: $uint8,
-			uint16: $uint16,
-			uint32: $uint32,
-			uint64: $uint64,
-			bool: $bool,
-			time: $time,
-			uintId: $uintId,
-			stringId: $stringId,
-			enum: $enum,
-			intPtr: $intPtr,
-			intPtrWData: $intPtrWData,
-		) {
-			string
-			int
-			int8
-			int16
-			int32
-			int64
-			uint
-			uint8
-			uint16
-			uint32
-			uint64
-			bool
-			time
-			uintId
-			stringId
-			enum
-			intPtr
-			intPtrWData
-		}
-	}`
-	schema := TestBytecodeResolveMultipleArgumentsData{}
-	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{})
-	a.Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","uintId":"123","stringId":"abc","enum":"ENUM","intPtr":null,"intPtrWData":123}}`, res)
-}
-
-func TestBytecodeResolveMultipleArgumentsUsingVariables(t *testing.T) {
-	query := `query a(
-		$string: String,
-		$int: Int,
-		$int8: Int,
-		$int16: Int,
-		$int32: Int,
-		$int64: Int,
-		$uint: Int,
-		$uint8: Int,
-		$uint16: Int,
-		$uint32: Int,
-		$uint64: Int,
-		$bool: Boolean,
-		$time: Time,
-		$uintId: ID,
-		$stringId: ID,
-		$enum: __TypeKind,
-		$intPtr: Int,
-		$intPtrWData: Int,
-	) {
-		foo(
-			string: $string,
-			int: $int,
-			int8: $int8,
-			int16: $int16,
-			int32: $int32,
-			int64: $int64,
-			uint: $uint,
-			uint8: $uint8,
-			uint16: $uint16,
-			uint32: $uint32,
-			uint64: $uint64,
-			bool: $bool,
-			time: $time,
-			uintId: $uintId,
-			stringId: $stringId,
-			enum: $enum,
-			intPtr: $intPtr,
-			intPtrWData: $intPtrWData,
-		) {
-			string
-			int
-			int8
-			int16
-			int32
-			int64
-			uint
-			uint8
-			uint16
-			uint32
-			uint64
-			bool
-			time
-			uintId
-			stringId
-			enum
-			intPtr
-			intPtrWData
-		}
-	}`
-	schema := TestBytecodeResolveMultipleArgumentsData{}
-	opts := ResolveOptions{
-		NoMeta: true,
-		Variables: `{
-			"string": "abc",
-			"int": 123,
-			"int8": 123,
-			"int16": 123,
-			"int32": 123,
-			"int64": 123,
-			"uint": 123,
-			"uint8": 123,
-			"uint16": 123,
-			"uint32": 123,
-			"uint64": 123,
-			"bool": true,
-			"time": "2021-09-28T18:44:11.717Z",
-			"uintId": "123",
-			"stringId": "abc",
-			"enum": "ENUM",
-			"intPtr": null,
-			"intPtrWData": 123
-		}`,
+	testCases := []struct {
+		Name string
+		Exec func(t *testing.T) string
+	}{
+		{
+			"direct arguments",
+			func(t *testing.T) string {
+				query := `{
+					foo(
+						string: "abc",
+						int: 123,
+						int8: 123,
+						int16: 123,
+						int32: 123,
+						int64: 123,
+						uint: 123,
+						uint8: 123,
+						uint16: 123,
+						uint32: 123,
+						uint64: 123,
+						bool: true,
+						time: "2021-09-28T18:44:11.717Z",
+						uintId: 123,
+						stringId: "abc",
+						enum: ENUM,
+						intPtr: null,
+						intPtrWData: 123,
+						struct: {
+							string: "abc",
+							int: 123,
+							intPtr: null,
+							intPtrWData: 123,
+						},
+					) ` + outFields + `
+				}`
+				return bytecodeParseAndExpectNoErrs(t, query, schema, M{})
+			},
+		},
+		{
+			"variables with default value",
+			func(t *testing.T) string {
+				query := `query a(
+					$string: String = "abc",
+					$int: Int = 123,
+					$int8: Int = 123,
+					$int16: Int = 123,
+					$int32: Int = 123,
+					$int64: Int = 123,
+					$uint: Int = 123,
+					$uint8: Int = 123,
+					$uint16: Int = 123,
+					$uint32: Int = 123,
+					$uint64: Int = 123,
+					$bool: Boolean = true,
+					$time: Time = "2021-09-28T18:44:11.717Z",
+					$uintId: ID = "123",
+					$stringId: ID = "abc",
+					$enum: __TypeKind = ENUM,
+					$intPtr: Int = null,
+					$intPtrWData: Int = 123,
+					$struct: __UnknownInput1 = {
+						string: "abc",
+						int: 123,
+						intPtr: null,
+						intPtrWData: 123,
+					},
+				) {
+					foo(
+						string: $string,
+						int: $int,
+						int8: $int8,
+						int16: $int16,
+						int32: $int32,
+						int64: $int64,
+						uint: $uint,
+						uint8: $uint8,
+						uint16: $uint16,
+						uint32: $uint32,
+						uint64: $uint64,
+						bool: $bool,
+						time: $time,
+						uintId: $uintId,
+						stringId: $stringId,
+						enum: $enum,
+						intPtr: $intPtr,
+						intPtrWData: $intPtrWData,
+						struct: $struct,
+					) ` + outFields + `
+				}`
+				return bytecodeParseAndExpectNoErrs(t, query, schema, M{})
+			},
+		},
+		{
+			"variables",
+			func(t *testing.T) string {
+				query := `query a(
+					$string: String,
+					$int: Int,
+					$int8: Int,
+					$int16: Int,
+					$int32: Int,
+					$int64: Int,
+					$uint: Int,
+					$uint8: Int,
+					$uint16: Int,
+					$uint32: Int,
+					$uint64: Int,
+					$bool: Boolean,
+					$time: Time,
+					$uintId: ID,
+					$stringId: ID,
+					$enum: __TypeKind,
+					$intPtr: Int,
+					$intPtrWData: Int,
+					$struct: __UnknownInput1,
+				) {
+					foo(
+						string: $string,
+						int: $int,
+						int8: $int8,
+						int16: $int16,
+						int32: $int32,
+						int64: $int64,
+						uint: $uint,
+						uint8: $uint8,
+						uint16: $uint16,
+						uint32: $uint32,
+						uint64: $uint64,
+						bool: $bool,
+						time: $time,
+						uintId: $uintId,
+						stringId: $stringId,
+						enum: $enum,
+						intPtr: $intPtr,
+						intPtrWData: $intPtrWData,
+						struct: $struct,
+					) ` + outFields + `
+				}`
+				opts := ResolveOptions{
+					NoMeta: true,
+					Variables: `{
+						"string": "abc",
+						"int": 123,
+						"int8": 123,
+						"int16": 123,
+						"int32": 123,
+						"int64": 123,
+						"uint": 123,
+						"uint8": 123,
+						"uint16": 123,
+						"uint32": 123,
+						"uint64": 123,
+						"bool": true,
+						"time": "2021-09-28T18:44:11.717Z",
+						"uintId": "123",
+						"stringId": "abc",
+						"enum": "ENUM",
+						"intPtr": null,
+						"intPtrWData": 123,
+						"struct":{
+							"string": "abc",
+							"int": 123,
+							"intPtr": null,
+							"intPtrWData": 123
+						}
+					}`,
+				}
+				return bytecodeParseAndExpectNoErrs(t, query, schema, M{}, opts)
+			},
+		},
 	}
-	res := bytecodeParseAndExpectNoErrs(t, query, schema, M{}, opts)
-	a.Equal(t, `{"foo":{"string":"abc","int":123,"int8":123,"int16":123,"int32":123,"int64":123,"uint":123,"uint8":123,"uint16":123,"uint32":123,"uint64":123,"bool":true,"time":"2021-09-28T18:44:11.717Z","uintId":"123","stringId":"abc","enum":"ENUM","intPtr":null,"intPtrWData":123}}`, res)
+
+	formatJSON := func(t *testing.T, in string) string {
+		inParsed := struct {
+			Foo TestBytecodeResolveMultipleArgumentsDataIO `json:"foo"`
+		}{}
+		err := json.Unmarshal([]byte(in), &inParsed)
+		a.NoError(t, err)
+		out, err := json.MarshalIndent(inParsed, "", "  ")
+		a.NoError(t, err)
+		return string(out)
+	}
+
+	expected := `{
+		"foo":{
+			"string":"abc",
+			"int":123,
+			"int8":123,
+			"int16":123,
+			"int32":123,
+			"int64":123,
+			"uint":123,
+			"uint8":123,
+			"uint16":123,
+			"uint32":123,
+			"uint64":123,
+			"bool":true,
+			"time":"2021-09-28T18:44:11.717Z",
+			"uintId":"123",
+			"stringId":"abc",
+			"enum":"ENUM",
+			"intPtr":null,
+			"intPtrWData":123,
+			"struct":{
+				"string":"abc",
+				"int": 123,
+				"intPtr":null,
+				"intPtrWData":123
+			}
+		}
+	}`
+	formattedExpected := formatJSON(t, expected)
+
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			resJSON := testCase.Exec(t)
+			formattedResJSON := formatJSON(t, resJSON)
+			a.Equal(t, formattedExpected, formattedResJSON)
+		})
+	}
 }
 
 type TestBytecodeResolveJSONArrayVariableData struct{}
@@ -969,7 +1027,7 @@ func TestBytecodeResolveSchemaRequestWithFields(t *testing.T) {
 	schema := res.Schema
 	types := schema.JSONTypes
 
-	a.Equal(t, 21, len(types))
+	a.Equal(t, 22, len(types))
 
 	idx := 0
 	is := func(kind, name string) int {
@@ -1000,6 +1058,7 @@ func TestBytecodeResolveSchemaRequestWithFields(t *testing.T) {
 	is("OBJECT", "__Schema")
 	is("OBJECT", "__Type")
 	is("ENUM", "__TypeKind")
+	is("INPUT_OBJECT", "__UnknownInput1")
 	is("OBJECT", "__UnknownType1")
 	is("OBJECT", "__UnknownType2")
 
@@ -1025,7 +1084,7 @@ func TestBytecodeResolveSchemaRequestWithFields(t *testing.T) {
 	isField("d")
 
 	inFields := types[inputIdx].JSONInputFields
-	a.Equal(t, 18, len(inFields))
+	a.Equal(t, 19, len(inFields))
 }
 
 func TestBytecodeResolveGraphqlTypenameByName(t *testing.T) {
