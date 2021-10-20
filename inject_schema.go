@@ -211,11 +211,12 @@ func wrapQLTypeInNonNull(type_ *qlType, isNonNull bool) *qlType {
 
 func (s *Schema) inputToQLType(in *input) (res *qlType, isNonNull bool) {
 	if in.isID {
+		isNonNull = true
 		res = &scalarID
 		return
 	} else if in.isTime {
-		res = &scalarTime
 		isNonNull = true
+		res = &scalarTime
 		return
 	} else if in.isFile {
 		res = &scalarFile

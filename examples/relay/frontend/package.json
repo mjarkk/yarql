@@ -21,7 +21,8 @@
     "eject": "react-scripts eject",
     "relay": "relay-compiler --src ./src --schema ./schema.graphql",
     "relay:watch": "relay-compiler --src ./src --schema ./schema.graphql --watch",
-    "get-schema": "get-graphql-schema http://127.0.0.1:5000/graphql > schema.graphql"
+    "get-schema": "get-graphql-schema http://127.0.0.1:5000/graphql > schema.graphql",
+    "get-schema:json": "get-graphql-schema http://127.0.0.1:5000/graphql --json > schema.json"
   },
   "eslintConfig": {
     "extends": [

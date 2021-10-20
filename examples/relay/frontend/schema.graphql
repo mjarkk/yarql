@@ -11,8 +11,8 @@ scalar File
 
 type MethodRoot {
   createTodo(title: String!): Todo!
-  deleteTodo(id: ID): [Todo!]
-  updateTodo(done: Boolean, id: ID, title: String): Todo!
+  deleteTodo(id: ID!): [Todo!]
+  updateTodo(done: Boolean, id: ID!, title: String): Todo!
 }
 
 interface Node {
@@ -20,7 +20,7 @@ interface Node {
 }
 
 type QueryRoot {
-  todo(id: ID): Todo
+  todo(id: ID!): Todo
   todos: [Todo!]
 }
 
