@@ -76,7 +76,7 @@ func TestBytecodeResolveMutation(t *testing.T) {
 	a.Equal(t, `{"a":"foo"}`, res)
 
 	_, errs := bytecodeParseAndExpectErrs(t, `mutation test {a}`, schema, M{})
-	a.Len(t, errs, 1)
+	a.Equal(t, 1, len(errs))
 }
 
 func TestBytecodeResolveMultipleFields(t *testing.T) {
@@ -252,7 +252,7 @@ func TestBytecodeResolveMethodWithErrorRes(t *testing.T) {
 	schema := TestBytecodeResolveMethodWithErrorResData{}
 	query := `{foo}`
 	res, errs := bytecodeParseAndExpectErrs(t, query, schema, M{})
-	a.Len(t, errs, 1)
+	a.Equal(t, 1, len(errs))
 	a.Equal(t, `this is an error`, errs[0].Error())
 	a.Equal(t, `{"foo":null}`, res)
 }
@@ -1865,7 +1865,7 @@ func TestBytecodeResolveContext(t *testing.T) {
 
 	opts := ResolveOptions{NoMeta: true, Context: context}
 	out, errs := bytecodeParseAndExpectErrs(t, `{foo}`, TestBytecodeResolveContextData{}, M{}, opts)
-	a.Len(t, errs, 1)
+	a.Equal(t, 1, len(errs))
 	a.Equal(t, `{"foo":null}`, out)
 }
 

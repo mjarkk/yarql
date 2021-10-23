@@ -1,38 +1,5 @@
 package assert
 
-// Conditionf uses a Comparison to assert a complex condition.
-func Conditionf(t TestingT, comp Comparison, msg string, args ...interface{}) bool {
-	if h, ok := t.(tHelper); ok {
-		h.Helper()
-	}
-	return Condition(t, comp, append([]interface{}{msg}, args...)...)
-}
-
-// Containsf asserts that the specified string, list(array, slice...) or map contains the
-// specified substring or element.
-//
-//    assert.Containsf(t, "Hello World", "World", "error message %s", "formatted")
-//    assert.Containsf(t, ["Hello", "World"], "World", "error message %s", "formatted")
-//    assert.Containsf(t, {"Hello": "World"}, "Hello", "error message %s", "formatted")
-func Containsf(t TestingT, s interface{}, contains interface{}, msg string, args ...interface{}) bool {
-	if h, ok := t.(tHelper); ok {
-		h.Helper()
-	}
-	return Contains(t, s, contains, append([]interface{}{msg}, args...)...)
-}
-
-// ElementsMatchf asserts that the specified listA(array, slice...) is equal to specified
-// listB(array, slice...) ignoring the order of the elements. If there are duplicate elements,
-// the number of appearances of each of them in both lists should match.
-//
-// assert.ElementsMatchf(t, [1, 3, 2, 3], [1, 3, 3, 2], "error message %s", "formatted")
-func ElementsMatchf(t TestingT, listA interface{}, listB interface{}, msg string, args ...interface{}) bool {
-	if h, ok := t.(tHelper); ok {
-		h.Helper()
-	}
-	return ElementsMatch(t, listA, listB, append([]interface{}{msg}, args...)...)
-}
-
 // Emptyf asserts that the specified object is empty.  I.e. nil, "", false, 0 or either
 // a slice or a channel with len == 0.
 //
@@ -70,17 +37,6 @@ func EqualErrorf(t TestingT, theError error, errString string, msg string, args 
 	return EqualError(t, theError, errString, append([]interface{}{msg}, args...)...)
 }
 
-// EqualValuesf asserts that two objects are equal or convertable to the same types
-// and equal.
-//
-//    assert.EqualValuesf(t, uint32(123), int32(123), "error message %s", "formatted")
-func EqualValuesf(t TestingT, expected interface{}, actual interface{}, msg string, args ...interface{}) bool {
-	if h, ok := t.(tHelper); ok {
-		h.Helper()
-	}
-	return EqualValues(t, expected, actual, append([]interface{}{msg}, args...)...)
-}
-
 // Errorf asserts that a function returned an error (i.e. not `nil`).
 //
 //   actualObj, err := SomeFunction()
@@ -110,16 +66,6 @@ func ErrorIsf(t TestingT, err error, target error, msg string, args ...interface
 		h.Helper()
 	}
 	return ErrorIs(t, err, target, append([]interface{}{msg}, args...)...)
-}
-
-// Exactlyf asserts that two objects are equal in value and type.
-//
-//    assert.Exactlyf(t, int32(123), int64(123), "error message %s", "formatted")
-func Exactlyf(t TestingT, expected interface{}, actual interface{}, msg string, args ...interface{}) bool {
-	if h, ok := t.(tHelper); ok {
-		h.Helper()
-	}
-	return Exactly(t, expected, actual, append([]interface{}{msg}, args...)...)
 }
 
 // Failf reports a failure through
@@ -183,17 +129,6 @@ func JSONEqf(t TestingT, expected string, actual string, msg string, args ...int
 	return JSONEq(t, expected, actual, append([]interface{}{msg}, args...)...)
 }
 
-// Lenf asserts that the specified object has specific length.
-// Lenf also fails if the object has a type that len() not accept.
-//
-//    assert.Lenf(t, mySlice, 3, "error message %s", "formatted")
-func Lenf(t TestingT, object interface{}, length int, msg string, args ...interface{}) bool {
-	if h, ok := t.(tHelper); ok {
-		h.Helper()
-	}
-	return Len(t, object, length, append([]interface{}{msg}, args...)...)
-}
-
 // Lessf asserts that the first element is less than the second
 //
 //    assert.Lessf(t, 1, 2, "error message %s", "formatted")
@@ -251,19 +186,6 @@ func NoErrorf(t TestingT, err error, msg string, args ...interface{}) bool {
 		h.Helper()
 	}
 	return NoError(t, err, append([]interface{}{msg}, args...)...)
-}
-
-// NotContainsf asserts that the specified string, list(array, slice...) or map does NOT contain the
-// specified substring or element.
-//
-//    assert.NotContainsf(t, "Hello World", "Earth", "error message %s", "formatted")
-//    assert.NotContainsf(t, ["Hello", "World"], "Earth", "error message %s", "formatted")
-//    assert.NotContainsf(t, {"Hello": "World"}, "Earth", "error message %s", "formatted")
-func NotContainsf(t TestingT, s interface{}, contains interface{}, msg string, args ...interface{}) bool {
-	if h, ok := t.(tHelper); ok {
-		h.Helper()
-	}
-	return NotContains(t, s, contains, append([]interface{}{msg}, args...)...)
 }
 
 // NotEmptyf asserts that the specified object is NOT empty.  I.e. not nil, "", false, 0 or either
