@@ -4,7 +4,7 @@ import (
 	"log"
 	"testing"
 
-	a "github.com/stretchr/testify/assert"
+	a "github.com/mjarkk/go-graphql/assert"
 )
 
 // Making sure the code in the readme actually works :)

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	a "github.com/stretchr/testify/assert"
+	a "github.com/mjarkk/go-graphql/assert"
 )
 
 func TestHandleRequestRequestInURL(t *testing.T) {

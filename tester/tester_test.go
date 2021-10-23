@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/mjarkk/go-graphql"
-	"github.com/stretchr/testify/assert"
+	"github.com/mjarkk/go-graphql/assert"
 )
 
 type TesterQuerySchema struct {
