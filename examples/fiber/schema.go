@@ -1,7 +1,9 @@
 package main
 
+// QueryRoot defines the entry point for all graphql queries
 type QueryRoot struct{}
 
+// MethodRoot defines the entry for all method graphql queries
 type MethodRoot struct{}
 
 type User struct {

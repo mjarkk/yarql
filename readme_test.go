@@ -9,13 +9,16 @@ import (
 
 // Making sure the code in the readme actually works :)
 
+// QueryRoot defines the entry point for all graphql queries
 type QueryRoot struct{}
 
+// Post defines a post someone made
 type Post struct {
 	Id    uint   `gq:",ID"`
 	Title string `gq:"name"`
 }
 
+// ResolvePosts returns all posts
 func (QueryRoot) ResolvePosts() []Post {
 	return []Post{
 		{1, "post 1"},
@@ -24,6 +27,7 @@ func (QueryRoot) ResolvePosts() []Post {
 	}
 }
 
+// MethodRoot defines the entry for all method graphql queries
 type MethodRoot struct{}
 
 func TestReadmeExample(t *testing.T) {
