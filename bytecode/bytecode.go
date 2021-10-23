@@ -24,7 +24,7 @@ type ParserCtx struct {
 	TargetIdx         int // -1 = no matching target was found, >= 0 = res index of target
 	Hasher            hash.Hash32
 	cache             *cache.BytecodeCache
-	CacheableQueryLen int // Deafult = 300
+	CacheableQueryLen int // Default = 300
 }
 
 // NewParserCtx returns a new instance of ParserCtx
