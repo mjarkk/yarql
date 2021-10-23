@@ -541,7 +541,7 @@ func Panics(t TestingT, f func(), msgAndArgs ...interface{}) bool {
 	}
 
 	if funcDidPanic, panicValue, _ := didPanic(f); !funcDidPanic {
-		return Fail(t, fmt.Sprintf("func %#v should panic\n\tPanic value:\t%#v", f, panicValue), msgAndArgs...)
+		return Fail(t, fmt.Sprintf("func f should panic\n\tPanic value:\t%#v", panicValue), msgAndArgs...)
 	}
 
 	return true
@@ -556,7 +556,7 @@ func NotPanics(t TestingT, f func(), msgAndArgs ...interface{}) bool {
 	}
 
 	if funcDidPanic, panicValue, panickedStack := didPanic(f); funcDidPanic {
-		return Fail(t, fmt.Sprintf("func %#v should not panic\n\tPanic value:\t%v\n\tPanic stack:\t%s", f, panicValue, panickedStack), msgAndArgs...)
+		return Fail(t, fmt.Sprintf("func f should not panic\n\tPanic value:\t%v\n\tPanic stack:\t%s", panicValue, panickedStack), msgAndArgs...)
 	}
 
 	return true
