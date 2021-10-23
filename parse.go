@@ -572,7 +572,8 @@ func (c *parseCtx) checkStructFieldFunc(fieldName string, type_ reflect.Type, ha
 	methodObj, _, isID, err := c.checkFunction(fieldName, type_, false, hasIDTag)
 	if err != nil {
 		return nil, err
-	} else if methodObj == nil {
+	}
+	if methodObj == nil {
 		return nil, nil
 	}
 	return &obj{

@@ -494,9 +494,8 @@ func (ctx *ParserCtx) parseSelectionSet() bool {
 				if nameLen == 0 {
 					if isInline {
 						return ctx.err(`expected fragment type name but got char: "` + string(c) + `"`)
-					} else {
-						return ctx.err(`expected fragment name but got char: "` + string(c) + `"`)
 					}
+					return ctx.err(`expected fragment name but got char: "` + string(c) + `"`)
 				}
 
 				if c == '@' {
@@ -1257,12 +1256,14 @@ func (ctx *ParserCtx) matches(oneOf ...string) int {
 	}
 }
 
+// ErrorWLocation is an error with a location in a file
 type ErrorWLocation struct {
 	Err    error
 	Line   uint
 	Column uint
 }
 
+// Error implements the error interface
 func (e ErrorWLocation) Error() string {
 	return e.Err.Error()
 }
