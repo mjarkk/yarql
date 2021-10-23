@@ -102,7 +102,7 @@ func (o testDirective) toBytes(res []byte) []byte {
 
 type testOperatorArg struct {
 	name         string // REQUIRED
-	type_        string // REQUIRED
+	bytecodeType string // REQUIRED
 	defaultValue *testValue
 }
 
@@ -112,7 +112,7 @@ func (o testOperatorArg) toBytes(res []byte) []byte {
 	res = append(res, 0, 0, 0, 0) // arg length
 	res = append(res, []byte(o.name)...)
 	res = append(res, 0)
-	res = append(res, []byte(o.type_)...)
+	res = append(res, []byte(o.bytecodeType)...)
 	if o.defaultValue != nil { // has default value
 		res = append(res, 0, 't')
 		res = o.defaultValue.toBytes(res)

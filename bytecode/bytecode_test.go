@@ -98,7 +98,7 @@ func TestParseQuerywithArgs(t *testing.T) {
 		testOperator{
 			name: "banana",
 			args: []testOperatorArg{
-				{name: "quality", type_: "lnInt"},
+				{name: "quality", bytecodeType: "lnInt"},
 			},
 		}.toBytes(),
 	)
@@ -110,8 +110,8 @@ func TestParseQuerywithArgs(t *testing.T) {
 			name: "banana",
 			args: []testOperatorArg{
 				{
-					name:  "quality",
-					type_: "LNInt",
+					name:         "quality",
+					bytecodeType: "LNInt",
 					defaultValue: &testValue{
 						kind: ValueList,
 						list: []testValue{
@@ -131,12 +131,12 @@ func TestParseQuerywithArgs(t *testing.T) {
 			args: []testOperatorArg{
 				{
 					name:         "bar",
-					type_:        "nString",
+					bytecodeType: "nString",
 					defaultValue: &testValue{kind: ValueString, stringValue: "bar"},
 				},
 				{
 					name:         "baz",
-					type_:        "nString",
+					bytecodeType: "nString",
 					defaultValue: &testValue{kind: ValueString, stringValue: "baz"},
 				},
 			},
