@@ -508,121 +508,8 @@ func NotEqual(t TestingT, expected, actual interface{}, msgAndArgs ...interface{
 
 }
 
-// containsElement try loop over the list check if the list includes the element.
-// return (false, false) if impossible.
-// return (true, false) if element was not found.
-// return (true, true) if element was found.
-func includeElement(list interface{}, element interface{}) (ok, found bool) {
-
-	listValue := reflect.ValueOf(list)
-	listKind := reflect.TypeOf(list).Kind()
-	defer func() {
-		if e := recover(); e != nil {
-			ok = false
-			found = false
-		}
-	}()
-
-	if listKind == reflect.String {
-		elementValue := reflect.ValueOf(element)
-		return true, strings.Contains(listValue.String(), elementValue.String())
-	}
-
-	if listKind == reflect.Map {
-		mapKeys := listValue.MapKeys()
-		for i := 0; i < len(mapKeys); i++ {
-			if ObjectsAreEqual(mapKeys[i].Interface(), element) {
-				return true, true
-			}
-		}
-		return true, false
-	}
-
-	for i := 0; i < listValue.Len(); i++ {
-		if ObjectsAreEqual(listValue.Index(i).Interface(), element) {
-			return true, true
-		}
-	}
-	return true, false
-
-}
-
-// isList checks that the provided value is array or slice.
-func isList(t TestingT, list interface{}, msgAndArgs ...interface{}) (ok bool) {
-	kind := reflect.TypeOf(list).Kind()
-	if kind != reflect.Array && kind != reflect.Slice {
-		return Fail(t, fmt.Sprintf("%q has an unsupported type %s, expecting array or slice", list, kind),
-			msgAndArgs...)
-	}
-	return true
-}
-
-// diffLists diffs two arrays/slices and returns slices of elements that are only in A and only in B.
-// If some element is present multiple times, each instance is counted separately (e.g. if something is 2x in A and
-// 5x in B, it will be 0x in extraA and 3x in extraB). The order of items in both lists is ignored.
-func diffLists(listA, listB interface{}) (extraA, extraB []interface{}) {
-	aValue := reflect.ValueOf(listA)
-	bValue := reflect.ValueOf(listB)
-
-	aLen := aValue.Len()
-	bLen := bValue.Len()
-
-	// Mark indexes in bValue that we already used
-	visited := make([]bool, bLen)
-	for i := 0; i < aLen; i++ {
-		element := aValue.Index(i).Interface()
-		found := false
-		for j := 0; j < bLen; j++ {
-			if visited[j] {
-				continue
-			}
-			if ObjectsAreEqual(bValue.Index(j).Interface(), element) {
-				visited[j] = true
-				found = true
-				break
-			}
-		}
-		if !found {
-			extraA = append(extraA, element)
-		}
-	}
-
-	for j := 0; j < bLen; j++ {
-		if visited[j] {
-			continue
-		}
-		extraB = append(extraB, bValue.Index(j).Interface())
-	}
-
-	return
-}
-
-func formatListDiff(listA, listB interface{}, extraA, extraB []interface{}) string {
-	var msg bytes.Buffer
-
-	msg.WriteString("elements differ")
-	if len(extraA) > 0 {
-		msg.WriteString("\n\nextra elements in list A:\n")
-		msg.WriteString(fmt.Sprintf("%+v", extraA))
-	}
-	if len(extraB) > 0 {
-		msg.WriteString("\n\nextra elements in list B:\n")
-		msg.WriteString(fmt.Sprintf("%+v", extraB))
-	}
-	msg.WriteString("\n\nlistA:\n")
-	msg.WriteString(fmt.Sprintf("%+v", listA))
-	msg.WriteString("\n\nlistB:\n")
-	msg.WriteString(fmt.Sprintf("%+v", listB))
-
-	return msg.String()
-}
-
-// PanicTestFunc defines a func that should be passed to the assert.Panics and assert.NotPanics
-// methods, and represents a simple func that takes no arguments, and returns nothing.
-type PanicTestFunc func()
-
 // didPanic returns true if the function passed to it panics. Otherwise, it returns false.
-func didPanic(f PanicTestFunc) (bool, interface{}, string) {
+func didPanic(f func()) (bool, interface{}, string) {
 
 	didPanic := false
 	var message interface{}
@@ -645,10 +532,10 @@ func didPanic(f PanicTestFunc) (bool, interface{}, string) {
 
 }
 
-// Panics asserts that the code inside the specified PanicTestFunc panics.
+// Panics asserts that the code inside the specified f panics.
 //
 //   assert.Panics(t, func(){ GoCrazy() })
-func Panics(t TestingT, f PanicTestFunc, msgAndArgs ...interface{}) bool {
+func Panics(t TestingT, f func(), msgAndArgs ...interface{}) bool {
 	if h, ok := t.(tHelper); ok {
 		h.Helper()
 	}
@@ -660,10 +547,10 @@ func Panics(t TestingT, f PanicTestFunc, msgAndArgs ...interface{}) bool {
 	return true
 }
 
-// NotPanics asserts that the code inside the specified PanicTestFunc does NOT panic.
+// NotPanics asserts that the code inside the specified f does NOT panic.
 //
 //   assert.NotPanics(t, func(){ RemainCalm() })
-func NotPanics(t TestingT, f PanicTestFunc, msgAndArgs ...interface{}) bool {
+func NotPanics(t TestingT, f func(), msgAndArgs ...interface{}) bool {
 	if h, ok := t.(tHelper); ok {
 		h.Helper()
 	}

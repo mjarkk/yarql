@@ -233,20 +233,20 @@ func NotNilf(t TestingT, object interface{}, msg string, args ...interface{}) bo
 	return NotNil(t, object, append([]interface{}{msg}, args...)...)
 }
 
-// NotPanicsf asserts that the code inside the specified PanicTestFunc does NOT panic.
+// NotPanicsf asserts that the code inside the specified f does NOT panic.
 //
 //   assert.NotPanicsf(t, func(){ RemainCalm() }, "error message %s", "formatted")
-func NotPanicsf(t TestingT, f PanicTestFunc, msg string, args ...interface{}) bool {
+func NotPanicsf(t TestingT, f func(), msg string, args ...interface{}) bool {
 	if h, ok := t.(tHelper); ok {
 		h.Helper()
 	}
 	return NotPanics(t, f, append([]interface{}{msg}, args...)...)
 }
 
-// Panicsf asserts that the code inside the specified PanicTestFunc panics.
+// Panicsf asserts that the code inside the specified f panics.
 //
 //   assert.Panicsf(t, func(){ GoCrazy() }, "error message %s", "formatted")
-func Panicsf(t TestingT, f PanicTestFunc, msg string, args ...interface{}) bool {
+func Panicsf(t TestingT, f func(), msg string, args ...interface{}) bool {
 	if h, ok := t.(tHelper); ok {
 		h.Helper()
 	}
