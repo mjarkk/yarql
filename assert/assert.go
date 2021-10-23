@@ -14,7 +14,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/pmezard/go-difflib/difflib"
+	"github.com/mjarkk/go-graphql/assert/difflib"
 )
 
 // TestingT is an interface wrapper around *testing.T
@@ -792,15 +792,10 @@ func diff(expected interface{}, actual interface{}) string {
 		a = reflect.ValueOf(actual).String()
 	}
 
-	diff, _ := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
-		A:        difflib.SplitLines(e),
-		B:        difflib.SplitLines(a),
-		FromFile: "Expected",
-		FromDate: "",
-		ToFile:   "Actual",
-		ToDate:   "",
-		Context:  1,
-	})
+	diff, _ := difflib.GetUnifiedDiffString(
+		difflib.SplitLines(e),
+		difflib.SplitLines(a),
+	)
 
 	return "\n\nDiff:\n" + diff
 }

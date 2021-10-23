@@ -10,7 +10,7 @@ Just a different approach to making graphql servers in Go
 - Schema based on code
 - Build on top of the graphql spec 2018
 - No code generators
-- Only 2 dependencies
+- Only 1 dependency
 - Easy to implement in many webservers, see the [gin](https://github.com/mjarkk/go-graphql/blob/main/examples/gin/main.go) and [fiber](https://github.com/mjarkk/go-graphql/blob/main/examples/fiber/main.go) examples
 - File upload support
 - Supports [Apollo tracing](https://github.com/apollographql/apollo-tracing)
