@@ -232,7 +232,7 @@ func (s *Schema) Resolve(query []byte, opts ResolveOptions) []error {
 						ctx.writeByte(',')
 					}
 					ctx.write([]byte(`{"message":`))
-					stringToJson(err.Error(), &ctx.schema.Result)
+					helpers.StringToJson(err.Error(), &ctx.schema.Result)
 
 					errWPath, isErrWPath := err.(ErrorWPath)
 					if isErrWPath && len(errWPath.path) > 0 {
@@ -1633,7 +1633,7 @@ func (ctx *Ctx) walkInputObject(onValueOfKey func(key []byte) bool) bool {
 func (ctx *Ctx) valueToJson(in reflect.Value, kind reflect.Kind) {
 	switch kind {
 	case reflect.String:
-		stringToJson(in.String(), &ctx.schema.Result)
+		helpers.StringToJson(in.String(), &ctx.schema.Result)
 	case reflect.Bool:
 		if in.Bool() {
 			ctx.write([]byte("true"))
@@ -1645,9 +1645,9 @@ func (ctx *Ctx) valueToJson(in reflect.Value, kind reflect.Kind) {
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		ctx.schema.Result = strconv.AppendUint(ctx.schema.Result, in.Uint(), 10)
 	case reflect.Float32:
-		floatToJson(32, in.Float(), &ctx.schema.Result)
+		helpers.FloatToJson(32, in.Float(), &ctx.schema.Result)
 	case reflect.Float64:
-		floatToJson(64, in.Float(), &ctx.schema.Result)
+		helpers.FloatToJson(64, in.Float(), &ctx.schema.Result)
 	case reflect.Ptr:
 		if in.IsNil() {
 			ctx.writeNull()

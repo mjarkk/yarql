@@ -1,4 +1,4 @@
-package graphql
+package helpers
 
 import (
 	"math"
@@ -13,7 +13,7 @@ import (
 // license that can be found in the LICENSE file.
 //
 // IMPORTANT the full license can be found in this repo: https://github.com/golang/go
-func floatToJson(bits int, f float64, e *[]byte) {
+func FloatToJson(bits int, f float64, e *[]byte) {
 	if math.IsInf(f, 0) || math.IsNaN(f) {
 		*e = append(*e, []byte("0.0")...)
 		return

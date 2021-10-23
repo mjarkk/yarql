@@ -5,6 +5,8 @@ import (
 	"os"
 	"runtime/pprof"
 	"testing"
+
+	"github.com/mjarkk/go-graphql/helpers"
 )
 
 func BenchmarkResolve(b *testing.B) {
@@ -50,10 +52,10 @@ func BenchmarkEncodeString(b *testing.B) {
 	out := []byte{}
 
 	for i := 0; i < b.N; i++ {
-		stringToJson(inputString1, &out)
-		stringToJson(inputString2, &out)
-		stringToJson(inputString3, &out)
-		stringToJson(inputString4, &out)
+		helpers.StringToJson(inputString1, &out)
+		helpers.StringToJson(inputString2, &out)
+		helpers.StringToJson(inputString3, &out)
+		helpers.StringToJson(inputString4, &out)
 	}
 }
 

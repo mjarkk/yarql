@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"strings"
 
+	"github.com/mjarkk/go-graphql/helpers"
 	"github.com/valyala/fastjson"
 )
 
@@ -29,7 +30,7 @@ func (s *Schema) HandleRequest(
 
 	errRes := func(errorMsg string) ([]byte, []error) {
 		response := []byte(`{"data":{},"errors":[{"message":`)
-		stringToJson(errorMsg, &response)
+		helpers.StringToJson(errorMsg, &response)
 		response = append(response, []byte(`}],"extensions":{}}`)...)
 		return response, []error{errors.New(errorMsg)}
 	}

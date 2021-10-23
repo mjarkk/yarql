@@ -1,4 +1,4 @@
-package graphql
+package helpers
 
 import (
 	"unicode/utf8"
@@ -12,7 +12,7 @@ import (
 // license that can be found in the LICENSE file.
 //
 // IMPORTANT the full license can be found in this repo: https://github.com/golang/go
-func stringToJson(s string, e *[]byte) {
+func StringToJson(s string, e *[]byte) {
 	const hex = "0123456789abcdef"
 
 	*e = append(*e, '"')
