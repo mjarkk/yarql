@@ -8,9 +8,9 @@ Just a different approach to making graphql servers in Go
 
 - Easy to use and not much code required
 - Schema based on code
-- Build on top of the [graphql spec 2021](http://spec.graphql.org/October2021/)
+- Build on top of the [graphql spec 2021](https://spec.graphql.org/October2021/)
 - No code generators
-- Only 1 dependency
+- [Only 1 dependency](go.mod)
 - Easy to implement in many web servers, see the [gin](https://github.com/mjarkk/go-graphql/blob/main/examples/gin/main.go) and [fiber](https://github.com/mjarkk/go-graphql/blob/main/examples/fiber/main.go) examples
 - [File upload support](#file-upload)
 - Supports [Apollo tracing](https://github.com/apollographql/apollo-tracing)
@@ -305,8 +305,8 @@ func (u User) ResolveId() (uint, graphql.AttrIsID) {
 
 These directives are added by default:
 
-- `@include(if: Boolean!)` _on Fields and fragments_
-- `@skip(if: Boolean!)` _on Fields and fragments_
+- `@include(if: Boolean!)` _on Fields and fragments, [spec](https://spec.graphql.org/October2021/#sec--include)_
+- `@skip(if: Boolean!)` _on Fields and fragments, [spec](https://spec.graphql.org/October2021/#sec--skip)_
 
 To add custom directives:
 

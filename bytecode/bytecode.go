@@ -84,8 +84,8 @@ func (ctx *ParserCtx) writeUint32(value uint32, at int) {
 	ctx.Res[at+3] = byte(0xff & (value >> 24))
 }
 
-// - http://spec.graphql.org/June2018/#sec-Language.Operations
-// - http://spec.graphql.org/June2018/#FragmentDefinition
+// - https://spec.graphql.org/October2021/#sec-Language.Operations
+// - https://spec.graphql.org/October2021/#FragmentDefinition
 func (ctx *ParserCtx) parseOperatorOrFragment() (stop bool) {
 	c, eof := ctx.mightIgnoreNextTokens()
 	if eof {
@@ -641,8 +641,8 @@ func (ctx *ParserCtx) parseSelectionSet() bool {
 	}
 }
 
-// http://spec.graphql.org/June2018/#sec-Language.Arguments
-// http://spec.graphql.org/June2018/#ObjectValue
+// https://spec.graphql.org/October2021/#sec-Language.Arguments
+// https://spec.graphql.org/October2021/#ObjectValue
 func (ctx *ParserCtx) parseAssignmentSet(closure byte) bool {
 	ctx.instructionNewValueObject()
 	startOfObj := len(ctx.Res)
@@ -1133,13 +1133,13 @@ func isPunctuator(c byte) bool {
 	return c == '!' || c == '$' || c == '(' || c == ')' || c == '.' || c == ':' || c == '=' || c == '@' || c == '[' || c == ']' || c == '{' || c == '|' || c == '}'
 }
 
-// https://spec.graphql.org/June2018/#sec-Source-Text.Ignored-Tokens
+// https://spec.graphql.org/October2021/#sec-Language.Source-Text.Ignored-Tokens
 func (ctx *ParserCtx) isIgnoredToken(c byte) bool {
 	// TODO this doesn't support unicode bomb
 	return c == ' ' || c == '\t' || ctx.isLineTerminator() || ctx.isComment(true) || c == 0
 }
 
-// https://spec.graphql.org/June2018/#LineTerminator
+// https://spec.graphql.org/October2021/#sec-Line-Terminators
 func (ctx *ParserCtx) isLineTerminator() bool {
 	c := ctx.currentC()
 	if c == '\n' {
@@ -1155,7 +1155,7 @@ func (ctx *ParserCtx) isLineTerminator() bool {
 	return false
 }
 
-// https://spec.graphql.org/June2018/#Comment
+// https://spec.graphql.org/October2021/#sec-Comments
 func (ctx *ParserCtx) isComment(parseComment bool) bool {
 	if ctx.currentC() == '#' {
 		if parseComment {

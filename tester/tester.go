@@ -9,14 +9,14 @@ import (
 )
 
 // Type contains a subset of fields from the graphql __Type type
-// http://spec.graphql.org/June2018/#sec-Schema-Introspection
+// https://spec.graphql.org/October2021/#sec-Schema-Introspection
 type Type struct {
 	Kind   string  `json:"kind"`
 	Fields []Field `json:"fields"`
 }
 
 // Field contains a subset of fields from the graphql __Field type
-// http://spec.graphql.org/June2018/#sec-Schema-Introspection
+// https://spec.graphql.org/October2021/#sec-Schema-Introspection
 type Field struct {
 	Name string `json:"name"`
 }

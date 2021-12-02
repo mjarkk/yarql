@@ -6,7 +6,7 @@ import (
 
 //
 // Types represent:
-// https://spec.graphql.org/June2018/#sec-Schema-Introspection
+// https://spec.graphql.org/October2021/#sec-Schema-Introspection
 //
 
 var _ = TypeRename(qlSchema{}, "__Schema", true)
@@ -75,7 +75,7 @@ func (kind __TypeKind) String() string {
 var _ = TypeRename(qlType{}, "__Type", true)
 
 // This type represents the graphql __Type type
-// http://spec.graphql.org/June2018/#sec-Schema-Introspection
+// https://spec.graphql.org/October2021/#sec-Schema-Introspection
 type qlType struct {
 	Kind        __TypeKind `json:"-"`
 	Name        *string    `json:"name"`
