@@ -384,7 +384,9 @@ BenchmarkResolve-12    	   13246	     83731 ns/op	    1344 B/op	      47 allocs/
 <summary>Compared to other libraries</summary>
 <br>
 
-Injecting `resolver_benchmark_test.go > BenchmarkHelloWorldResolve` into [appleboy/golang-graphql-benchmark](https://github.com/appleboy/golang-graphql-benchmark) results in the following result:
+Injecting `resolver_benchmark_test.go > BenchmarkHelloWorldResolve` into [appleboy/golang-graphql-benchmark](https://github.com/appleboy/golang-graphql-benchmark) results in the following:
+
+Take these results with a big grain of salt, i didn't use the last version of the libraries thus my result might be garbage compared to the others by now!
 
 ```sh
 # go test -v -bench=Master -benchmem
@@ -399,8 +401,6 @@ BenchmarkGophersGraphQLMaster-12     	  391269	      3114 ns/op	    3634 B/op	  
 BenchmarkThunderGraphQLMaster-12     	  708327	      1707 ns/op	    1288 B/op	      30 allocs/op
 BenchmarkMjarkkGraphQLGoMaster-12    	 2560764	       466.5 ns/op	      80 B/op	       1 allocs/op
 ```
-
-Take this result with a big grain of salt, i didn't use the last version of the libraries thus my result might be garbage compared to others by now!
 
 </details>
 
