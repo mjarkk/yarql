@@ -155,12 +155,12 @@ func (m *sequenceMatcher) chainB() {
 	m.bJunk = map[string]struct{}{}
 	if m.IsJunk != nil {
 		junk := m.bJunk
-		for s, _ := range b2j {
+		for s := range b2j {
 			if m.IsJunk(s) {
 				junk[s] = struct{}{}
 			}
 		}
-		for s, _ := range junk {
+		for s := range junk {
 			delete(b2j, s)
 		}
 	}
@@ -175,7 +175,7 @@ func (m *sequenceMatcher) chainB() {
 				popular[s] = struct{}{}
 			}
 		}
-		for s, _ := range popular {
+		for s := range popular {
 			delete(b2j, s)
 		}
 	}
