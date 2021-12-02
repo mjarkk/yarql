@@ -11,7 +11,7 @@ Just a different approach to making graphql servers in Go
 - Build on top of the graphql spec 2018
 - No code generators
 - Only 1 dependency
-- Easy to implement in many webservers, see the [gin](https://github.com/mjarkk/go-graphql/blob/main/examples/gin/main.go) and [fiber](https://github.com/mjarkk/go-graphql/blob/main/examples/fiber/main.go) examples
+- Easy to implement in many web servers, see the [gin](https://github.com/mjarkk/go-graphql/blob/main/examples/gin/main.go) and [fiber](https://github.com/mjarkk/go-graphql/blob/main/examples/fiber/main.go) examples
 - File upload support
 - Supports [Apollo tracing](https://github.com/apollographql/apollo-tracing)
 
@@ -138,7 +138,7 @@ struct {
 }
 ```
 
-### Custom field name
+### Rename field
 
 ```go
 struct {
@@ -244,7 +244,7 @@ func main() {
 
 Graphql interfaces can be created using go interfaces
 
-This library needs to anylize all types before you can make a query and as we cannot query all types that implmenet a interface you'll need to help the library with this by calling `Implements` for every implementation.
+This library needs to analyze all types before you can make a query and as we cannot query all types that implement a interface you'll need to help the library with this by calling `Implements` for every implementation.
 If `Implements` is not called for a type the response value for that type when inside a interface will always be `null`
 
 ```go
@@ -263,7 +263,7 @@ type InterfaceType interface {
 type BarWImpl struct{}
 
 // Implements hints this library to register BarWImpl
-// THIS MUST BE CALLED FOR EVERY TYPE THAT IMPLMENTS InterfaceType
+// THIS MUST BE CALLED FOR EVERY TYPE THAT IMPLEMENTS InterfaceType
 var _ = graphql.Implements((*InterfaceType)(nil), BarWImpl{})
 
 func (BarWImpl) ResolveFoo() string { return "this is bar" }

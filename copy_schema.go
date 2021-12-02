@@ -209,7 +209,7 @@ func (m *objMethod) copy() *objMethod {
 	res := objMethod{
 		isTypeMethod:   m.isTypeMethod,
 		goFunctionName: m.goFunctionName,
-		type_:          m.type_,
+		goType:         m.goType,
 		checkedIns:     m.checkedIns,
 		outNr:          m.outNr,
 		outType:        *m.outType.copy(),
@@ -280,11 +280,11 @@ func (m *baseInput) copy() *baseInput {
 	res := &baseInput{
 		isCtx: m.isCtx,
 	}
-	if m.type_ != nil {
+	if m.goType != nil {
 		reflectType := reflect.TypeOf(0)
-		res.type_ = &reflectType
+		res.goType = &reflectType
 
-		*res.type_ = *m.type_
+		*res.goType = *m.goType
 	}
 
 	return res

@@ -5,7 +5,7 @@ import (
 	"strconv"
 )
 
-// Modified copy of https://golang.org/src/encoding/json/encode.go > floatEncoder.encode(..)
+// FloatToJSON is a Modified copy of https://golang.org/src/encoding/json/encode.go > floatEncoder.encode(..)
 // Copyright for function below:
 //
 // Copyright 2010 The Go Authors. All rights reserved.
@@ -13,7 +13,7 @@ import (
 // license that can be found in the LICENSE file.
 //
 // IMPORTANT the full license can be found in this repo: https://github.com/golang/go
-func FloatToJson(bits int, f float64, e *[]byte) {
+func FloatToJSON(bits int, f float64, e *[]byte) {
 	if math.IsInf(f, 0) || math.IsNaN(f) {
 		*e = append(*e, []byte("0.0")...)
 		return

@@ -12,6 +12,13 @@ import (
 	"time"
 )
 
+// AttrIsID can be added to a method response to make it a ID field
+// For example:
+// func (Foo) ResolveExampleMethod() (string, AttrIsID) {
+//   return "i'm an ID type now", 0
+// }
+//
+// Not that the response value doesn't matter
 type AttrIsID uint8
 
 type types map[string]*obj
@@ -146,7 +153,7 @@ type objMethod struct {
 	// false = ResolveFooBar func() string
 	isTypeMethod   bool
 	goFunctionName string
-	type_          reflect.Type
+	goType         reflect.Type
 
 	ins        []baseInput             // The real function inputs
 	inFields   map[string]referToInput // Contains all the fields of all the ins
@@ -187,8 +194,8 @@ type input struct {
 }
 
 type baseInput struct {
-	isCtx bool
-	type_ *reflect.Type
+	isCtx  bool
+	goType *reflect.Type
 }
 
 // SchemaOptions are options for creating a new schema
@@ -274,10 +281,13 @@ func NewSchema() *Schema {
 	return s
 }
 
+// SetCacheRules sets the cacheing rules
 func (s *Schema) SetCacheRules(
-	cacheQueryFromLen int, // default = 300
+	cacheQueryFromLen *int, // default = 300
 ) {
-	s.ctx.query.CacheableQueryLen = cacheQueryFromLen
+	if cacheQueryFromLen != nil {
+		s.ctx.query.CacheableQueryMinLen = *cacheQueryFromLen
+	}
 }
 
 // Parse parses your queries and methods
@@ -473,18 +483,18 @@ func (c *parseCtx) check(t reflect.Type, hasIDTag bool) (*obj, error) {
 		if !ok {
 			return nil, errors.New("cannot register a interface without explicit implementations")
 		}
-		for _, type_ := range typesThatImplementInterface {
-			if type_.Kind() != reflect.Struct {
+		for _, interfaceType := range typesThatImplementInterface {
+			if interfaceType.Kind() != reflect.Struct {
 				return nil, fmt.Errorf("only struct types are allowed as (%s).Is(types...) arguments", methodPkgName)
 			}
-			if type_.Name() == "" {
+			if interfaceType.Name() == "" {
 				return nil, fmt.Errorf("inline struct not allowed in (%s).Is(types...)", methodPkgName)
 			}
-			if !type_.Implements(t) {
-				return nil, fmt.Errorf("(%s).Is(types...): %s.%s does not implement %s", methodPkgName, type_.PkgPath(), type_.Name(), methodPkgName)
+			if !interfaceType.Implements(t) {
+				return nil, fmt.Errorf("(%s).Is(types...): %s.%s does not implement %s", methodPkgName, interfaceType.PkgPath(), interfaceType.Name(), methodPkgName)
 			}
 
-			obj, err := c.check(type_, false)
+			obj, err := c.check(interfaceType, false)
 			if err != nil {
 				return nil, err
 			}
@@ -568,8 +578,8 @@ func (c *parseCtx) checkStructField(field reflect.StructField, idx int) (customN
 	return
 }
 
-func (c *parseCtx) checkStructFieldFunc(fieldName string, type_ reflect.Type, hasIDTag bool, idx int) (*obj, error) {
-	methodObj, _, isID, err := c.checkFunction(fieldName, type_, false, hasIDTag)
+func (c *parseCtx) checkStructFieldFunc(fieldName string, goType reflect.Type, hasIDTag bool, idx int) (*obj, error) {
+	methodObj, _, isID, err := c.checkFunction(fieldName, goType, false, hasIDTag)
 	if err != nil {
 		return nil, err
 	}
@@ -768,11 +778,10 @@ func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool,
 			if hasErrorOut != nil {
 				err = fmt.Errorf("%s cannot return multiple error types", name)
 				return
-			} else {
-				hasErrorOut = func(i int) *int {
-					return &i
-				}(i)
 			}
+			hasErrorOut = func(i int) *int {
+				return &i
+			}(i)
 		} else {
 			if outNr != nil {
 				err = fmt.Errorf("%s cannot return multiple types of data", name)
@@ -796,7 +805,7 @@ func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool,
 	}
 
 	res := &objMethod{
-		type_:          t,
+		goType:         t,
 		goFunctionName: name,
 		isTypeMethod:   isTypeMethod,
 		ins:            []baseInput{},
@@ -810,7 +819,7 @@ func (c *parseCtx) checkFunction(name string, t reflect.Type, isTypeMethod bool,
 }
 
 func (c *parseCtx) checkFunctionIns(method *objMethod) error {
-	totalInputs := method.type_.NumIn()
+	totalInputs := method.goType.NumIn()
 	for i := 0; i < totalInputs; i++ {
 		iInList := i
 		if method.isTypeMethod {
@@ -821,23 +830,23 @@ func (c *parseCtx) checkFunctionIns(method *objMethod) error {
 			iInList = i - 1
 		}
 
-		type_ := method.type_.In(i)
+		goType := method.goType.In(i)
 		input := baseInput{}
-		typeKind := type_.Kind()
-		if typeKind == reflect.Ptr && isCtx(type_.Elem()) {
+		typeKind := goType.Kind()
+		if typeKind == reflect.Ptr && isCtx(goType.Elem()) {
 			input.isCtx = true
-		} else if isCtx(type_) {
+		} else if isCtx(goType) {
 			return fmt.Errorf("%s ctx argument must be a pointer", method.goFunctionName)
 		} else if typeKind == reflect.Struct {
-			input.type_ = &type_
-			for i := 0; i < type_.NumField(); i++ {
-				field := type_.Field(i)
+			input.goType = &goType
+			for i := 0; i < goType.NumField(); i++ {
+				field := goType.Field(i)
 				input, skip, err := c.checkFunctionInputStruct(&field, i)
 				if skip {
 					continue
 				}
 				if err != nil {
-					return fmt.Errorf("%s, type %s (#%d)", err.Error(), type_.Name(), i)
+					return fmt.Errorf("%s, type %s (#%d)", err.Error(), goType.Name(), i)
 				}
 
 				method.inFields[input.gqFieldName] = referToInput{
@@ -846,7 +855,7 @@ func (c *parseCtx) checkFunctionIns(method *objMethod) error {
 				}
 			}
 		} else {
-			return fmt.Errorf("invalid struct item type %s (#%d)", type_.Name(), i)
+			return fmt.Errorf("invalid struct item type %s (#%d)", goType.Name(), i)
 		}
 
 		method.ins = append(method.ins, input)

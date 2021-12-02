@@ -149,7 +149,7 @@ func checkDirective(directive *Directive) error {
 
 	directive.parsedMethod = &objMethod{
 		isTypeMethod: false,
-		type_:        methodType,
+		goType:       methodType,
 
 		ins:        []baseInput{},
 		inFields:   map[string]referToInput{},

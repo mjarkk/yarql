@@ -18,6 +18,7 @@ type Node interface {
 	ResolveId() (uint, graphql.AttrIsID)
 }
 
+// Todo respresents a todo entry
 type Todo struct {
 	ID    uint `gq:"-"` // ignored because of (Todo).ResolveId()
 	Title string

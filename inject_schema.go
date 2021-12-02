@@ -152,8 +152,8 @@ func (s *Schema) getAllQLTypes() []qlType {
 		)
 
 		idx := 0
-		for _, type_ := range s.types {
-			obj, _ := s.objToQLType(type_)
+		for _, qlType := range s.types {
+			obj, _ := s.objToQLType(qlType)
 			s.graphqlTypesList[idx] = *obj
 			idx++
 		}
@@ -170,8 +170,8 @@ func (s *Schema) getAllQLTypes() []qlType {
 			s.graphqlTypesList[idx] = scalar
 			idx++
 		}
-		for _, interface_ := range s.interfaces {
-			obj, _ := s.objToQLType(interface_)
+		for _, qlInterface := range s.interfaces {
+			obj, _ := s.objToQLType(qlInterface)
 			s.graphqlTypesList[idx] = *obj
 			idx++
 		}
@@ -187,25 +187,25 @@ func (s *Schema) getTypeByName(name string) *qlType {
 		// Build up s.graphqlTypesMap
 		s.graphqlTypesMap = map[string]qlType{}
 		all := s.getAllQLTypes()
-		for _, type_ := range all {
-			s.graphqlTypesMap[*type_.Name] = type_
+		for _, t := range all {
+			s.graphqlTypesMap[*t.Name] = t
 		}
 	}
 
-	type_, ok := s.graphqlTypesMap[name]
+	t, ok := s.graphqlTypesMap[name]
 	if ok {
-		return &type_
+		return &t
 	}
 	return nil
 }
 
-func wrapQLTypeInNonNull(type_ *qlType, isNonNull bool) *qlType {
+func wrapQLTypeInNonNull(t *qlType, isNonNull bool) *qlType {
 	if !isNonNull {
-		return type_
+		return t
 	}
 	return &qlType{
 		Kind:   typeKindNonNull,
-		OfType: type_,
+		OfType: t,
 	}
 }
 
@@ -322,8 +322,8 @@ func (s *Schema) objToQLType(item *obj) (res *qlType, isNonNull bool) {
 		interfaces := []qlType{}
 		if len(item.implementations) != 0 {
 			for _, implementation := range item.implementations {
-				interface_, _ := s.objToQLType(implementation)
-				interfaces = append(interfaces, *interface_)
+				interfaceType, _ := s.objToQLType(implementation)
+				interfaces = append(interfaces, *interfaceType)
 			}
 		}
 

@@ -14,29 +14,29 @@ import (
 
 // ParserCtx has all the information needed to parse a query
 type ParserCtx struct {
-	Res               []byte
-	FragmentLocations []int
-	Query             []byte
-	charNr            int
-	Errors            []error
-	target            *string
-	hasTarget         bool
-	TargetIdx         int // -1 = no matching target was found, >= 0 = res index of target
-	Hasher            hash.Hash32
-	cache             *cache.BytecodeCache
-	CacheableQueryLen int // Default = 300
+	Res                  []byte
+	FragmentLocations    []int
+	Query                []byte
+	charNr               int
+	Errors               []error
+	target               *string
+	hasTarget            bool
+	TargetIdx            int // -1 = no matching target was found, >= 0 = res index of target
+	Hasher               hash.Hash32
+	cache                *cache.BytecodeCache
+	CacheableQueryMinLen int // Default = 300
 }
 
 // NewParserCtx returns a new instance of ParserCtx
 func NewParserCtx() *ParserCtx {
 	return &ParserCtx{
-		Res:               make([]byte, 2048),
-		FragmentLocations: make([]int, 8),
-		Query:             make([]byte, 2048),
-		Errors:            []error{},
-		Hasher:            fnv.New32(),
-		cache:             &cache.BytecodeCache{},
-		CacheableQueryLen: 300,
+		Res:                  make([]byte, 2048),
+		FragmentLocations:    make([]int, 8),
+		Query:                make([]byte, 2048),
+		Errors:               []error{},
+		Hasher:               fnv.New32(),
+		cache:                &cache.BytecodeCache{},
+		CacheableQueryMinLen: 300,
 	}
 }
 
@@ -44,19 +44,19 @@ func NewParserCtx() *ParserCtx {
 // target is a optional string that can be set to define a operator target
 func (ctx *ParserCtx) ParseQueryToBytecode(target *string) {
 	*ctx = ParserCtx{
-		Res:               ctx.Res[:0],
-		FragmentLocations: ctx.FragmentLocations[:0],
-		Query:             ctx.Query,
-		Errors:            ctx.Errors[:0],
-		target:            target,
-		hasTarget:         target != nil && len(*target) > 0,
-		TargetIdx:         -1,
-		Hasher:            ctx.Hasher,
-		cache:             ctx.cache,
-		CacheableQueryLen: ctx.CacheableQueryLen,
+		Res:                  ctx.Res[:0],
+		FragmentLocations:    ctx.FragmentLocations[:0],
+		Query:                ctx.Query,
+		Errors:               ctx.Errors[:0],
+		target:               target,
+		hasTarget:            target != nil && len(*target) > 0,
+		TargetIdx:            -1,
+		Hasher:               ctx.Hasher,
+		cache:                ctx.cache,
+		CacheableQueryMinLen: ctx.CacheableQueryMinLen,
 	}
 
-	cacheableQuery := len(ctx.Query) > ctx.CacheableQueryLen
+	cacheableQuery := len(ctx.Query) > ctx.CacheableQueryMinLen
 	if cacheableQuery {
 		res, fragmentLocations, targetIdx := ctx.cache.GetEntry(ctx.Query, target)
 		if res != nil {

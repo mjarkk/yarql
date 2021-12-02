@@ -6,6 +6,9 @@ import (
 	"github.com/mjarkk/go-graphql/helpers"
 )
 
+// BytecodeCache contains the bytecode cache
+// The map index is the length of the query
+// The value is a slice with a list of queries
 type BytecodeCache map[int][]cacheEntry
 
 type cacheEntry struct {
@@ -32,6 +35,7 @@ func (c BytecodeCache) GetEntry(query []byte, target *string) ([]byte, []int, in
 	return nil, nil, -1
 }
 
+// SetEntry sets a new entry in the cache
 func (c BytecodeCache) SetEntry(query, bytecode []byte, target *string, targetIdx int, fragmentLocation []int) {
 	if len(c) == 100 {
 		// Remove some random entries

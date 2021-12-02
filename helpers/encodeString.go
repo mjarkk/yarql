@@ -4,6 +4,7 @@ import (
 	"unicode/utf8"
 )
 
+// StringToJSON converts a string into json and writes the result into e
 // Modified copy of https://golang.org/src/encoding/json/encode.go > encodeState.stringBytes(..)
 // Copyright for function below:
 //
@@ -12,7 +13,7 @@ import (
 // license that can be found in the LICENSE file.
 //
 // IMPORTANT the full license can be found in this repo: https://github.com/golang/go
-func StringToJson(s string, e *[]byte) {
+func StringToJSON(s string, e *[]byte) {
 	const hex = "0123456789abcdef"
 
 	*e = append(*e, '"')

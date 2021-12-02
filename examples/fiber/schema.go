@@ -6,16 +6,19 @@ type QueryRoot struct{}
 // MethodRoot defines the entry for all method graphql queries
 type MethodRoot struct{}
 
+// User contains the data of a user
 type User struct {
 	ID    uint `gq:"id"`
 	Name  string
 	Email string
 }
 
+// Post contains the data of a post
 type Post struct {
 	Title string
 }
 
+// ResolveUsers resolves a list of users
 func (QueryRoot) ResolveUsers() []User {
 	return []User{
 		{ID: 1, Name: "Pieter", Email: "pietpaulesma@gmail.com"},
@@ -24,6 +27,7 @@ func (QueryRoot) ResolveUsers() []User {
 	}
 }
 
+// ResolvePosts resolves all the posts of a user
 func (u User) ResolvePosts() []Post {
 	if u.ID == 1 {
 		return []Post{

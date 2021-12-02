@@ -54,12 +54,12 @@ func validEnumType(t reflect.Type) bool {
 }
 
 // RegisterEnum registers a new enum type
-func (s *Schema) RegisterEnum(map_ interface{}) (added bool, err error) {
+func (s *Schema) RegisterEnum(enumMap interface{}) (added bool, err error) {
 	if s.parsed {
 		return false, errors.New("(*graphql.Schema).RegisterEnum() cannot be ran after (*graphql.Schema).Parse()")
 	}
 
-	enum, err := registerEnumCheck(map_)
+	enum, err := registerEnumCheck(enumMap)
 	if enum == nil || err != nil {
 		return false, err
 	}
@@ -68,11 +68,11 @@ func (s *Schema) RegisterEnum(map_ interface{}) (added bool, err error) {
 	return true, nil
 }
 
-func registerEnumCheck(map_ interface{}) (*enum, error) {
-	mapReflection := reflect.ValueOf(map_)
-	invalidTypeMsg := fmt.Errorf("RegisterEnum input must be of type map[string]CustomType(int..|uint..|string) as input, %+v given", map_)
+func registerEnumCheck(enumMap interface{}) (*enum, error) {
+	mapReflection := reflect.ValueOf(enumMap)
+	invalidTypeMsg := fmt.Errorf("RegisterEnum input must be of type map[string]CustomType(int..|uint..|string) as input, %+v given", enumMap)
 
-	if map_ == nil || mapReflection.IsZero() || mapReflection.IsNil() {
+	if enumMap == nil || mapReflection.IsZero() || mapReflection.IsNil() {
 		return nil, invalidTypeMsg
 	}
 

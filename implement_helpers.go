@@ -11,6 +11,7 @@ import (
 	"github.com/valyala/fastjson"
 )
 
+// RequestOptions are extra options / arguments for the (*Schema).HandleRequest method
 type RequestOptions struct {
 	Context     context.Context                                 // Request context can be used to verify
 	Values      map[string]interface{}                          // Passed directly to the request context
@@ -18,6 +19,7 @@ type RequestOptions struct {
 	Tracing     bool                                            // https://github.com/apollographql/apollo-tracing
 }
 
+// HandleRequest handles a http request and returns a response
 func (s *Schema) HandleRequest(
 	method string, // GET, POST, etc..
 	getQuery func(key string) string, // URL value (needs to be un-escaped before returning)
@@ -30,7 +32,7 @@ func (s *Schema) HandleRequest(
 
 	errRes := func(errorMsg string) ([]byte, []error) {
 		response := []byte(`{"data":{},"errors":[{"message":`)
-		helpers.StringToJson(errorMsg, &response)
+		helpers.StringToJSON(errorMsg, &response)
 		response = append(response, []byte(`}],"extensions":{}}`)...)
 		return response, []error{errors.New(errorMsg)}
 	}

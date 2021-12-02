@@ -57,8 +57,8 @@ func Implements(interfaceValue interface{}, typeValue interface{}) bool {
 	if !ok {
 		typesThatImplementInterf = []reflect.Type{}
 	} else {
-		for _, type_ := range typesThatImplementInterf {
-			if type_.Name() == typeName && type_.PkgPath() == typePath {
+		for _, t := range typesThatImplementInterf {
+			if t.Name() == typeName && t.PkgPath() == typePath {
 				// already registered
 				return true
 			}

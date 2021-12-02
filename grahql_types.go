@@ -74,6 +74,8 @@ func (kind __TypeKind) String() string {
 
 var _ = TypeRename(qlType{}, "__Type", true)
 
+// This type represents the graphql __Type type
+// http://spec.graphql.org/June2018/#sec-Schema-Introspection
 type qlType struct {
 	Kind        __TypeKind `json:"-"`
 	Name        *string    `json:"name"`

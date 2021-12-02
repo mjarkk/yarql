@@ -13,7 +13,7 @@ func StrPtr(v string) *string {
 	return &v
 }
 
-// StrPtr returns a nil string pointer
+// PtrToEmptyStr returns a nil string pointer
 var PtrToEmptyStr = new(string)
 
 // BoolPtr returns a pointer to a bool.

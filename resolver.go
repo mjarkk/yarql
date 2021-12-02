@@ -118,7 +118,7 @@ func (ctx *Ctx) writeByte(b byte) {
 	ctx.schema.Result = append(ctx.schema.Result, b)
 }
 
-func (ctx *Ctx) writeQouted(b []byte) {
+func (ctx *Ctx) writeQuoted(b []byte) {
 	ctx.writeByte('"')
 	ctx.write(b)
 	ctx.writeByte('"')
@@ -130,6 +130,7 @@ func (ctx *Ctx) writeNull() {
 	ctx.write(nullBytes)
 }
 
+// ResolveOptions are options for the (*Schema).Resolve method
 type ResolveOptions struct {
 	NoMeta         bool            // Returns only the data
 	Context        context.Context // Request context
@@ -140,6 +141,8 @@ type ResolveOptions struct {
 	Tracing        bool                                            // https://github.com/apollographql/apollo-tracing
 }
 
+// Resolve resolves a query and returns errors if any
+// The result json is written to (*Schema).Result
 func (s *Schema) Resolve(query []byte, opts ResolveOptions) []error {
 	if !s.parsed {
 		fmt.Println("CALL (*graphql.Schema).Parse() before resolve")
@@ -232,7 +235,7 @@ func (s *Schema) Resolve(query []byte, opts ResolveOptions) []error {
 						ctx.writeByte(',')
 					}
 					ctx.write([]byte(`{"message":`))
-					helpers.StringToJson(err.Error(), &ctx.schema.Result)
+					helpers.StringToJSON(err.Error(), &ctx.schema.Result)
 
 					errWPath, isErrWPath := err.(ErrorWPath)
 					if isErrWPath && len(errWPath.path) > 0 {
@@ -537,7 +540,7 @@ func (ctx *Ctx) resolveField(typeObj *obj, dept uint8, addCommaBefore bool) (ski
 		ctx.writeByte(',')
 	}
 
-	ctx.writeQouted(alias)
+	ctx.writeQuoted(alias)
 	ctx.writeByte(':')
 
 	fieldHasSelection := ctx.seekInst() != 'e'
@@ -549,7 +552,7 @@ func (ctx *Ctx) resolveField(typeObj *obj, dept uint8, addCommaBefore bool) (ski
 			if fieldHasSelection {
 				criticalErr = ctx.err("cannot have a selection set on this field")
 			} else {
-				ctx.writeQouted(typeObj.typeNameBytes)
+				ctx.writeQuoted(typeObj.typeNameBytes)
 			}
 		} else {
 			ctx.writeNull()
@@ -601,7 +604,7 @@ func (ctx *Ctx) callQlMethod(method *objMethod, goValue *reflect.Value, parseArg
 		if in.isCtx {
 			ctx.funcInputs = append(ctx.funcInputs, ctx.ctxReflection)
 		} else {
-			ctx.funcInputs = append(ctx.funcInputs, reflect.New(*in.type_).Elem())
+			ctx.funcInputs = append(ctx.funcInputs, reflect.New(*in.goType).Elem())
 		}
 	}
 
@@ -754,10 +757,10 @@ func (ctx *Ctx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSelection 
 		if typeObj.isID && typeObj.dataValueType != reflect.String {
 			// Graphql ID fields are always strings
 			ctx.writeByte('"')
-			ctx.valueToJson(goValue, typeObj.dataValueType)
+			ctx.valueToJSON(goValue, typeObj.dataValueType)
 			ctx.writeByte('"')
 		} else {
-			ctx.valueToJson(goValue, typeObj.dataValueType)
+			ctx.valueToJSON(goValue, typeObj.dataValueType)
 		}
 	case valueTypePtr:
 		if goValue.IsNil() {
@@ -813,7 +816,7 @@ func (ctx *Ctx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSelection 
 			underlayingValue := goValue.Int()
 			for _, entry := range enum.entries {
 				if entry.value.Int() == underlayingValue {
-					ctx.writeQouted(entry.keyBytes)
+					ctx.writeQuoted(entry.keyBytes)
 					return false
 				}
 			}
@@ -821,7 +824,7 @@ func (ctx *Ctx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSelection 
 			underlayingValue := goValue.Uint()
 			for _, entry := range enum.entries {
 				if entry.value.Uint() == underlayingValue {
-					ctx.writeQouted(entry.keyBytes)
+					ctx.writeQuoted(entry.keyBytes)
 					return false
 				}
 			}
@@ -829,7 +832,7 @@ func (ctx *Ctx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSelection 
 			underlayingValue := goValue.String()
 			for _, entry := range enum.entries {
 				if entry.value.String() == underlayingValue {
-					ctx.writeQouted(entry.keyBytes)
+					ctx.writeQuoted(entry.keyBytes)
 					return false
 				}
 			}
@@ -1046,7 +1049,7 @@ func (ctx *Ctx) bindExternalVariableValue(goValue *reflect.Value, valueStructure
 
 func (ctx *Ctx) bindJSONToValue(goValue *reflect.Value, valueStructure *input, jsonData *fastjson.Value) (valueSet bool, criticalErr bool) {
 	var isPtr bool
-	isPtr, valueSet, criticalErr = ctx.checkInputIsPtr(goValue, valueStructure, func(goValue *reflect.Value, input *input) (valueSet bool, crticalErr bool) {
+	isPtr, valueSet, criticalErr = ctx.checkInputIsPtr(goValue, valueStructure, func(goValue *reflect.Value, input *input) (valueSet bool, criticalErr bool) {
 		return ctx.bindJSONToValue(goValue, input, jsonData)
 	})
 	if isPtr {
@@ -1353,7 +1356,7 @@ func (ctx *Ctx) assignStringToValue(goValue *reflect.Value, valueStructure *inpu
 	return false
 }
 
-func (ctx *Ctx) checkInputIsPtr(goValue *reflect.Value, input *input, whenPtr func(goValue *reflect.Value, input *input) (valueSet bool, crticalErr bool)) (isPtr bool, valueSet bool, criticalErr bool) {
+func (ctx *Ctx) checkInputIsPtr(goValue *reflect.Value, input *input, whenPtr func(goValue *reflect.Value, input *input) (valueSet bool, criticalErr bool)) (isPtr bool, valueSet bool, criticalErr bool) {
 	if input.kind != reflect.Ptr || input.isFile {
 		return false, false, false
 	}
@@ -1375,7 +1378,7 @@ func (ctx *Ctx) bindInputToGoValue(goValue *reflect.Value, valueStructure *input
 	// TODO convert to go value kind to graphql value kind in errors
 
 	var isPtr bool
-	isPtr, valueSet, criticalErr = ctx.checkInputIsPtr(goValue, valueStructure, func(goValue *reflect.Value, input *input) (valueSet bool, crticalErr bool) {
+	isPtr, valueSet, criticalErr = ctx.checkInputIsPtr(goValue, valueStructure, func(goValue *reflect.Value, input *input) (valueSet bool, criticalErr bool) {
 		if ctx.query.Res[ctx.charNr+1] == bytecode.ValueNull {
 			// keep goValue at it's default
 			ctx.skipInst(6)
@@ -1630,10 +1633,10 @@ func (ctx *Ctx) walkInputObject(onValueOfKey func(key []byte) bool) bool {
 	}
 }
 
-func (ctx *Ctx) valueToJson(in reflect.Value, kind reflect.Kind) {
+func (ctx *Ctx) valueToJSON(in reflect.Value, kind reflect.Kind) {
 	switch kind {
 	case reflect.String:
-		helpers.StringToJson(in.String(), &ctx.schema.Result)
+		helpers.StringToJSON(in.String(), &ctx.schema.Result)
 	case reflect.Bool:
 		if in.Bool() {
 			ctx.write([]byte("true"))
@@ -1645,15 +1648,15 @@ func (ctx *Ctx) valueToJson(in reflect.Value, kind reflect.Kind) {
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		ctx.schema.Result = strconv.AppendUint(ctx.schema.Result, in.Uint(), 10)
 	case reflect.Float32:
-		helpers.FloatToJson(32, in.Float(), &ctx.schema.Result)
+		helpers.FloatToJSON(32, in.Float(), &ctx.schema.Result)
 	case reflect.Float64:
-		helpers.FloatToJson(64, in.Float(), &ctx.schema.Result)
+		helpers.FloatToJSON(64, in.Float(), &ctx.schema.Result)
 	case reflect.Ptr:
 		if in.IsNil() {
 			ctx.writeNull()
 		} else {
 			element := in.Elem()
-			ctx.valueToJson(element, element.Kind())
+			ctx.valueToJSON(element, element.Kind())
 		}
 	default:
 		ctx.writeNull()

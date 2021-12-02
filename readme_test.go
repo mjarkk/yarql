@@ -14,7 +14,7 @@ type QueryRoot struct{}
 
 // Post defines a post someone made
 type Post struct {
-	Id    uint   `gq:",ID"`
+	ID    uint   `gq:"id,ID"`
 	Title string `gq:"name"`
 }
 

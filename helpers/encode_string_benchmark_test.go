@@ -10,9 +10,9 @@ func BenchmarkEncodeString(b *testing.B) {
 	out := []byte{}
 
 	for i := 0; i < b.N; i++ {
-		StringToJson(inputString1, &out)
-		StringToJson(inputString2, &out)
-		StringToJson(inputString3, &out)
-		StringToJson(inputString4, &out)
+		StringToJSON(inputString1, &out)
+		StringToJSON(inputString2, &out)
+		StringToJSON(inputString3, &out)
+		StringToJSON(inputString4, &out)
 	}
 }

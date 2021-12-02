@@ -1277,22 +1277,22 @@ func TestBytecodeResolveDirective(t *testing.T) {
 }
 
 func TestValueToJson(t *testing.T) {
-	string_ := string(`a"b`)
+	stringValue := string(`a"b`)
 	boolTrue := bool(true)
 	boolFalse := bool(false)
-	int_ := int(1)
-	int8_ := int8(2)
-	int16_ := int16(3)
-	int32_ := int32(4)
-	int64_ := int64(5)
-	uint_ := uint(6)
-	uint8_ := uint8(7)
-	uint16_ := uint16(8)
-	uint32_ := uint32(9)
-	uint64_ := uint64(10)
-	uintptr_ := uintptr(11)
-	float32_ := float32(12)
-	float64_ := float64(13)
+	intValue := int(1)
+	int8Value := int8(2)
+	int16Value := int16(3)
+	int32Value := int32(4)
+	int64Value := int64(5)
+	uintValue := uint(6)
+	uint8Value := uint8(7)
+	uint16Value := uint16(8)
+	uint32Value := uint32(9)
+	uint64Value := uint64(10)
+	uintptrValue := uintptr(11)
+	float32Value := float32(12)
+	float64Value := float64(13)
 	float64WExponent := 100e-100
 
 	var stringPtr *string
@@ -1315,40 +1315,40 @@ func TestValueToJson(t *testing.T) {
 		value  interface{}
 		expect string
 	}{
-		{string_, `"a\"b"`},
+		{stringValue, `"a\"b"`},
 		{boolTrue, "true"},
 		{boolFalse, "false"},
-		{int_, "1"},
-		{int8_, "2"},
-		{int16_, "3"},
-		{int32_, "4"},
-		{int64_, "5"},
-		{uint_, "6"},
-		{uint8_, "7"},
-		{uint16_, "8"},
-		{uint32_, "9"},
-		{uint64_, "10"},
-		{uintptr_, "null"}, // We do not support this datavalue
-		{float32_, "12"},
-		{float64_, "13"},
+		{intValue, "1"},
+		{int8Value, "2"},
+		{int16Value, "3"},
+		{int32Value, "4"},
+		{int64Value, "5"},
+		{uintValue, "6"},
+		{uint8Value, "7"},
+		{uint16Value, "8"},
+		{uint32Value, "9"},
+		{uint64Value, "10"},
+		{uintptrValue, "null"}, // We do not support this datavalue
+		{float32Value, "12"},
+		{float64Value, "13"},
 		{float64WExponent, "1e-98"},
 
-		{&string_, `"a\"b"`},
+		{&stringValue, `"a\"b"`},
 		{&boolTrue, "true"},
 		{&boolFalse, "false"},
-		{&int_, "1"},
-		{&int8_, "2"},
-		{&int16_, "3"},
-		{&int32_, "4"},
-		{&int64_, "5"},
-		{&uint_, "6"},
-		{&uint8_, "7"},
-		{&uint16_, "8"},
-		{&uint32_, "9"},
-		{&uint64_, "10"},
-		{&uintptr_, "null"}, // We do not support this datavalue
-		{&float32_, "12"},
-		{&float64_, "13"},
+		{&intValue, "1"},
+		{&int8Value, "2"},
+		{&int16Value, "3"},
+		{&int32Value, "4"},
+		{&int64Value, "5"},
+		{&uintValue, "6"},
+		{&uint8Value, "7"},
+		{&uint16Value, "8"},
+		{&uint32Value, "9"},
+		{&uint64Value, "10"},
+		{&uintptrValue, "null"}, // We do not support this datavalue
+		{&float32Value, "12"},
+		{&float64Value, "13"},
 
 		{stringPtr, `null`},
 		{boolPtr, "null"},
@@ -1371,7 +1371,7 @@ func TestValueToJson(t *testing.T) {
 	for _, option := range options {
 		c := &Ctx{schema: &Schema{Result: []byte{}}}
 		v := reflect.ValueOf(option.value)
-		c.valueToJson(v, v.Kind())
+		c.valueToJSON(v, v.Kind())
 		a.Equal(t, option.expect, string(c.schema.Result))
 	}
 }
@@ -1766,7 +1766,7 @@ func TestBytecodeResolveInterface(t *testing.T) {
 			`{"foo":"this is baz","bar":"This is baz"}`,
 		},
 		{
-			"struct that implmenets interface but is not registered",
+			"struct that implements interface but is not registered",
 			NotRegisteredInterfaceType{},
 			`null`,
 		},
@@ -1895,7 +1895,8 @@ func TestBytecodeResolveQueryCache(t *testing.T) {
 	}, M{}, nil)
 	a.NoError(t, err)
 
-	s.SetCacheRules(0)
+	cacheQueryFromLen := 0
+	s.SetCacheRules(&cacheQueryFromLen)
 
 	for i := 0; i < 20; i++ {
 		for padding := 0; padding < 100; padding++ {
@@ -1912,14 +1913,14 @@ func TestBytecodeResolveQueryCache(t *testing.T) {
 }
 
 type TestBytecodeResolveIDData struct {
-	DirectId int `gq:",id"`
-	MethodId func() (int, AttrIsID)
+	DirectID int                    `gq:"directId,id"`
+	MethodID func() (int, AttrIsID) `gq:"methodId"`
 }
 
 func TestBytecodeResolveID(t *testing.T) {
 	schema := TestBytecodeResolveIDData{
-		DirectId: 2,
-		MethodId: func() (int, AttrIsID) {
+		DirectID: 2,
+		MethodID: func() (int, AttrIsID) {
 			return 3, 0
 		},
 	}

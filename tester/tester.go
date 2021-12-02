@@ -8,11 +8,15 @@ import (
 	"github.com/mjarkk/go-graphql"
 )
 
+// Type contains a subset of fields from the graphql __Type type
+// http://spec.graphql.org/June2018/#sec-Schema-Introspection
 type Type struct {
 	Kind   string  `json:"kind"`
 	Fields []Field `json:"fields"`
 }
 
+// Field contains a subset of fields from the graphql __Field type
+// http://spec.graphql.org/June2018/#sec-Schema-Introspection
 type Field struct {
 	Name string `json:"name"`
 }
@@ -20,7 +24,7 @@ type Field struct {
 // GetTypeByName returns a schema type based on it's typename
 func GetTypeByName(s *graphql.Schema, typename string) *Type {
 	vars := map[string]string{"typename": typename}
-	varsJson, _ := json.Marshal(vars)
+	varsJSON, _ := json.Marshal(vars)
 
 	query := `query ($typename: String) {
 		__type(name: $typename) {
@@ -32,7 +36,7 @@ func GetTypeByName(s *graphql.Schema, typename string) *Type {
 	}`
 	errs := s.Resolve([]byte(query), graphql.ResolveOptions{
 		NoMeta:    true,
-		Variables: string(varsJson),
+		Variables: string(varsJSON),
 	})
 	if len(errs) != 0 {
 		return nil
@@ -51,7 +55,7 @@ func GetTypeByName(s *graphql.Schema, typename string) *Type {
 	return res.Type
 }
 
-// HasType returns true if the typename exsists on the schema
+// HasType returns true if the typename exists on the schema
 func HasType(s *graphql.Schema, typename string) bool {
 	return GetTypeByName(s, typename) != nil
 }
@@ -70,7 +74,7 @@ var (
 	errTypeNotFound = errors.New("type not found")
 )
 
-// HasFields checks weather the type has the spesified fields
+// HasFields checks weather the type has the specified fields
 func HasFields(s *graphql.Schema, typename string, fields []string) error {
 	qlType := GetTypeByName(s, typename)
 	if qlType == nil {
@@ -97,7 +101,7 @@ func HasFields(s *graphql.Schema, typename string, fields []string) error {
 	return nil
 }
 
-// HasFields checks weather the type only has the spesified fields and no more
+// OnlyHasFields checks weather the type only has the specified fields and no more
 func OnlyHasFields(s *graphql.Schema, typename string, fields []string) error {
 	qlType := GetTypeByName(s, typename)
 	if qlType == nil {
