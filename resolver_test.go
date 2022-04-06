@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	a "github.com/mjarkk/go-graphql/assert"
-	"github.com/mjarkk/go-graphql/helpers"
+	a "github.com/mjarkk/yarql/assert"
+	"github.com/mjarkk/yarql/helpers"
 )
 
 func bytecodeParse(t *testing.T, s *Schema, query string, queries interface{}, methods interface{}, opts ...ResolveOptions) (string, []error) {

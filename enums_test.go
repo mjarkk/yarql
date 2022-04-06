@@ -3,7 +3,7 @@ package graphql
 import (
 	"testing"
 
-	a "github.com/mjarkk/go-graphql/assert"
+	a "github.com/mjarkk/yarql/assert"
 )
 
 func TestRegisterEnum(t *testing.T) {

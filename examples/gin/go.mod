@@ -1,4 +1,4 @@
-module github.com/mjarkk/go-graphql-gin-example
+module github.com/mjarkk/yarql-gin-example
 
 go 1.16
 
@@ -16,7 +16,7 @@ require (
 	golang.org/x/sys v0.0.0-20210603125802-9665404d3644 // indirect
 	golang.org/x/text v0.3.6 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	github.com/mjarkk/go-graphql v0.0.0-20210604095247-1a621d53c91c // indirect
+	github.com/mjarkk/yarql v0.0.0-20210604095247-1a621d53c91c // indirect
 )
 
-replace github.com/mjarkk/go-graphql => ../../
+replace github.com/mjarkk/yarql => ../../

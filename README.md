@@ -1,6 +1,8 @@
-# Graphql library for GoLang
+![Banner](https://github.com/mjarkk/yarql/blob/main/banner.png?raw=true)
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/mjarkk/go-graphql.svg)](https://pkg.go.dev/github.com/mjarkk/go-graphql) [![Go Report Card](https://goreportcard.com/badge/github.com/mjarkk/go-graphql)](https://goreportcard.com/report/github.com/mjarkk/go-graphql) [![Coverage Status](https://coveralls.io/repos/github/mjarkk/go-graphql/badge.svg?branch=main)](https://coveralls.io/github/mjarkk/go-graphql?branch=main)
+[![Go Reference](https://pkg.go.dev/badge/github.com/mjarkk/yarql.svg)](https://pkg.go.dev/github.com/mjarkk/yarql) [![Go Report Card](https://goreportcard.com/badge/github.com/mjarkk/yarql)](https://goreportcard.com/report/github.com/mjarkk/yarql) [![Coverage Status](https://coveralls.io/repos/github/mjarkk/go-graphql/badge.svg?branch=main)](https://coveralls.io/github/mjarkk/go-graphql?branch=main)
+
+# YarQL, A Graphql library for GoLang
 
 Just a different approach to making graphql servers in Go
 
@@ -11,20 +13,21 @@ Just a different approach to making graphql servers in Go
 - Build on top of the [graphql spec 2021](https://spec.graphql.org/October2021/)
 - No code generators
 - [Only 1 dependency](go.mod)
-- Easy to implement in many web servers, see the [gin](https://github.com/mjarkk/go-graphql/blob/main/examples/gin/main.go) and [fiber](https://github.com/mjarkk/go-graphql/blob/main/examples/fiber/main.go) examples
+- Easy to implement in many web servers, see the [gin](https://github.com/mjarkk/yarql/blob/main/examples/gin/main.go) and [fiber](https://github.com/mjarkk/yarql/blob/main/examples/fiber/main.go) examples
 - [File upload support](#file-upload)
 - Supports [Apollo tracing](https://github.com/apollographql/apollo-tracing)
+- [Fast](#Performance)
 
 ## Example
 
-See the [/examples](https://github.com/mjarkk/go-graphql/tree/main/examples) folder for more examples
+See the [/examples](https://github.com/mjarkk/yarql/tree/main/examples) folder for more examples
 
 ```go
 package main
 
 import (
     "log"
-    "github.com/mjarkk/go-graphql"
+    "github.com/mjarkk/yarql"
 )
 
 type Post struct {
@@ -365,7 +368,7 @@ In your request add a form file with the field name: `form_file_field_name`
 
 ## Testing
 
-There is a [pkg.go.dev mjarkk/go-graphql/tester](https://pkg.go.dev/github.com/mjarkk/go-graphql/tester) package available with handy tools for testing the schema
+There is a [pkg.go.dev mjarkk/go-graphql/tester](https://pkg.go.dev/github.com/mjarkk/yarql/tester) package available with handy tools for testing the schema
 
 ## Performance
 

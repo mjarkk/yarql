@@ -5,7 +5,7 @@ import (
 	"mime/multipart"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/mjarkk/go-graphql"
+	graphql "github.com/mjarkk/yarql"
 )
 
 func main() {

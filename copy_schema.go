@@ -3,8 +3,8 @@ package graphql
 import (
 	"reflect"
 
-	"github.com/mjarkk/go-graphql/bytecode"
-	"github.com/mjarkk/go-graphql/helpers"
+	"github.com/mjarkk/yarql/bytecode"
+	"github.com/mjarkk/yarql/helpers"
 	"github.com/valyala/fastjson"
 )
 

@@ -7,7 +7,7 @@ import (
 	"mime/multipart"
 	"strings"
 
-	"github.com/mjarkk/go-graphql/helpers"
+	"github.com/mjarkk/yarql/helpers"
 	"github.com/valyala/fastjson"
 )
 

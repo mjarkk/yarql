@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/mjarkk/go-graphql"
+	graphql "github.com/mjarkk/yarql"
 )
 
 // QueryRoot defines the entry point for all graphql queries

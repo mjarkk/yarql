@@ -3,8 +3,8 @@ package tester
 import (
 	"testing"
 
-	"github.com/mjarkk/go-graphql"
-	"github.com/mjarkk/go-graphql/assert"
+	graphql "github.com/mjarkk/yarql"
+	"github.com/mjarkk/yarql/assert"
 )
 
 type TesterQuerySchema struct {

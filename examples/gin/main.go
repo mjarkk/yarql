@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mjarkk/go-graphql"
+	graphql "github.com/mjarkk/yarql"
 )
 
 func main() {

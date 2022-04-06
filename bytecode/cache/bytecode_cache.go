@@ -3,7 +3,7 @@ package cache
 import (
 	"bytes"
 
-	"github.com/mjarkk/go-graphql/helpers"
+	"github.com/mjarkk/yarql/helpers"
 )
 
 // BytecodeCache contains the bytecode cache

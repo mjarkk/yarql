@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/mjarkk/go-graphql"
+	graphql "github.com/mjarkk/yarql"
 )
 
 // Type contains a subset of fields from the graphql __Type type

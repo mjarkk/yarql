@@ -14,7 +14,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/mjarkk/go-graphql/assert/difflib"
+	"github.com/mjarkk/yarql/assert/difflib"
 )
 
 // TestingT is an interface wrapper around *testing.T

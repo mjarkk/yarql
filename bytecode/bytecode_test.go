@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	a "github.com/mjarkk/go-graphql/assert"
+	a "github.com/mjarkk/yarql/assert"
 )
 
 func parseQuery(query string) ([]byte, []error) {

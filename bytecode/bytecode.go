@@ -9,7 +9,7 @@ import (
 	"unicode/utf8"
 	"unsafe"
 
-	"github.com/mjarkk/go-graphql/bytecode/cache"
+	"github.com/mjarkk/yarql/bytecode/cache"
 )
 
 // ParserCtx has all the information needed to parse a query

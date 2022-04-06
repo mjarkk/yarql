@@ -1,7 +1,7 @@
 package graphql
 
 import (
-	h "github.com/mjarkk/go-graphql/helpers"
+	h "github.com/mjarkk/yarql/helpers"
 )
 
 //
@@ -221,7 +221,7 @@ var (
 		Kind:           typeKindScalar,
 		Name:           h.StrPtr("File"),
 		Description:    h.StrPtr("The File scalar type references to a multipart file, often used to upload files to the server. Expects a string with the form file field name"),
-		SpecifiedByURL: h.StrPtr("https://github.com/mjarkk/go-graphql#file-upload"),
+		SpecifiedByURL: h.StrPtr("https://github.com/mjarkk/yarql#file-upload"),
 	}
 	scalarTime = qlType{
 		Kind:           typeKindScalar,
