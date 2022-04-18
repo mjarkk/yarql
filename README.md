@@ -61,14 +61,14 @@ func main() {
 		log.Fatal(err)
 	}
 
-	errs := s.Resolve(`
+	errs := s.Resolve([]byte(`
 		{
 			posts {
 				id
 				name
 			}
 		}
-	`, "")
+	`), yarql.ResolveOptions{})
 	for _, err := range errs {
 		log.Fatal(err)
 	}
