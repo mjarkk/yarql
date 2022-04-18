@@ -5,26 +5,26 @@ import (
 	"mime/multipart"
 
 	"github.com/gofiber/fiber/v2"
-	graphql "github.com/mjarkk/yarql"
+	yarql "github.com/mjarkk/yarql"
 )
 
 func main() {
 	app := fiber.New()
 
-	graphqlSchema := graphql.NewSchema()
-	err := graphqlSchema.Parse(QueryRoot{}, MethodRoot{}, nil)
+	schema := yarql.NewSchema()
+	err := schema.Parse(QueryRoot{}, MethodRoot{}, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	app.All("/graphql", func(c *fiber.Ctx) error {
-		res, _ := graphqlSchema.HandleRequest(
+		res, _ := schema.HandleRequest(
 			c.Method(),
 			func(key string) string { return c.Query(key) },
 			func(key string) (string, error) { return c.FormValue(key), nil },
 			func() []byte { return c.Body() },
 			string(c.Request().Header.ContentType()),
-			&graphql.RequestOptions{
+			&yarql.RequestOptions{
 				GetFormFile: func(key string) (*multipart.FileHeader, error) { return c.FormFile(key) },
 				Tracing:     true,
 			},

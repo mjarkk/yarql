@@ -7,14 +7,14 @@ import (
 	"sync"
 
 	"github.com/gin-gonic/gin"
-	graphql "github.com/mjarkk/yarql"
+	"github.com/mjarkk/yarql"
 )
 
 func main() {
 	r := gin.Default()
 
-	graphqlSchema := graphql.NewSchema()
-	err := graphqlSchema.Parse(QueryRoot{}, MethodRoot{}, nil)
+	schema := yarql.NewSchema()
+	err := schema.Parse(QueryRoot{}, MethodRoot{}, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func main() {
 		lock.Lock()
 		defer lock.Unlock()
 
-		res, _ := graphqlSchema.HandleRequest(
+		res, _ := schema.HandleRequest(
 			c.Request.Method,
 			c.Query,
 			func(key string) (string, error) {
@@ -57,7 +57,7 @@ func main() {
 				return requestBody
 			},
 			c.ContentType(),
-			&graphql.RequestOptions{
+			&yarql.RequestOptions{
 				GetFormFile: func(key string) (*multipart.FileHeader, error) {
 					form, err := getForm()
 					if err != nil {

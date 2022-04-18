@@ -1,4 +1,4 @@
-package graphql
+package yarql
 
 import (
 	"bytes"
@@ -145,7 +145,7 @@ type ResolveOptions struct {
 // The result json is written to (*Schema).Result
 func (s *Schema) Resolve(query []byte, opts ResolveOptions) []error {
 	if !s.parsed {
-		fmt.Println("CALL (*graphql.Schema).Parse() before resolve")
+		fmt.Println("CALL (*yarql.Schema).Parse() before resolve")
 		return []error{errors.New("invalid setup")}
 	}
 

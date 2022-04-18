@@ -1,4 +1,4 @@
-package graphql
+package yarql
 
 import (
 	h "github.com/mjarkk/yarql/helpers"

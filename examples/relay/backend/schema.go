@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	graphql "github.com/mjarkk/yarql"
+	"github.com/mjarkk/yarql"
 )
 
 // QueryRoot defines the entry point for all graphql queries
@@ -15,7 +15,7 @@ type MethodRoot struct{}
 // Node defines the required relay Node interface
 //   ref: https://relay.dev/docs/guides/graphql-server-specification/
 type Node interface {
-	ResolveId() (uint, graphql.AttrIsID)
+	ResolveId() (uint, yarql.AttrIsID)
 }
 
 // Todo respresents a todo entry
@@ -25,10 +25,10 @@ type Todo struct {
 	Done  bool
 }
 
-var _ = graphql.Implements((*Node)(nil), Todo{})
+var _ = yarql.Implements((*Node)(nil), Todo{})
 
 // ResolveId implements the Node interface
-func (u Todo) ResolveId() (uint, graphql.AttrIsID) {
+func (u Todo) ResolveId() (uint, yarql.AttrIsID) {
 	return u.ID, 0
 }
 

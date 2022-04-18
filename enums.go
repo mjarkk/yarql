@@ -1,4 +1,4 @@
-package graphql
+package yarql
 
 import (
 	"errors"
@@ -56,7 +56,7 @@ func validEnumType(t reflect.Type) bool {
 // RegisterEnum registers a new enum type
 func (s *Schema) RegisterEnum(enumMap interface{}) (added bool, err error) {
 	if s.parsed {
-		return false, errors.New("(*graphql.Schema).RegisterEnum() cannot be ran after (*graphql.Schema).Parse()")
+		return false, errors.New("(*yarql.Schema).RegisterEnum() cannot be ran after (*yarql.Schema).Parse()")
 	}
 
 	enum, err := registerEnumCheck(enumMap)

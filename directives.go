@@ -1,4 +1,4 @@
-package graphql
+package yarql
 
 import (
 	"errors"
@@ -77,7 +77,7 @@ type DirectiveModifier struct {
 // RegisterDirective registers a new directive
 func (s *Schema) RegisterDirective(directive Directive) error {
 	if s.parsed {
-		return errors.New("(*graphql.Schema).RegisterDirective() cannot be ran after (*graphql.Schema).Parse()")
+		return errors.New("(*yarql.Schema).RegisterDirective() cannot be ran after (*yarql.Schema).Parse()")
 	}
 
 	err := checkDirective(&directive)

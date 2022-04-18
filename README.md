@@ -1,6 +1,8 @@
 ![Banner](https://github.com/mjarkk/yarql/blob/main/banner.png?raw=true)
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/mjarkk/yarql.svg)](https://pkg.go.dev/github.com/mjarkk/yarql) [![Go Report Card](https://goreportcard.com/badge/github.com/mjarkk/yarql)](https://goreportcard.com/report/github.com/mjarkk/yarql) [![Coverage Status](https://coveralls.io/repos/github/mjarkk/go-graphql/badge.svg?branch=main)](https://coveralls.io/github/mjarkk/go-graphql?branch=main)
+[![Go Reference](https://pkg.go.dev/badge/github.com/mjarkk/yarql.svg)](https://pkg.go.dev/github.com/mjarkk/yarql)
+[![Go Report Card](https://goreportcard.com/badge/github.com/mjarkk/yarql)](https://goreportcard.com/report/github.com/mjarkk/yarql)
+[![Coverage Status](https://coveralls.io/repos/github/mjarkk/go-graphql/badge.svg?branch=main)](https://coveralls.io/github/mjarkk/go-graphql?branch=main)
 
 # YarQL, A Graphql library for GoLang
 
@@ -13,14 +15,18 @@ Just a different approach to making graphql servers in Go
 - Build on top of the [graphql spec 2021](https://spec.graphql.org/October2021/)
 - No code generators
 - [Only 1 dependency](go.mod)
-- Easy to implement in many web servers, see the [gin](https://github.com/mjarkk/yarql/blob/main/examples/gin/main.go) and [fiber](https://github.com/mjarkk/yarql/blob/main/examples/fiber/main.go) examples
+- Easy to implement in many web servers, see the
+  [gin](https://github.com/mjarkk/yarql/blob/main/examples/gin/main.go) and
+  [fiber](https://github.com/mjarkk/yarql/blob/main/examples/fiber/main.go)
+  examples
 - [File upload support](#file-upload)
 - Supports [Apollo tracing](https://github.com/apollographql/apollo-tracing)
 - [Fast](#Performance)
 
 ## Example
 
-See the [/examples](https://github.com/mjarkk/yarql/tree/main/examples) folder for more examples
+See the [/examples](https://github.com/mjarkk/yarql/tree/main/examples) folder
+for more examples
 
 ```go
 package main
@@ -48,7 +54,7 @@ func (QueryRoot) ResolvePosts() []Post {
 type MethodRoot struct{}
 
 func main() {
-	s := graphql.NewSchema()
+	s := yarql.NewSchema()
 
     err := s.Parse(QueryRoot{}, MethodRoot{}, nil)
 	if err != nil {
@@ -82,7 +88,9 @@ func main() {
 
 ### Defining a field
 
-All fields names are by default changed to graphql names, for example `VeryNice` changes to `veryNice`. There is one exception to the rule when the second letter is also upper case like `FOO` will stay `FOO`
+All fields names are by default changed to graphql names, for example `VeryNice`
+changes to `veryNice`. There is one exception to the rule when the second letter
+is also upper case like `FOO` will stay `FOO`
 
 In a struct:
 
@@ -195,17 +203,19 @@ func (A) ResolveMe() (*User, error) {
 
 ### Context
 
-You can add `*graphql.Ctx` to every resolver of func field to get more information about the request or user set properties
+You can add `*yarql.Ctx` to every resolver of func field to get more information
+about the request or user set properties
 
 ```go
-func (A) ResolveMe(ctx *graphql.Ctx) User {
+func (A) ResolveMe(ctx *yarql.Ctx) User {
 	return ctx.Values["me"].(User)
 }
 ```
 
 ### Optional fields
 
-All types that might be `nil` will be optional fields, by default these fields are:
+All types that might be `nil` will be optional fields, by default these fields
+are:
 
 - Pointers
 - Arrays
@@ -214,7 +224,8 @@ All types that might be `nil` will be optional fields, by default these fields a
 
 Enums can be defined like so
 
-Side note on using enums as argument, It might return a nullish value if the user didn't provide a value
+Side note on using enums as argument, It might return a nullish value if the
+user didn't provide a value
 
 ```go
 // The enum type, everywhere where this value is used it will be converted to an enum in graphql
@@ -228,7 +239,7 @@ const (
 )
 
 func main() {
-	s := graphql.NewSchema()
+	s := yarql.NewSchema()
 
 	// The map key is the enum it's key in graphql
 	// The map value is the go value the enum key is mapped to or the other way around
@@ -247,8 +258,11 @@ func main() {
 
 Graphql interfaces can be created using go interfaces
 
-This library needs to analyze all types before you can make a query and as we cannot query all types that implement a interface you'll need to help the library with this by calling `Implements` for every implementation.
-If `Implements` is not called for a type the response value for that type when inside a interface will always be `null`
+This library needs to analyze all types before you can make a query and as we
+cannot query all types that implement a interface you'll need to help the
+library with this by calling `Implements` for every implementation. If
+`Implements` is not called for a type the response value for that type when
+inside a interface will always be `null`
 
 ```go
 type QuerySchema struct {
@@ -267,13 +281,13 @@ type BarWImpl struct{}
 
 // Implements hints this library to register BarWImpl
 // THIS MUST BE CALLED FOR EVERY TYPE THAT IMPLEMENTS InterfaceType
-var _ = graphql.Implements((*InterfaceType)(nil), BarWImpl{})
+var _ = yarql.Implements((*InterfaceType)(nil), BarWImpl{})
 
 func (BarWImpl) ResolveFoo() string { return "this is bar" }
 func (BarWImpl) ResolveBar() string { return "This is bar" }
 
 type BazWImpl struct{}
-var _ = graphql.Implements((*InterfaceType)(nil), BazWImpl{})
+var _ = yarql.Implements((*InterfaceType)(nil), BazWImpl{})
 func (BazWImpl) ResolveFoo() string { return "this is baz" }
 func (BazWImpl) ResolveBar() string { return "This is baz" }
 ```
@@ -282,11 +296,12 @@ func (BazWImpl) ResolveBar() string { return "This is baz" }
 <summary>Relay Node example</summary>
 <br>
 
-For a full relay example see [examples/relay/backend/](./examples/relay/backend/)
+For a full relay example see
+[examples/relay/backend/](./examples/relay/backend/)
 
 ```go
 type Node interface {
-	ResolveId() (uint, graphql.AttrIsID)
+	ResolveId() (uint, yarql.AttrIsID)
 }
 
 type User struct {
@@ -294,10 +309,10 @@ type User struct {
 	Name  string
 }
 
-var _ = graphql.Implements((*Node)(nil), User{})
+var _ = yarql.Implements((*Node)(nil), User{})
 
 // ResolveId implements the Node interface
-func (u User) ResolveId() (uint, graphql.AttrIsID) {
+func (u User) ResolveId() (uint, yarql.AttrIsID) {
 	return u.ID, 0
 }
 ```
@@ -308,14 +323,16 @@ func (u User) ResolveId() (uint, graphql.AttrIsID) {
 
 These directives are added by default:
 
-- `@include(if: Boolean!)` _on Fields and fragments, [spec](https://spec.graphql.org/October2021/#sec--include)_
-- `@skip(if: Boolean!)` _on Fields and fragments, [spec](https://spec.graphql.org/October2021/#sec--skip)_
+- `@include(if: Boolean!)` _on Fields and fragments,
+  [spec](https://spec.graphql.org/October2021/#sec--include)_
+- `@skip(if: Boolean!)` _on Fields and fragments,
+  [spec](https://spec.graphql.org/October2021/#sec--skip)_
 
 To add custom directives:
 
 ```go
 func main() {
-	s := graphql.NewSchema()
+	s := yarql.NewSchema()
 
 	// Also the .RegisterEnum(..) method must be called before .Parse(..)
 	s.RegisterDirective(Directive{
@@ -348,7 +365,10 @@ func main() {
 
 ### File upload
 
-_NOTE: This is NOT [graphql-multipart-request-spec](https://github.com/jaydenseric/graphql-multipart-request-spec) tough this is based on [graphql-multipart-request-spec #55](https://github.com/jaydenseric/graphql-multipart-request-spec/issues/55)_
+_NOTE: This is NOT
+[graphql-multipart-request-spec](https://github.com/jaydenseric/graphql-multipart-request-spec)
+tough this is based on
+[graphql-multipart-request-spec #55](https://github.com/jaydenseric/graphql-multipart-request-spec/issues/55)_
 
 In your go code add `*multipart.FileHeader` to a methods inputs
 
@@ -361,18 +381,21 @@ func (SomeStruct) ResolveUploadFile(args struct{ File *multipart.FileHeader }) s
 In your graphql query you can now do:
 
 ```gql
-  uploadFile(file: "form_file_field_name")
+uploadFile(file: "form_file_field_name")
 ```
 
 In your request add a form file with the field name: `form_file_field_name`
 
 ## Testing
 
-There is a [pkg.go.dev mjarkk/go-graphql/tester](https://pkg.go.dev/github.com/mjarkk/yarql/tester) package available with handy tools for testing the schema
+There is a
+[pkg.go.dev mjarkk/go-graphql/tester](https://pkg.go.dev/github.com/mjarkk/yarql/tester)
+package available with handy tools for testing the schema
 
 ## Performance
 
-Below shows a benchmark of fetching the graphql schema (query parsing + data fetching)
+Below shows a benchmark of fetching the graphql schema (query parsing + data
+fetching)
 
 _Note: This benchmark also profiles the cpu and that effects the score by a bit_
 
@@ -387,9 +410,12 @@ BenchmarkResolve-12    	   13246	     83731 ns/op	    1344 B/op	      47 allocs/
 <summary>Compared to other libraries</summary>
 <br>
 
-Injecting `resolver_benchmark_test.go > BenchmarkHelloWorldResolve` into [appleboy/golang-graphql-benchmark](https://github.com/appleboy/golang-graphql-benchmark) results in the following:
+Injecting `resolver_benchmark_test.go > BenchmarkHelloWorldResolve` into
+[appleboy/golang-graphql-benchmark](https://github.com/appleboy/golang-graphql-benchmark)
+results in the following:
 
-Take these results with a big grain of salt, i didn't use the last version of the libraries thus my result might be garbage compared to the others by now!
+Take these results with a big grain of salt, i didn't use the last version of
+the libraries thus my result might be garbage compared to the others by now!
 
 ```sh
 # go test -v -bench=Master -benchmem
@@ -409,7 +435,8 @@ BenchmarkMjarkkGraphQLGoMaster-12    	 2560764	       466.5 ns/op	      80 B/op	
 
 ## Alternatives
 
-- [graph-gophers/graphql-go](https://github.com/graph-gophers/graphql-go) :heart: The library that inspired me to make this one
+- [graph-gophers/graphql-go](https://github.com/graph-gophers/graphql-go)
+  :heart: The library that inspired me to make this one
 - [ccbrown/api-fu](https://github.com/ccbrown/api-fu)
 - [99designs/gqlgen](https://github.com/99designs/gqlgen)
 - [graphql-go/graphql](https://github.com/graphql-go/graphql)
