@@ -23,7 +23,7 @@ type Ctx struct {
 	schema                   *Schema
 	query                    bytecode.ParserCtx
 	charNr                   int
-	context                  context.Context
+	context                  *context.Context
 	path                     []byte
 	getFormFile              func(key string) (*multipart.FileHeader, error) // Get form file to support file uploading
 	operatorHasArguments     bool
@@ -102,6 +102,25 @@ func (ctx *Ctx) SetValue(key string, value interface{}) {
 	}
 }
 
+// GetContext returns the Go request context
+func (ctx *Ctx) GetContext() context.Context {
+	if ctx.context == nil {
+		return nil
+	}
+	return *ctx.context
+}
+
+// SetContext overwrites the request's Go context
+func (ctx *Ctx) SetContext(newContext context.Context) {
+	if newContext == nil {
+		ctx.context = nil
+	} else if ctx == nil {
+		ctx.context = &newContext
+	} else {
+		*ctx.context = newContext
+	}
+}
+
 // GetPath returns the graphql path to the current field json encoded
 func (ctx *Ctx) GetPath() json.RawMessage {
 	if len(ctx.path) == 0 {
@@ -156,7 +175,7 @@ func (s *Schema) Resolve(query []byte, opts ResolveOptions) []error {
 		schema:                 ctx.schema,
 		query:                  ctx.query,
 		charNr:                 0,
-		context:                opts.Context,
+		context:                nil,
 		path:                   ctx.path[:0],
 		getFormFile:            opts.GetFormFile,
 		rawVariables:           opts.Variables,
@@ -176,6 +195,9 @@ func (s *Schema) Resolve(query []byte, opts ResolveOptions) []error {
 	}
 	if opts.Tracing {
 		ctx.tracing.reset()
+	}
+	if opts.Context != nil {
+		ctx.context = &opts.Context
 	}
 	ctx.startTrace()
 
@@ -797,7 +819,7 @@ func (ctx *Ctx) resolveFieldDataValue(typeObj *obj, dept uint8, hasSubSelection 
 		}
 
 		if ctx.context != nil {
-			err := ctx.context.Err()
+			err := (*ctx.context).Err()
 			if err != nil {
 				// Context ended
 				ctx.err(err.Error())

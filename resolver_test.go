@@ -1855,7 +1855,7 @@ func TestBytecodeResolveInterfaceArrayWithFragment(t *testing.T) {
 type TestBytecodeResolveContextData struct{}
 
 func (TestBytecodeResolveContextData) ResolveFoo(ctx *Ctx) bool {
-	<-ctx.context.Done()
+	<-(*ctx.context).Done()
 	return true
 }
 

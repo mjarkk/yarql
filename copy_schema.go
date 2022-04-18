@@ -63,7 +63,7 @@ func (ctx *Ctx) copy(schema *Schema) *Ctx {
 		schema:                   schema,
 		query:                    *bytecode.NewParserCtx(),
 		charNr:                   ctx.charNr,
-		context:                  ctx.context,
+		context:                  nil,
 		path:                     []byte{},
 		getFormFile:              ctx.getFormFile,
 		operatorHasArguments:     ctx.operatorHasArguments,

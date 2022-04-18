@@ -206,9 +206,47 @@ func (A) ResolveMe() (*User, error) {
 You can add `*yarql.Ctx` to every resolver of func field to get more information
 about the request or user set properties
 
+#### Context values
+
+The context can store values defined by a key. You can add values by using the
+'SetVelue' method and obtain values using the `GetValue` method
+
 ```go
 func (A) ResolveMe(ctx *yarql.Ctx) User {
-	return ctx.Values["me"].(User)
+	ctx.SetValue("resolved_me", true)
+	return ctx.GetValue("me").(User)
+}
+```
+
+You can also provide values to the `RequestOptions`:
+
+```go
+yarql.RequestOptions{
+	Values: map[string]interface{}{
+		"key": "value",
+	},
+}
+```
+
+#### GoLang context
+
+You can also have a GoLang context attached to our context (`yarql.Ctx`) by
+providing the `RequestOptions` with a context or calling the `SetContext` method
+on our context (`yarql.Ctx`)
+
+```go
+import "context"
+
+yarql.RequestOptions{
+	Context: context.Background(),
+}
+
+func (A) ResolveUser(ctx *yarql.Ctx) User {
+	c := ctx.GetContext()
+	c = context.WithValue(c, "resolved_user", true)
+	ctx.SetContext(c)
+
+	return User{}
 }
 ```
 
